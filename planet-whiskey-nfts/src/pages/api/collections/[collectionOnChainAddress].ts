@@ -6,7 +6,7 @@ import { Program } from '@project-serum/anchor';
 import { PublicKey } from '@solana/web3.js';
 
 // Interface for the augmented collection data
-interface IAugmentedNftCollection extends Omit<INftCollection, 'mintPriceLamports' | 'itemLimit'> {
+interface IAugmentedNftCollection {
   _id: string; 
   collectionOnChainAddress: string;
   collectionMintAddress: string;
@@ -24,11 +24,11 @@ interface IAugmentedNftCollection extends Omit<INftCollection, 'mintPriceLamport
   authority?: string;
 }
 
-async function getCollectionItemsMinted(collectionPdaString: string, program: Program<any>): Promise<number | undefined> {
+async function getCollectionItemsMinted(collectionPdaString: string, program: any): Promise<number | undefined> {
   try {
     const pda = new PublicKey(collectionPdaString);
     const accountInfo = await program.account.collectionConfig.fetch(pda);
-    return accountInfo.itemsMinted.toNumber();
+    return (accountInfo as any).itemsMinted.toNumber();
   } catch (error) {
     console.error(`Error fetching on-chain itemsMinted for PDA ${collectionPdaString}:`, error);
     return undefined;

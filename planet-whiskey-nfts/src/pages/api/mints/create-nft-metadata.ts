@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Create Metaplex-compliant metadata JSON following the standard format
-    const nftMetadata = {
+    const nftMetadata: any = {
       name: nftName,
       symbol: nftSymbol,
       description: nftDescription,

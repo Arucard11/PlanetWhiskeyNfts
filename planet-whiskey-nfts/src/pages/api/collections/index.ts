@@ -5,8 +5,8 @@ import { getSolanaConnection, getSolanaProgram, adminKeypair } from '@/lib/solan
 import { Program } from '@project-serum/anchor';
 import { Connection, PublicKey } from '@solana/web3.js';
 
-// Extend INftCollection to include itemsMinted from on-chain
-interface INftCollectionWithMintedCount extends Omit<INftCollection, 'mintPriceLamports' | 'itemLimit'> {
+// Interface for collection with items minted from on-chain
+interface INftCollectionWithMintedCount {
   _id: string; // Ensure _id is part of the type if using .lean()
   collectionOnChainAddress: string;
   collectionMintAddress: string;
@@ -23,12 +23,12 @@ interface INftCollectionWithMintedCount extends Omit<INftCollection, 'mintPriceL
   itemsMintedOnChain?: number;
 }
 
-async function getCollectionItemsMinted(collectionPdaString: string, program: Program<any>) {
+async function getCollectionItemsMinted(collectionPdaString: string, program: any) {
   try {
     const pda = new PublicKey(collectionPdaString);
     const accountInfo = await program.account.collectionConfig.fetch(pda);
     // itemsMinted in CollectionConfig is u64, which Anchor maps to BN
-    return accountInfo.itemsMinted.toNumber(); 
+    return (accountInfo as any).itemsMinted.toNumber(); 
   } catch (error) {
     console.error(`Error fetching on-chain itemsMinted for PDA ${collectionPdaString}:`, error);
     return undefined; 
