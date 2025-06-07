@@ -2,7 +2,7 @@ services:
   - type: web
     name: whiskey-planet-nfts
     runtime: node
-    buildCommand: cd planet-whiskey-nfts && pnpm install && pnpm run build
+    buildCommand: cd planet-whiskey-nfts && pnpm install --no-frozen-lockfile && pnpm run build
     startCommand: cd planet-whiskey-nfts && pnpm start
     healthCheckPath: /
     envVars:

@@ -12,8 +12,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts",
-    "postinstall": "npm run build"
+    "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -21,10 +20,6 @@
     "@pinata/sdk": "^2.1.0",
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.91.0",
-    "@types/bn.js": "^5.1.6",
-    "@types/node": "^20.17.57",
-    "@types/formidable": "^3.4.5",
-    "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "bn.js": "^5.2.2",
     "dotenv": "^16.0.0",
@@ -39,6 +34,10 @@
     "postcss": "^8.4.32"
   },
   "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^20.17.57",
+    "@types/formidable": "^3.4.5",
+    "@types/bcryptjs": "^2.4.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "eslint": "^8.57.0",
