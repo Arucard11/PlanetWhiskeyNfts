@@ -52,15 +52,11 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     const [imageLoaded, setImageLoaded] = useState(false);
     const [isLoadingImage, setIsLoadingImage] = useState(true);
 
-    // Convert IPFS URI to gateway URL
-    const convertIpfsUri = (uri: string, index: number): string => {
+    // Convert IPFS URI to our proxy URL to avoid CORS issues
+    const convertIpfsUri = (uri: string): string => {
         if (!uri.startsWith('ipfs://')) return uri;
-        const gateways = [
-            'https://gateway.pinata.cloud/ipfs/',
-            'https://ipfs.io/ipfs/',
-            'https://cloudflare-ipfs.com/ipfs/'
-        ];
-        return `${gateways[index % gateways.length]}${uri.slice(7)}`;
+        const hash = uri.slice(7); // Remove 'ipfs://' prefix
+        return `/api/ipfs-proxy?hash=${hash}`;
     };
 
     const fetchImageAsBlob = async (url: string): Promise<string | null> => {
@@ -122,43 +118,30 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
                     };
                     img.src = src;
                 } else if (src.startsWith('ipfs://')) {
-                    // IPFS URL - try multiple gateways
-                    let loadedSuccessfully = false;
+                    // IPFS URL - use our proxy to avoid CORS issues
+                    const proxyUrl = convertIpfsUri(src);
+                    console.log(`[ImageWithFallback] Using IPFS proxy: ${proxyUrl}`);
                     
-                    for (let i = 0; i < 3 && !loadedSuccessfully && isMounted; i++) {
-                        const gatewayUrl = convertIpfsUri(src, i);
-                        console.log(`[ImageWithFallback] Trying IPFS gateway ${i + 1}: ${gatewayUrl}`);
-                        
-                        try {
-                            // Test if the image loads
-                            const img = new window.Image();
-                            const imagePromise = new Promise<boolean>((resolve) => {
-                                img.onload = () => resolve(true);
-                                img.onerror = () => resolve(false);
-                                img.src = gatewayUrl;
-                            });
-                            
-                            const success = await imagePromise;
-                            if (success && isMounted) {
-                                setImageSrc(gatewayUrl);
-                                setImageLoaded(true);
-                                setImageError(false);
-                                setIsLoadingImage(false);
-                                loadedSuccessfully = true;
-                                console.log(`[ImageWithFallback] Successfully loaded IPFS via gateway ${i + 1}: ${gatewayUrl}`);
-                            }
-                        } catch (error) {
-                            console.warn(`[ImageWithFallback] Gateway ${i + 1} failed:`, error);
+                    const img = new window.Image();
+                    img.onload = () => {
+                        if (isMounted) {
+                            setImageSrc(proxyUrl);
+                            setImageLoaded(true);
+                            setImageError(false);
+                            setIsLoadingImage(false);
+                            console.log(`[ImageWithFallback] Successfully loaded IPFS via proxy: ${proxyUrl}`);
                         }
-                    }
-
-                    if (!loadedSuccessfully && isMounted) {
-                        console.warn(`[ImageWithFallback] All IPFS gateways failed for: ${src}`);
-                        setImageSrc('/placeholder-image.svg');
-                        setImageError(true);
-                        setImageLoaded(true);
-                        setIsLoadingImage(false);
-                    }
+                    };
+                    img.onerror = () => {
+                        if (isMounted) {
+                            console.warn(`[ImageWithFallback] IPFS proxy failed for: ${src}`);
+                            setImageSrc('/placeholder-image.svg');
+                            setImageError(true);
+                            setImageLoaded(true);
+                            setIsLoadingImage(false);
+                        }
+                    };
+                    img.src = proxyUrl;
                 } else {
                     // Relative or other URL
                     const img = new window.Image();
@@ -282,12 +265,12 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
         }
 
         let effectiveUri = metadataUri;
-        // If it's an IPFS URI, use the configured gateway first (Pinata), with fallbacks
+        // If it's an IPFS URI, use our proxy to avoid CORS issues
         if (metadataUri.startsWith("ipfs://")) {
             const ipfsHash = metadataUri.substring("ipfs://".length);
-            // Try Pinata first (configured in next.config.js)
-            effectiveUri = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
-            console.log(`[NftCollectionCard] 🔗 Converting IPFS URI to Pinata gateway: ${effectiveUri}`);
+            // Use our IPFS proxy
+            effectiveUri = `/api/ipfs-proxy?hash=${ipfsHash}`;
+            console.log(`[NftCollectionCard] 🔗 Converting IPFS URI to proxy: ${effectiveUri}`);
         } else {
             // For non-IPFS URIs, we can still use them directly if they are https.
             if (!metadataUri.startsWith("https://")) {
@@ -297,13 +280,8 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
             console.log(`[NftCollectionCard] 🌐 Using direct HTTPS URI: ${effectiveUri}`);
         }
         
-        // Try multiple gateways if the first one fails
-        const gateways = [
-            effectiveUri, // Pinata first
-            effectiveUri.replace('gateway.pinata.cloud', 'ipfs.io'),
-            effectiveUri.replace('gateway.pinata.cloud', 'cloudflare-ipfs.com'),
-            effectiveUri.replace('gateway.pinata.cloud', 'dweb.link')
-        ];
+        // For IPFS, we only need one try since our proxy handles fallbacks
+        const gateways = [effectiveUri];
 
         let metadata: any = null;
         let lastError = null;
@@ -341,11 +319,11 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
         }
         console.log(`[NftCollectionCard] 🖼️ Found image URL in metadata: "${imageUrl}"`);
 
-        // If the image URL itself is IPFS, convert it using Pinata gateway (configured in Next.js)
+        // If the image URL itself is IPFS, convert it using our proxy
         if (imageUrl.startsWith("ipfs://")) {
              const imageIpfsHash = imageUrl.substring("ipfs://".length);
-             imageUrl = `https://gateway.pinata.cloud/ipfs/${imageIpfsHash}`;
-             console.log(`[NftCollectionCard] 🔄 Converted IPFS image URL to Pinata gateway: "${imageUrl}"`);
+             imageUrl = `/api/ipfs-proxy?hash=${imageIpfsHash}`;
+             console.log(`[NftCollectionCard] 🔄 Converted IPFS image URL to proxy: "${imageUrl}"`);
         }
         
         console.log(`[NftCollectionCard] ✅ Final image URL: "${imageUrl}"`);
