@@ -3,12 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts"
+    "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -17,13 +22,28 @@
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.91.0",
     "@types/bn.js": "^5.1.6",
+    "@types/node": "^20.17.57",
+    "@types/formidable": "^3.4.5",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
     "bn.js": "^5.2.2",
     "dotenv": "^16.0.0",
     "formidable": "^3.5.0",
-    "mongoose": "^7.0.0"
+    "iron-session": "^8.0.3",
+    "mongoose": "^7.0.0",
+    "next": "^14.2.29",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
   },
   "devDependencies": {
-    "@types/node": "^20.17.57",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.29",
+    "typescript": "^5.6.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.4"
   }

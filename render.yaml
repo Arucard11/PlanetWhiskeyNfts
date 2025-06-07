@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: whiskey-planet-nfts
+    runtime: node
+    buildCommand: cd planet-whiskey-nfts && pnpm install && pnpm run build
+    startCommand: cd planet-whiskey-nfts && pnpm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - fromGroup: whiskey-planet-secrets
+    
+envVarGroups:
+  - name: whiskey-planet-secrets
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_USERNAME  
+        sync: false
+      - key: ADMIN_DEFAULT_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: PINATA_API_KEY
+        sync: false
+      - key: PINATA_SECRET_API_KEY
+        sync: false
+      - key: ADMIN_WALLET_PRIVATE_KEY
+        sync: false
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: NEXT_PUBLIC_SOLANA_NETWORK
+        value: devnet 
