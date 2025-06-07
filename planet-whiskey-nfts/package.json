@@ -1,0 +1,30 @@
+{
+  "name": "planet-whiskey-nfts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@metaplex-foundation/mpl-token-metadata": "^2.13.0",
+    "@pinata/sdk": "^2.1.0",
+    "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "^1.91.0",
+    "@types/bn.js": "^5.1.6",
+    "bn.js": "^5.2.2",
+    "dotenv": "^16.0.0",
+    "formidable": "^3.5.0",
+    "mongoose": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.57",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.4"
+  }
+}

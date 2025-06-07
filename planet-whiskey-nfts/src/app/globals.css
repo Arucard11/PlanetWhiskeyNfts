@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital,wght@0,400;1,400&display=swap');
+@import "tailwindcss";
+
+:root {
+  --brand-background: #121212;
+  --brand-surface: #1E1E1E;
+  --brand-primary: #6A0DAD;
+  --brand-secondary: #00A8E8;
+  --brand-accent: #FFD700;
+  --brand-text-primary: #E0E0E0;
+  --brand-text-secondary: #A0A0A0;
+  --brand-border: #333333;
+  /* If you have a sans font variable in tailwind.config.js, ensure it maps here or use a direct font stack */
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(120deg, #1a1208 0%, #3e2723 60%, #2c1a0b 100%);
+  background-attachment: fixed;
+  position: relative;
+  font-family: theme('fontFamily.sans');
+  color: #f5ede3;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/images/woodgrain-dark.jpg'); /* Place a seamless dark woodgrain texture here */
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+}
+
+.glass-card {
+  @apply bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl;
+  box-shadow: 0 8px 32px 0 rgba(44, 26, 11, 0.28), 0 1.5px 8px 0 rgba(184, 134, 11, 0.12);
+  border: 1.5px solid rgba(255,255,255,0.10);
+}
+
+.luxury-heading {
+  font-family: 'DM Serif Display', serif;
+  letter-spacing: 0.01em;
+  font-weight: 700;
+  font-size: 2.2rem;
+  color: #e7cfa7;
+  text-shadow: 0 2px 8px rgba(44,26,11,0.12);
+}
+
+.gold-gradient-border {
+  border: 2.5px solid;
+  border-image: linear-gradient(90deg, #b08d57 0%, #FFD700 50%, #7c5a1a 100%);
+  border-image-slice: 1;
+}
+
+/* Example of a custom utility class we might use */
+.cool-gradient-text {
+  @apply bg-gradient-to-r bg-clip-text text-transparent;
+  --tw-gradient-from: var(--brand-primary) var(--tw-gradient-from-position);
+  --tw-gradient-to: var(--brand-secondary)  var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* Custom styles for Solana WalletMultiButton */
+.wallet-adapter-button-trigger {
+    background-color: #B8860B !important; /* brand-accent */
+    color: white !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important; /* 14px */
+    padding: 0.625rem 1.25rem !important; /* 10px 20px */
+    border-radius: 0.5rem !important; /* 8px */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease !important;
+    line-height: 1.25rem !important;
+    border: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.wallet-adapter-button-trigger:hover {
+    background-color: #A0740A !important; /* Slightly darker brand-accent */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.wallet-adapter-button-trigger:focus,
+.wallet-adapter-button-trigger:active {
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.4) !important; /* Focus ring with brand-accent color */
+}
+
+.wallet-adapter-button-trigger .wallet-adapter-button-icon img {
+    width: 1.25rem !important; /* 20px */
+    height: 1.25rem !important; /* 20px */
+}
+
+/* Styles for the dropdown menu if needed */
+.wallet-adapter-dropdown-list {
+    background-color: #F0EBE3 !important; /* brand-surface */
+    border: 1px solid #D7CCC8 !important; /* brand-border */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+.wallet-adapter-dropdown-list-item {
+    color: #3C2A21 !important; /* brand-text-primary */
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+}
+
+.wallet-adapter-dropdown-list-item:hover {
+    background-color: #E0D8CC !important; /* Slightly darker surface */
+}
+
+/* Ensure text within the button is aligned correctly if an icon is present */
+.wallet-adapter-button-trigger span {
+    vertical-align: middle;
+}
+
+.wallet-adapter-button-trigger .wallet-adapter-button-start-icon,
+.wallet-adapter-button-trigger .wallet-adapter-button-end-icon {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+} 

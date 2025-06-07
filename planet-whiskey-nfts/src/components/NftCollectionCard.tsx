@@ -1,0 +1,759 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+// import { Metaplex, walletAdapterIdentity } from '@metaplex-foundation/js'; // No longer directly using Metaplex.nfts().create()
+import { PublicKey, SystemProgram, Keypair, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
+// import * as anchor from '@coral-xyz/anchor'; // Removed
+import { Program, AnchorProvider, type Wallet, BN, type Idl, web3 } from '@coral-xyz/anchor'; // Modified: Added BN and Idl type
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
+
+// Assuming your IDL and program types are here - adjust path as necessary
+// import { Whiskeyprogram, IDL } from '@/lib/idl/solana_program'; // Old import
+import { Whiskeyprogram, IDL } from '@/lib/idl/solana_program';
+// import idl from '@/lib/idl/whiskeyprogram.json'; // REMOVED
+// import { Whiskeyprogram as WhiskeyprogramType } from '@/types/whiskeyprogram'; // REMOVED: Assuming a type file
+// import idlJson from '@/lib/idl/whiskeyprogram.json'; // Old alias import
+// import idlJson from '../lib/idl/whiskeyprogram.json'; // Use relative path // REMOVE THIS LINE
+
+// Ensure your program ID is correctly sourced, e.g., from an environment variable or a constants file
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L");
+
+// MPL_TOKEN_METADATA_PROGRAM_ID is already imported from @metaplex-foundation/mpl-token-metadata
+
+// IPFS Gateways for fallback
+const IPFS_GATEWAYS = [
+    'https://gateway.pinata.cloud/ipfs/',
+    'https://ipfs.io/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/',
+    'https://dweb.link/ipfs/'
+];
+
+// Component for handling image loading with multiple gateway fallbacks
+interface ImageWithFallbackProps {
+    src: string;
+    alt: string;
+    className?: string;
+    onLoad?: () => void;
+    onError?: () => void;
+}
+
+const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({ 
+    src, 
+    alt, 
+    className = '', 
+    onLoad, 
+    onError 
+}) => {
+    const [imageSrc, setImageSrc] = useState<string>(src);
+    const [imageError, setImageError] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [isLoadingImage, setIsLoadingImage] = useState(true);
+
+    // Convert IPFS URI to gateway URL
+    const convertIpfsUri = (uri: string, index: number): string => {
+        if (!uri.startsWith('ipfs://')) return uri;
+        const gateways = [
+            'https://gateway.pinata.cloud/ipfs/',
+            'https://ipfs.io/ipfs/',
+            'https://cloudflare-ipfs.com/ipfs/'
+        ];
+        return `${gateways[index % gateways.length]}${uri.slice(7)}`;
+    };
+
+    const fetchImageAsBlob = async (url: string): Promise<string | null> => {
+        try {
+            console.log(`[ImageWithFallback] Attempting to fetch image: ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            console.log(`[ImageWithFallback] Successfully fetched and created blob URL for: ${url}`);
+            return objectUrl;
+        } catch (error) {
+            console.warn(`[ImageWithFallback] Failed to fetch ${url}:`, error);
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+        let objectUrl: string | null = null;
+
+        const loadImage = async () => {
+            if (!src || src === '/placeholder-image.svg') {
+                if (isMounted) {
+                    setImageSrc('/placeholder-image.svg');
+                    setImageError(false);
+                    setImageLoaded(true);
+                    setIsLoadingImage(false);
+                }
+                return;
+            }
+
+            setIsLoadingImage(true);
+            setImageError(false);
+            setImageLoaded(false);
+
+            try {
+                if (src.startsWith('http://') || src.startsWith('https://')) {
+                    // Direct HTTP/HTTPS URL
+                    const img = new window.Image();
+                    img.onload = () => {
+                        if (isMounted) {
+                            setImageSrc(src);
+                            setImageLoaded(true);
+                            setImageError(false);
+                            setIsLoadingImage(false);
+                            console.log(`[ImageWithFallback] Successfully loaded direct URL: ${src}`);
+                        }
+                    };
+                    img.onerror = () => {
+                        if (isMounted) {
+                            console.warn(`[ImageWithFallback] Failed to load direct URL: ${src}`);
+                            setImageSrc('/placeholder-image.svg');
+                            setImageError(true);
+                            setImageLoaded(true);
+                            setIsLoadingImage(false);
+                        }
+                    };
+                    img.src = src;
+                } else if (src.startsWith('ipfs://')) {
+                    // IPFS URL - try multiple gateways
+                    let loadedSuccessfully = false;
+                    
+                    for (let i = 0; i < 3 && !loadedSuccessfully && isMounted; i++) {
+                        const gatewayUrl = convertIpfsUri(src, i);
+                        console.log(`[ImageWithFallback] Trying IPFS gateway ${i + 1}: ${gatewayUrl}`);
+                        
+                        try {
+                            // Test if the image loads
+                            const img = new window.Image();
+                            const imagePromise = new Promise<boolean>((resolve) => {
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                img.src = gatewayUrl;
+                            });
+                            
+                            const success = await imagePromise;
+                            if (success && isMounted) {
+                                setImageSrc(gatewayUrl);
+                                setImageLoaded(true);
+                                setImageError(false);
+                                setIsLoadingImage(false);
+                                loadedSuccessfully = true;
+                                console.log(`[ImageWithFallback] Successfully loaded IPFS via gateway ${i + 1}: ${gatewayUrl}`);
+                            }
+                        } catch (error) {
+                            console.warn(`[ImageWithFallback] Gateway ${i + 1} failed:`, error);
+                        }
+                    }
+
+                    if (!loadedSuccessfully && isMounted) {
+                        console.warn(`[ImageWithFallback] All IPFS gateways failed for: ${src}`);
+                        setImageSrc('/placeholder-image.svg');
+                        setImageError(true);
+                        setImageLoaded(true);
+                        setIsLoadingImage(false);
+                    }
+                } else {
+                    // Relative or other URL
+                    const img = new window.Image();
+                    img.onload = () => {
+                        if (isMounted) {
+                            setImageSrc(src);
+                            setImageLoaded(true);
+                            setImageError(false);
+                            setIsLoadingImage(false);
+                        }
+                    };
+                    img.onerror = () => {
+                        if (isMounted) {
+                            setImageSrc('/placeholder-image.svg');
+                            setImageError(true);
+                            setImageLoaded(true);
+                            setIsLoadingImage(false);
+                        }
+                    };
+                    img.src = src;
+                }
+            } catch (error) {
+                console.error(`[ImageWithFallback] Unexpected error loading image:`, error);
+                if (isMounted) {
+                    setImageSrc('/placeholder-image.svg');
+                    setImageError(true);
+                    setImageLoaded(true);
+                    setIsLoadingImage(false);
+                }
+            }
+        };
+
+        loadImage();
+
+        return () => {
+            isMounted = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [src]);
+
+    const handleImageLoad = () => {
+        setImageLoaded(true);
+        setIsLoadingImage(false);
+        console.log(`[ImageWithFallback] Image loaded successfully: ${imageSrc}`);
+        if (onLoad) onLoad();
+    };
+
+    const handleImageError = () => {
+        console.warn(`[ImageWithFallback] Image failed to load: ${imageSrc}`);
+        if (!imageError && imageSrc !== '/placeholder-image.svg') {
+            setImageSrc('/placeholder-image.svg');
+            setImageError(true);
+        }
+        setIsLoadingImage(false);
+        if (onError) onError();
+    };
+
+    return (
+        <div className={`relative ${className}`}>
+            <img
+                src={imageSrc}
+                alt={alt}
+                className="w-full h-full object-cover"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                style={{ 
+                    opacity: imageLoaded ? 1 : 0,
+                    transition: 'opacity 0.3s ease-in-out'
+                }}
+            />
+            {/* Show a subtle loading indicator only if still loading */}
+            {isLoadingImage && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 bg-opacity-80">
+                    <div className="animate-pulse w-8 h-8 bg-gray-300 rounded-full"></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Augmented collection data interface that the API endpoint /api/collections/:collectionOnChainAddress returns
+interface IAugmentedNftCollection {
+    _id: string;
+    collectionOnChainAddress: string; 
+    collectionMintAddress: string;    
+    name: string; // Name of the CollectionConfig PDA (used for seeds if needed)
+    symbol: string;                   
+    metadataUri: string; // Collection's own metadata URI             
+    nftBaseMetadataUri: string; // Base URI for individual NFTs      
+    mintPriceLamports: number;
+    itemLimit: number;
+    companyId: string; 
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt?: Date; 
+    itemsMintedOnChain?: number; // This is crucial, fetched live
+    authority: string; // Public key string of the collection authority (for receiving mint fees)
+    bump: number; // Bump for the CollectionConfig PDA
+}
+
+export interface NftCollectionCardProps {
+    _id: string; 
+    collectionOnChainAddress: string; 
+    name: string;                     
+    symbol: string;                   
+    metadataUri: string;              
+    mintPriceLamports: number; 
+    itemLimit: number; 
+    itemsMintedOnChain?: number; 
+    onMintSuccess?: () => void; 
+}
+
+async function getCollectionImageFromMetadata(metadataUri: string): Promise<string | undefined> {
+    try {
+        console.log(`[NftCollectionCard] ⭐ Starting image fetch for metadataUri: "${metadataUri}"`);
+        if (!metadataUri) {
+            console.warn("[NftCollectionCard] ❌ metadataUri is undefined or empty.");
+            return undefined;
+        }
+
+        let effectiveUri = metadataUri;
+        // If it's an IPFS URI, use the configured gateway first (Pinata), with fallbacks
+        if (metadataUri.startsWith("ipfs://")) {
+            const ipfsHash = metadataUri.substring("ipfs://".length);
+            // Try Pinata first (configured in next.config.js)
+            effectiveUri = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+            console.log(`[NftCollectionCard] 🔗 Converting IPFS URI to Pinata gateway: ${effectiveUri}`);
+        } else {
+            // For non-IPFS URIs, we can still use them directly if they are https.
+            if (!metadataUri.startsWith("https://")) {
+                console.warn(`[NftCollectionCard] ⚠️ Metadata URI is not IPFS and not HTTPS: "${metadataUri}". Cannot fetch.`);
+                return undefined;
+            }
+            console.log(`[NftCollectionCard] 🌐 Using direct HTTPS URI: ${effectiveUri}`);
+        }
+        
+        // Try multiple gateways if the first one fails
+        const gateways = [
+            effectiveUri, // Pinata first
+            effectiveUri.replace('gateway.pinata.cloud', 'ipfs.io'),
+            effectiveUri.replace('gateway.pinata.cloud', 'cloudflare-ipfs.com'),
+            effectiveUri.replace('gateway.pinata.cloud', 'dweb.link')
+        ];
+
+        let metadata: any = null;
+        let lastError = null;
+
+        for (const gatewayUri of gateways) {
+            try {
+                console.log(`[NftCollectionCard] 📥 Fetching metadata from: ${gatewayUri}`);
+                const response = await fetch(gatewayUri);
+                if (response.ok) {
+                    metadata = await response.json();
+                    console.log(`[NftCollectionCard] ✅ Successfully fetched metadata from: ${gatewayUri}`);
+                    break;
+                } else {
+                    console.warn(`[NftCollectionCard] ⚠️ Gateway ${gatewayUri} returned ${response.status}: ${response.statusText}`);
+                }
+            } catch (error: any) {
+                console.warn(`[NftCollectionCard] ⚠️ Gateway ${gatewayUri} failed:`, error.message);
+                lastError = error;
+                continue;
+            }
+        }
+
+        if (!metadata) {
+            console.error(`[NftCollectionCard] ❌ All gateways failed. Last error:`, lastError);
+            return undefined;
+        }
+
+        console.log("[NftCollectionCard] 📄 Fetched metadata:", metadata);
+
+        let imageUrl = metadata.image || metadata.image_url;
+        if (!imageUrl) {
+            console.warn(`[NftCollectionCard] ⚠️ 'image' or 'image_url' not found in metadata.`);
+            console.log(`[NftCollectionCard] 📝 Available metadata keys:`, Object.keys(metadata));
+            return undefined;
+        }
+        console.log(`[NftCollectionCard] 🖼️ Found image URL in metadata: "${imageUrl}"`);
+
+        // If the image URL itself is IPFS, convert it using Pinata gateway (configured in Next.js)
+        if (imageUrl.startsWith("ipfs://")) {
+             const imageIpfsHash = imageUrl.substring("ipfs://".length);
+             imageUrl = `https://gateway.pinata.cloud/ipfs/${imageIpfsHash}`;
+             console.log(`[NftCollectionCard] 🔄 Converted IPFS image URL to Pinata gateway: "${imageUrl}"`);
+        }
+        
+        console.log(`[NftCollectionCard] ✅ Final image URL: "${imageUrl}"`);
+        return imageUrl;
+    } catch (error) {
+        console.error("[NftCollectionCard] ❌ Error in getCollectionImageFromMetadata:", error);
+        return undefined;
+    }
+}
+
+const NftCollectionCard: React.FC<NftCollectionCardProps> = ({ 
+    _id, 
+    collectionOnChainAddress, 
+    name: initialName, 
+    symbol: initialSymbol,
+    metadataUri, 
+    mintPriceLamports: initialMintPriceLamports, 
+    itemLimit: initialItemLimit,
+    itemsMintedOnChain: initialItemsMintedOnChain = 0,
+    onMintSuccess
+}) => {
+    // Debug log the props received by this component
+    console.log(`[NftCollectionCard] 🎯 Component initialized for collection:`, {
+        name: initialName,
+        _id,
+        collectionOnChainAddress,
+        metadataUri,
+        mintPriceLamports: initialMintPriceLamports,
+        itemLimit: initialItemLimit,
+        itemsMintedOnChain: initialItemsMintedOnChain
+    });
+
+    const { connection } = useConnection();
+    const { publicKey, connected, signTransaction, signAllTransactions } = useWallet();
+    const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+    const [isImageLoading, setIsImageLoading] = useState(true);
+    const [isMinting, setIsMinting] = useState(false);
+    const [mintMessage, setMintMessage] = useState<string | null>(null);
+
+    const [displayItemsMinted, setDisplayItemsMinted] = useState(initialItemsMintedOnChain);
+    const [displayItemLimit, setDisplayItemLimit] = useState(initialItemLimit);
+    const [displayMintPrice, setDisplayMintPrice] = useState(initialMintPriceLamports);
+
+    // Effect for loading image only when metadataUri changes
+    useEffect(() => {
+        let isMounted = true;
+        
+        // Reset image URL and set loading state only when metadataUri changes
+        setImageUrl(undefined);
+        setIsImageLoading(true);
+        
+        if (metadataUri) {
+            console.log(`[NftCollectionCard] Loading image for collection: ${initialName}, metadataUri: ${metadataUri}`);
+            getCollectionImageFromMetadata(metadataUri).then(imgUrl => {
+                if (isMounted) {
+                    if (imgUrl) {
+                        console.log(`[NftCollectionCard] Image loaded for ${initialName}: ${imgUrl}`);
+                        setImageUrl(imgUrl);
+                    } else {
+                        console.warn(`[NftCollectionCard] No image found for ${initialName}`);
+                        setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
+                    }
+                    setIsImageLoading(false);
+                }
+            }).catch(error => {
+                if (isMounted) {
+                    console.error(`[NftCollectionCard] Error loading image for ${initialName}:`, error);
+                    setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
+                    setIsImageLoading(false);
+                }
+            });
+        } else {
+            console.warn(`[NftCollectionCard] No metadataUri provided for collection: ${initialName}`);
+            setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
+            setIsImageLoading(false);
+        }
+
+        return () => { isMounted = false; };
+    }, [metadataUri, initialName]); // Only depend on metadataUri and name
+
+    // Separate effect for updating display values without affecting image loading
+    useEffect(() => {
+        setDisplayItemsMinted(initialItemsMintedOnChain);
+        setDisplayItemLimit(initialItemLimit);
+        setDisplayMintPrice(initialMintPriceLamports);
+    }, [initialItemsMintedOnChain, initialItemLimit, initialMintPriceLamports]);
+
+    const handleMint = useCallback(async () => {
+        if (!connected || !publicKey || !signTransaction || !signAllTransactions) {
+            setMintMessage("Wallet not connected. Please connect your wallet to mint.");
+            return;
+        }
+
+        setIsMinting(true);
+        setMintMessage("Fetching latest collection details...");
+
+        let liveCollectionData: IAugmentedNftCollection;
+        try {
+            const apiResponse = await fetch(`/api/collections/${collectionOnChainAddress}`);
+            if (!apiResponse.ok) {
+                const errorData = await apiResponse.json();
+                throw new Error(errorData.message || `Failed to fetch collection details: ${apiResponse.statusText}`);
+            }
+            const responseJson = await apiResponse.json();
+            if (!responseJson.success || !responseJson.data) {
+                throw new Error(responseJson.message || "Failed to fetch valid collection data.");
+            }
+            liveCollectionData = responseJson.data;
+            
+            setDisplayItemsMinted(liveCollectionData.itemsMintedOnChain || 0);
+            setDisplayItemLimit(liveCollectionData.itemLimit);
+            setDisplayMintPrice(liveCollectionData.mintPriceLamports);
+            
+            if (!liveCollectionData.authority) { // Ensure authority is present
+                throw new Error("Collection authority not found in fetched data.");
+            }
+
+        } catch (error: any) {
+            console.error("Failed to fetch live collection data:", error);
+            setMintMessage(`Error: ${error.message}`);
+            setIsMinting(false);
+            return;
+        }
+        
+        const currentItemsMinted = liveCollectionData.itemsMintedOnChain || 0;
+        if (currentItemsMinted >= liveCollectionData.itemLimit) {
+            setMintMessage("Sold out! (checked with latest data)");
+            setIsMinting(false);
+            return;
+        }
+
+        setMintMessage("Preparing to mint with custom program...");
+
+        try {
+            setIsMinting(true);
+            setMintMessage("Preparing transaction...");
+
+            // Create a proper wallet adapter for Anchor
+            const walletAdapter = {
+                publicKey,
+                signTransaction,
+                signAllTransactions,
+            };
+
+            // Setup Anchor Provider and Program
+            const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
+
+            // Create program instance using the JSON IDL with proper type casting
+            console.log("[NftCollectionCard] Program ID before Program creation:", WHISKEY_PROGRAM_ID.toBase58());
+            const program = new Program<Whiskeyprogram>(IDL, provider);
+
+            const collectionConfigPda = new PublicKey(collectionOnChainAddress); // This is liveCollectionData.collectionOnChainAddress
+            const collectionMintAccountPk = new PublicKey(liveCollectionData.collectionMintAddress);
+            const collectionAuthorityReceiverPk = new PublicKey(liveCollectionData.authority);
+
+
+            // Prepare NFT-specific metadata
+            const mintNumber = new BN(currentItemsMinted).add(new BN(1)).toNumber();
+            const nftName = `${liveCollectionData.name} #${mintNumber}`; 
+            const nftSymbol = liveCollectionData.symbol;
+            
+            setMintMessage("Creating unique NFT metadata...");
+            
+            // Get the actual image URL from the base metadata
+            let actualImageUrl = liveCollectionData.nftBaseMetadataUri; // Default fallback
+            let baseNftDescription = `${liveCollectionData.name} - Edition #${mintNumber}. A premium whiskey NFT from our exclusive collection.`; // Default fallback
+            
+            try {
+                console.log(`[NFT_MINT] Fetching base metadata to extract image URL and description from: ${liveCollectionData.nftBaseMetadataUri}`);
+                
+                // Convert IPFS URI to gateway URL for fetching
+                const baseMetadataUrl = liveCollectionData.nftBaseMetadataUri.startsWith('ipfs://') 
+                    ? liveCollectionData.nftBaseMetadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+                    : liveCollectionData.nftBaseMetadataUri;
+                    
+                const baseMetadataResponse = await fetch(baseMetadataUrl);
+                if (baseMetadataResponse.ok) {
+                    const baseMetadata = await baseMetadataResponse.json();
+                    
+                    // Extract image URL if available
+                    if (baseMetadata.image) {
+                        actualImageUrl = baseMetadata.image;
+                        console.log(`[NFT_MINT] Successfully extracted image URL: ${actualImageUrl}`);
+                    } else {
+                        console.warn(`[NFT_MINT] No image field found in base metadata, using metadata URI as fallback`);
+                    }
+                    
+                    // Extract and use admin's description instead of hardcoded one
+                    if (baseMetadata.description) {
+                        baseNftDescription = baseMetadata.description;
+                        console.log(`[NFT_MINT] Successfully extracted admin's description: ${baseNftDescription}`);
+                    } else {
+                        console.warn(`[NFT_MINT] No description field found in base metadata, using default fallback`);
+                    }
+                } else {
+                    console.warn(`[NFT_MINT] Failed to fetch base metadata (${baseMetadataResponse.status}), using fallback values`);
+                }
+            } catch (error) {
+                console.warn(`[NFT_MINT] Error extracting data from base metadata:`, error);
+                console.log(`[NFT_MINT] Using fallback values for image and description`);
+            }
+            
+            // Format the final NFT description - append edition info if not already present
+            let finalNftDescription = baseNftDescription;
+            if (!finalNftDescription.toLowerCase().includes('#' + mintNumber.toString()) && 
+                !finalNftDescription.toLowerCase().includes('edition')) {
+                finalNftDescription = `${baseNftDescription} - Edition #${mintNumber}`;
+            } else if (!finalNftDescription.toLowerCase().includes('#' + mintNumber.toString())) {
+                // If it mentions "edition" but not the specific number, just add the number
+                finalNftDescription = `${baseNftDescription} #${mintNumber}`;
+            }
+            
+            // Create unique metadata for this NFT using the create-nft-metadata API
+            const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    nftName: nftName,
+                    nftSymbol: nftSymbol,
+                    nftDescription: finalNftDescription, // Use the properly formatted description
+                    nftImageUrl: actualImageUrl, // Now using the extracted image URL instead of metadata URI
+                    attributes: [
+                        { trait_type: "Edition", value: mintNumber.toString() },
+                        { trait_type: "Collection", value: liveCollectionData.name },
+                        { trait_type: "Type", value: "Whiskey NFT" },
+                        { trait_type: "Rarity", value: mintNumber <= 10 ? "Legendary" : mintNumber <= 50 ? "Rare" : "Common" }
+                    ],
+                    collectionName: liveCollectionData.name,
+                    collectionFamily: liveCollectionData.name,
+                    mintNumber: mintNumber
+                })
+            });
+
+            if (!metadataResponse.ok) {
+                throw new Error(`Failed to create NFT metadata: ${metadataResponse.statusText}`);
+            }
+
+            const metadataResult = await metadataResponse.json();
+            const nftUri = metadataResult.metadataUri;
+            
+            setMintMessage(`Metadata created: ${nftUri}`);
+
+
+            const nftMintKeypair = web3.Keypair.generate();
+
+            const metadataPda = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                    nftMintKeypair.publicKey.toBuffer(),
+                ],
+                MPL_TOKEN_METADATA_PROGRAM_ID
+            )[0];
+
+            const masterEditionPda = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                    nftMintKeypair.publicKey.toBuffer(),
+                    Buffer.from("edition"),
+                ],
+                MPL_TOKEN_METADATA_PROGRAM_ID
+            )[0];
+            
+            const nftTokenAccountPk = await getAssociatedTokenAddress(
+                nftMintKeypair.publicKey,
+                publicKey
+            );
+
+            setMintMessage(`Calling program. Program ID: ${WHISKEY_PROGRAM_ID.toBase58()}`);
+            
+            const tx = await program.methods
+                .mintNft(
+                    nftName, // Use the properly formatted name: "Collection Name #1"
+                    nftSymbol,
+                    nftUri,
+                )
+                .accounts({
+                    payer: walletAdapter.publicKey,
+                    collectionConfig: collectionConfigPda,
+                    collectionMintAccount: collectionMintAccountPk,
+                    nftMint: nftMintKeypair.publicKey,
+                    nftMetadataAccount: metadataPda,
+                    nftMasterEditionAccount: masterEditionPda,
+                    nftTokenAccount: nftTokenAccountPk,
+                    collectionAuthorityReceiver: collectionAuthorityReceiverPk,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+                    systemProgram: SystemProgram.programId,
+                    rent: SYSVAR_RENT_PUBKEY,
+                } as any)
+                .signers([nftMintKeypair])
+                .rpc();
+
+            setMintMessage(`Mint successful! NFT: ${nftMintKeypair.publicKey.toBase58()}. Recording purchase...`);
+            console.log("Mint successful:", nftMintKeypair.publicKey.toBase58(), "Tx:", tx);
+
+            const recordResponse = await fetch('/api/mints/record-purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    walletAddress: publicKey.toBase58(),
+                    nftMintAddress: nftMintKeypair.publicKey.toBase58(),
+                    collectionMintAddress: collectionMintAccountPk.toBase58(),
+                    transactionSignature: tx,
+                }),
+            });
+
+            if (!recordResponse.ok) {
+                const recordError = await recordResponse.json();
+                throw new Error(`Failed to record purchase: ${recordError.message || recordResponse.statusText}`);
+            }
+
+            setMintMessage("Purchase recorded. Your NFT should appear in your wallet shortly.");
+            setDisplayItemsMinted(currentItemsMinted + 1);
+            if (onMintSuccess) {
+                onMintSuccess(); 
+            }
+            setTimeout(() => setMintMessage(null), 7000);
+
+        } catch (error: any) {
+            console.error("Minting failed:", error);
+            let errorMsg = error.message;
+            if (error.logs) { // Anchor errors often have logs
+                error.logs.forEach((log: string) => console.log(log));
+                // Try to find a more specific error message from logs
+                const anchorErrorLog = error.logs.find((log: string) => log.startsWith("Program log: AnchorError"));
+                if (anchorErrorLog) {
+                    errorMsg = anchorErrorLog;
+                }
+            }
+            setMintMessage(`Minting failed: ${errorMsg}`);
+        } finally {
+            setIsMinting(false);
+        }
+    }, [
+        publicKey, connected, signTransaction, signAllTransactions, connection, 
+        collectionOnChainAddress, 
+        onMintSuccess
+    ]);
+
+    const supplyRemaining = displayItemLimit - displayItemsMinted;
+    const solPrice = displayMintPrice > 0 ? displayMintPrice / 1_000_000_000 : 0;
+
+    return (
+        <div className="max-w-sm bg-brand-surface border-2 border-brand-border rounded-3xl shadow-card-hover hover:shadow-cool transform hover:-translate-y-1 transition-all duration-300 flex flex-col h-full overflow-hidden">
+            <div className="relative w-full h-56 sm:h-64 bg-gray-100">
+                {/* Always render the ImageWithFallback, but show loading overlay if still loading */}
+                <ImageWithFallback 
+                    src={imageUrl || '/placeholder-image.svg'} 
+                    alt={`${initialName} collection image`} 
+                    className="w-full h-full rounded-t-xl"
+                    onLoad={() => {
+                        console.log(`[NftCollectionCard] Image successfully displayed for ${initialName}`);
+                        setIsImageLoading(false); // Stop showing loading spinner when image loads
+                    }}
+                    onError={() => {
+                        console.warn(`[NftCollectionCard] ImageWithFallback failed for ${initialName}`);
+                        setIsImageLoading(false); // Stop showing loading spinner even on error
+                    }}
+                />
+                {/* Show loading overlay only while actually loading and no valid image URL yet */}
+                {isImageLoading && (!imageUrl || imageUrl === '' || imageUrl === '/placeholder-image.svg') && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 backdrop-blur-sm">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-accent"></div>
+                    </div>
+                )}
+            </div>
+            <div className="p-5 flex flex-col flex-grow">
+                <h3 className="mb-3 text-2xl font-semibold tracking-tight text-brand-text-primary truncate" title={initialName}>{initialName}</h3>
+                <div className="font-sans text-sm text-brand-text-secondary space-y-1.5 mb-4">
+                    <p><span className="font-medium text-brand-text-primary">Symbol:</span> {initialSymbol}</p>
+                    <p><span className="font-medium text-brand-text-primary">Price:</span> {solPrice > 0 ? solPrice.toFixed(Math.max(2, (solPrice.toString().split('.')[1] || '').length)) : 'N/A'} SOL</p>
+                    <p><span className="font-medium text-brand-text-primary">Supply:</span> {`${displayItemsMinted} / ${displayItemLimit}`}</p>
+                    <p className={`font-medium ${supplyRemaining > 0 ? "text-brand-secondary" : "text-red-500"}`}>
+                        <span className="text-brand-text-primary">Remaining:</span> {supplyRemaining > 0 ? supplyRemaining : (displayItemLimit > 0 ? "Sold Out!" : "N/A")}
+                    </p>
+                </div>
+
+                <div className="mt-auto pt-2">
+                    <button 
+                        onClick={handleMint}
+                        disabled={isMinting || supplyRemaining <= 0 || !publicKey}
+                        className={`w-full font-sans font-semibold py-3 px-5 rounded-lg transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-md hover:shadow-lg 
+                            ${isMinting || supplyRemaining <= 0 || !publicKey 
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-brand-primary hover:bg-purple-700 text-white focus:ring-brand-primary'
+                            }`}
+                    >
+                        {isMinting ? "Processing..." : (supplyRemaining <= 0 && displayItemLimit > 0 ? "Sold Out" : "Mint NFT")}
+                    </button>
+                    {mintMessage && (
+                        <p className={`mt-3 text-xs font-sans text-center 
+                            ${mintMessage.toLowerCase().includes("failed") || mintMessage.toLowerCase().includes("error") 
+                                ? 'text-red-400'
+                                : mintMessage.toLowerCase().includes("success") || mintMessage.toLowerCase().includes("shortly")
+                                    ? 'text-green-400'
+                                    : 'text-brand-text-secondary'}`}>
+                            {mintMessage}
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NftCollectionCard;
