@@ -12,7 +12,7 @@ const helperTextClass = "text-xs font-sans text-stone-gray-500 mt-1";
 export default function ManageCollectionsPage() {
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
-  const [mintPriceSOL, setMintPriceSOL] = useState('');
+  const [mintPriceWhiskey, setMintPriceWhiskey] = useState('');
   const [itemLimit, setItemLimit] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [collectionImageFile, setCollectionImageFile] = useState<File | null>(null);
@@ -30,7 +30,7 @@ export default function ManageCollectionsPage() {
         const res = await fetch('/api/admin/companies');
         if (!res.ok) throw new Error('Failed to fetch companies');
         const data = await res.json();
-        if (data && Array.isArray(data.companies)) {
+        if (data && data.companies && Array.isArray(data.companies)) {
           setCompanies(data.companies);
           if (data.companies.length > 0) {
             setCompanyId(data.companies[0]._id);
@@ -42,7 +42,7 @@ export default function ManageCollectionsPage() {
         }
       } catch (error) {
         console.error('Error fetching companies:', error);
-        setMessage({ type: 'error', text: 'Failed to load companies for selection.' });
+                    setMessage({ type: 'error', text: 'Failed to load asset types for selection.' });
       }
     };
     fetchCompanies();
@@ -56,7 +56,7 @@ export default function ManageCollectionsPage() {
     const formData = new FormData();
     formData.append('name', name);
     formData.append('symbol', symbol);
-    formData.append('mintPriceSOL', mintPriceSOL);
+    formData.append('mintPriceWhiskey', mintPriceWhiskey);
     formData.append('itemLimit', itemLimit);
     formData.append('companyId', companyId);
 
@@ -82,7 +82,7 @@ export default function ManageCollectionsPage() {
       setMessage({ type: 'success', text: `Collection created successfully! Your NFT collection "${name}" is now ready for minting.` });
       setName('');
       setSymbol('');
-      setMintPriceSOL('');
+      setMintPriceWhiskey('');
       setItemLimit('');
       setCollectionImageFile(null);
       setCollectionDescription('');
@@ -105,12 +105,12 @@ export default function ManageCollectionsPage() {
       )}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="companyId" className={formLabelClass}>Select Company</label>
+          <label htmlFor="companyId" className={formLabelClass}>Select Asset Type</label>
           <select id="companyId" value={companyId} onChange={(e) => setCompanyId(e.target.value)} required className={formInputBaseClass}>
-            {companies.length === 0 && <option value="">Loading companies...</option>}
+            {companies.length === 0 && <option value="">Loading asset types...</option>}
             {companies.map((comp) => (<option key={comp._id} value={comp._id}>{comp.name}</option>))}
           </select>
-          <p className={helperTextClass}>Choose which company this NFT collection belongs to.</p>
+          <p className={helperTextClass}>Choose which asset type this NFT collection belongs to.</p>
         </div>
 
         <div>
@@ -133,23 +133,30 @@ export default function ManageCollectionsPage() {
 
         <div>
           <label htmlFor="nftDescription" className={formLabelClass}>Individual NFT Description</label>
-          <textarea id="nftDescription" value={nftDescription} onChange={(e) => setNftDescription(e.target.value)} rows={3} required className={formInputBaseClass} placeholder="Describe what each NFT represents (e.g., ownership of one premium whiskey barrel from Highland Reserve 2024)."></textarea>
+          <textarea id="nftDescription" value={nftDescription} onChange={(e) => setNftDescription(e.target.value)} rows={3} required className={formInputBaseClass} placeholder="Describe what each NFT represents (e.g., ownership of one premium treasury asset from Highland Reserve 2024)."></textarea>
           <p className={helperTextClass}>This description will appear on every individual NFT in your collection. It should explain what owning one NFT means.</p>
         </div>
         
         <div>
           <label htmlFor="collectionImageFile" className={formLabelClass}>Collection & NFT Image</label>
           <input type="file" id="collectionImageFile" onChange={(e) => setCollectionImageFile(e.target.files ? e.target.files[0] : null)} required className={fileInputClass} />
-          <p className={helperTextClass}>Upload one high-quality image that will represent both your collection and all individual NFTs. This should be your best product photo (e.g., whiskey bottle, barrel, or distillery image).</p>
+          <p className={helperTextClass}>Upload one high-quality image that will represent both your collection and all individual NFTs. This should be your best product photo (e.g., treasury asset, precious metals, or company image).</p>
         </div>
 
         <hr className="my-8 border-stone-gray-300" />
         <h3 className="text-2xl font-serif text-whiskey-brown-dark font-semibold mb-4">Pricing & Supply</h3>
+        
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <h4 className="text-lg font-semibold text-amber-800 mb-2">🥃 WHISKEY Token Exclusive</h4>
+          <p className="text-sm text-amber-700">
+            All NFTs are purchased exclusively with WHISKEY Tokens. This ensures authentic participation in the Planet Whiskey Treasury ecosystem.
+          </p>
+        </div>
 
         <div>
-          <label htmlFor="mintPriceSOL" className={formLabelClass}>Price Per NFT (in SOL)</label>
-          <input type="number" id="mintPriceSOL" value={mintPriceSOL} onChange={(e) => setMintPriceSOL(e.target.value)} required step="0.001" min="0.001" className={formInputBaseClass} placeholder="e.g., 1.5" />
-          <p className={helperTextClass}>How much will customers pay to mint one NFT? SOL is Solana's cryptocurrency. 1 SOL ≈ $20-200 (varies by market).</p>
+          <label htmlFor="mintPriceWhiskey" className={formLabelClass}>Price Per NFT (in WHISKEY Tokens)</label>
+          <input type="number" id="mintPriceWhiskey" value={mintPriceWhiskey} onChange={(e) => setMintPriceWhiskey(e.target.value)} required step="0.01" min="0.01" className={formInputBaseClass} placeholder="e.g., 100" />
+          <p className={helperTextClass}>How much will customers pay to mint one NFT with WHISKEY Tokens? Set this based on your token's value and the exclusivity of the collection.</p>
         </div>
 
         <div>

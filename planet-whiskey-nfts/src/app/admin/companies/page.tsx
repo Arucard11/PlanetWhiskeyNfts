@@ -29,7 +29,7 @@ export default function ManageCompaniesPage() {
         throw new Error(errorData.message || 'Failed to fetch companies');
       }
       const data = await response.json();
-      setCompanies(data);
+      setCompanies(data.companies || []);
     } catch (err: any) {
       setError(err.message);
     } finally {

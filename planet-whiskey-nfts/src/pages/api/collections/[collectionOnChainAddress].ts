@@ -15,6 +15,7 @@ interface IAugmentedNftCollection {
   metadataUri: string;
   nftBaseMetadataUri: string;
   mintPriceLamports: number;
+  mintPriceWhiskeyTokens: number;
   itemLimit: number;
   companyId: string; 
   isActive: boolean;

@@ -16,7 +16,7 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', { // Using the existing auth endpoint
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -25,10 +25,8 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Redirect to admin dashboard or the page they were trying to access
-        // For simplicity, redirecting to /admin
         router.push('/admin');
-        router.refresh(); // Important to re-trigger layout/page logic
+        router.refresh();
       } else {
         setError(data.message || 'Login failed. Please check your credentials.');
       }
@@ -40,43 +38,80 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-gray-100 p-4">
-      <div className="bg-cream p-8 rounded-lg shadow-xl w-full max-w-md border border-whiskey-brown-light">
-        <h1 className="text-3xl font-serif font-semibold mb-8 text-center text-whiskey-brown-dark">Admin Portal</h1>
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-amber-100 flex items-center justify-center p-4">
+      {/* Background pattern */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="h-full w-full" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23B45309' fill-opacity='1'%3E%3Ccircle cx='60' cy='60' r='8'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        }} />
+      </div>
+
+      <div className="relative bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-amber-200">
+        {/* Logo/Brand */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-amber-800 font-serif mb-2">NFT Treasury</h1>
+          <p className="text-amber-600 text-sm font-medium">Admin Portal</p>
+          <div className="w-16 h-1 bg-gradient-to-r from-amber-500 to-amber-600 mx-auto mt-3 rounded-full"></div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-stone-gray-700 font-sans mb-1">Username</label>
+            <label htmlFor="username" className="block text-sm font-semibold text-gray-700 mb-2">
+              Username
+            </label>
             <input
               type="text"
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="mt-1 block w-full px-4 py-2 font-sans border border-stone-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-gold-DEFAULT focus:border-amber-gold-DEFAULT sm:text-sm text-stone-gray-900 placeholder-stone-gray-400"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
               placeholder="Enter your username"
             />
           </div>
+
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-stone-gray-700 font-sans mb-1">Password</label>
+            <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+              Password
+            </label>
             <input
               type="password"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 block w-full px-4 py-2 font-sans border border-stone-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-gold-DEFAULT focus:border-amber-gold-DEFAULT sm:text-sm text-stone-gray-900 placeholder-stone-gray-400"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
               placeholder="Enter your password"
             />
           </div>
-          {error && <p className="text-red-600 text-sm text-center font-sans">{error}</p>}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-700 text-sm text-center font-medium">⚠️ {error}</p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold font-sans text-white bg-amber-gold-DEFAULT hover:bg-amber-gold-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-gold-dark disabled:opacity-70 disabled:bg-stone-gray-400 transition-colors"
+            className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Logging in...
+              </div>
+            ) : (
+              'Sign In'
+            )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-500">
+            Secure admin access for NFT Treasury
+          </p>
+        </div>
       </div>
     </div>
   );

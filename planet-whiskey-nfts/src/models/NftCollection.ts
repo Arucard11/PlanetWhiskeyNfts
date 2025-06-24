@@ -7,7 +7,8 @@ export interface INftCollection extends Document {
   symbol: string;                   // Denormalized
   metadataUri: string;              // Denormalized
   nftBaseMetadataUri: string;       // Base URI for individual NFTs in this collection
-  mintPriceLamports: number;
+  mintPriceLamports: number;        // Price in SOL (lamports)
+  mintPriceWhiskeyTokens: number;   // Price in Whiskey tokens
   itemLimit: number;
   companyId: mongoose.Schema.Types.ObjectId;
   isActive: boolean;
@@ -23,6 +24,7 @@ const NftCollectionSchema: Schema = new Schema({
   metadataUri: { type: String, required: true }, // Collection's own metadata
   nftBaseMetadataUri: { type: String, required: true }, // Base URI for NFTs minted from this collection
   mintPriceLamports: { type: Number, required: true },
+  mintPriceWhiskeyTokens: { type: Number, required: true },
   itemLimit: { type: Number, required: true },
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   isActive: { type: Boolean, default: true },

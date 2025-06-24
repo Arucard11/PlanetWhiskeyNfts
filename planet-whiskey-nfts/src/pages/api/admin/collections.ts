@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       name,
       symbol,
       collectionDescription,
-      mintPriceSOL,
+      mintPriceWhiskey,
       itemLimit,
       companyId,
       nftBaseName, // e.g., "Whiskey Barrel #{ID}"
@@ -87,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sName = Array.isArray(name) ? name[0] : name;
     const sSymbol = Array.isArray(symbol) ? symbol[0] : symbol;
     const sDescription = Array.isArray(collectionDescription) ? collectionDescription[0] : collectionDescription;
-    const sMintPriceSOL = Array.isArray(mintPriceSOL) ? mintPriceSOL[0] : mintPriceSOL;
+    const sMintPriceWhiskey = Array.isArray(mintPriceWhiskey) ? mintPriceWhiskey[0] : mintPriceWhiskey;
     const sItemLimit = Array.isArray(itemLimit) ? itemLimit[0] : itemLimit;
     const sCompanyId = Array.isArray(companyId) ? companyId[0] : companyId;
     const sNftBaseName = (Array.isArray(nftBaseName) ? nftBaseName[0] : nftBaseName) ?? '' as string;
@@ -111,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sName,
         sSymbol,
         sDescription,
-        sMintPriceSOL,
+        sMintPriceWhiskey,
         sItemLimit,
         sCompanyId,
         sNftBaseName,
@@ -119,8 +119,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Basic Validations
-    if (!sName || !sSymbol || !sDescription || !sMintPriceSOL || !sItemLimit || !sCompanyId || !sNftBaseName || !sNftBaseDescription) {
-      return res.status(400).json({ message: 'Missing required fields. Ensure name, symbol, description, mint price, item limit, company ID, NFT base name, and NFT base description are provided.' });
+    if (!sName || !sSymbol || !sDescription || !sMintPriceWhiskey || !sItemLimit || !sCompanyId || !sNftBaseName || !sNftBaseDescription) {
+      return res.status(400).json({ message: 'Missing required fields. Ensure name, symbol, description, whiskey mint price, item limit, company ID, NFT base name, and NFT base description are provided.' });
     }
 
     // console.log("[ADMIN_CREATE_COLLECTION] Checking uploaded files. collectionImageFile:", files.collectionImageFile); // Removed
@@ -303,9 +303,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
 
-    const mintPriceLamports = new BN(parseFloat(sMintPriceSOL as string) * 1_000_000_000); // Convert SOL to lamports
+    // Set SOL price to 0 since we only accept whiskey tokens
+    const mintPriceLamports = new BN(0); // No SOL pricing
+    const mintPriceWhiskeyTokens = new BN(parseFloat(sMintPriceWhiskey as string) * 1_000_000_000); // Convert whiskey tokens (assuming 9 decimals)
     const itemLimitBN = new BN(parseInt(sItemLimit as string));
-    console.log('[ADMIN_CREATE_COLLECTION] Converted mintPriceSOL to lamports:', mintPriceLamports.toString(), 'itemLimit to BN:', itemLimitBN.toString());
+    console.log('[ADMIN_CREATE_COLLECTION] Set SOL price to 0 (whiskey tokens only), mintPriceWhiskey to tokens:', mintPriceWhiskeyTokens.toString(), 'itemLimit to BN:', itemLimitBN.toString());
 
 
     console.log('[ADMIN_CREATE_COLLECTION] Attempting to call program.methods.create_collection on-chain with URI:', uploadedCollectionMetadataUri); // Keep: important action
@@ -315,6 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       symbol: sSymbol as string,
       uploadedCollectionMetadataUri,
       mintPriceLamports,
+      mintPriceWhiskeyTokens,
       itemLimitBN,
     });
     console.log('[ADMIN_CREATE_COLLECTION] create_collection accounts:', { // Keep: important context
@@ -360,6 +363,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sSymbol as string,
           uploadedCollectionMetadataUri,
           mintPriceLamports,
+          mintPriceWhiskeyTokens,
           itemLimitBN
         )
         .accounts({
@@ -416,6 +420,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadataUri: uploadedCollectionMetadataUri,              // Schema field: metadataUri
       nftBaseMetadataUri: uploadedNftBaseMetadataUri,       // Schema field: nftBaseMetadataUri
       mintPriceLamports: mintPriceLamports.toNumber(),   // Schema field: mintPriceLamports (Number)
+      mintPriceWhiskeyTokens: mintPriceWhiskeyTokens.toNumber(), // Schema field: mintPriceWhiskeyTokens (Number)
       itemLimit: parseInt(sItemLimit as string),             // Schema field: itemLimit
       companyId: company._id,                            // Schema field: companyId (ObjectId)
       isActive: true,                                    // Schema field: isActive

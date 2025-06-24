@@ -5,10 +5,15 @@ use anchor_spl::{
         create_master_edition_v3, create_metadata_accounts_v3, CreateMasterEditionV3,
         CreateMetadataAccountsV3, Metadata,
     },
-    token::{mint_to, Mint, MintTo, Token, TokenAccount},
+    token::{mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer},
 };
 
 declare_id!("8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L"); // Temporary valid ID
+
+// Whiskey token mint addresses
+// REAL PRODUCTION ADDRESS: 9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph
+// TEST TOKEN ADDRESS (for development): Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu"); // Test token
 
 #[account]
 pub struct CollectionConfig {
@@ -17,9 +22,17 @@ pub struct CollectionConfig {
     pub name: String,      // Collection Name (used for metadata)
     pub symbol: String,    // Collection Symbol (used for metadata)
     pub metadata_uri: String, // URI to the collection's JSON metadata (on Arweave/IPFS)
-    pub mint_price: u64,   // Price in lamports to mint one NFT from this collection
+    pub mint_price_sol: u64,   // Price in lamports to mint one NFT from this collection
+    pub mint_price_whiskey: u64, // Price in whiskey tokens to mint one NFT from this collection
     pub item_limit: u64,   // Maximum number of NFTs in this collection
     pub items_minted: u64, // Counter for how many NFTs have been minted
+    pub bump: u8,          // PDA bump seed
+}
+
+#[account]
+pub struct WalletNftCounter {
+    pub wallet: Pubkey,    // The wallet address
+    pub nft_count: u8,     // Number of NFTs minted by this wallet
     pub bump: u8,          // PDA bump seed
 }
 
@@ -27,13 +40,19 @@ pub struct CollectionConfig {
 const MAX_NAME_LENGTH: usize = 32;
 const MAX_SYMBOL_LENGTH: usize = 10;
 const MAX_URI_LENGTH: usize = 200;
+const MAX_NFTS_PER_WALLET: u8 = 5;
 
 impl CollectionConfig {
     // Calculate space based on max string lengths + other fixed-size fields
     // 8 (discriminator) + 32 (authority) + 32 (collection_mint) +
     // (4 + MAX_NAME_LENGTH) + (4 + MAX_SYMBOL_LENGTH) + (4 + MAX_URI_LENGTH) +
-    // 8 (mint_price) + 8 (item_limit) + 8 (items_minted) + 1 (bump)
-    const SPACE: usize = 8 + 32 + 32 + (4 + MAX_NAME_LENGTH) + (4 + MAX_SYMBOL_LENGTH) + (4 + MAX_URI_LENGTH) + 8 + 8 + 8 + 1;
+    // 8 (mint_price_sol) + 8 (mint_price_whiskey) + 8 (item_limit) + 8 (items_minted) + 1 (bump)
+    const SPACE: usize = 8 + 32 + 32 + (4 + MAX_NAME_LENGTH) + (4 + MAX_SYMBOL_LENGTH) + (4 + MAX_URI_LENGTH) + 8 + 8 + 8 + 8 + 1;
+}
+
+impl WalletNftCounter {
+    // 8 (discriminator) + 32 (wallet) + 1 (nft_count) + 1 (bump)
+    const SPACE: usize = 8 + 32 + 1 + 1;
 }
 
 #[account]
@@ -46,6 +65,8 @@ impl ProgramAdminConfig {
     // 8 (discriminator) + 32 (super_admin_key) + 1 (bump)
     const SPACE: usize = 8 + 32 + 1;
 }
+
+// Payment method enum removed - only whiskey tokens are accepted
 
 #[program]
 pub mod whiskeyprogram {
@@ -133,7 +154,8 @@ pub mod whiskeyprogram {
         name: String,
         symbol: String,
         metadata_uri: String,
-        mint_price: u64,
+        mint_price_sol: u64,
+        mint_price_whiskey: u64,
         item_limit: u64,
     ) -> Result<()> {
         msg!("CREATE_COLLECTION_HANDLER_ENTRY_POINT_LOG");
@@ -156,7 +178,8 @@ pub mod whiskeyprogram {
         msg!("Program received name: '{}'", name);
         msg!("Program received symbol: '{}'", symbol);
         msg!("Program received metadata_uri: '{}'", metadata_uri);
-        msg!("Program received mint_price: {}", mint_price);
+        msg!("Program received mint_price_sol: {}", mint_price_sol);
+        msg!("Program received mint_price_whiskey: {}", mint_price_whiskey);
         msg!("Program received item_limit: {}", item_limit);
         msg!("Program derived collection_config key: {}", ctx.accounts.collection_config.key());
 
@@ -186,7 +209,8 @@ pub mod whiskeyprogram {
         msg!("Name: {}", name);
         msg!("Symbol: {}", symbol);
         msg!("Metadata URI: {}", metadata_uri);
-        msg!("Mint Price: {}", mint_price);
+        msg!("Mint Price (SOL): {}", mint_price_sol);
+        msg!("Mint Price (Whiskey): {}", mint_price_whiskey);
         msg!("Item Limit: {}", item_limit);
 
         // Mint 1 token to the payer's ATA for the collection_mint
@@ -292,7 +316,8 @@ pub mod whiskeyprogram {
         collection_config.name = name; // Store the original name from args
         collection_config.symbol = symbol; // Store the original symbol from args
         collection_config.metadata_uri = metadata_uri; // Store the original metadata_uri from args
-        collection_config.mint_price = mint_price;
+        collection_config.mint_price_sol = mint_price_sol;
+        collection_config.mint_price_whiskey = mint_price_whiskey;
         collection_config.item_limit = item_limit;
         collection_config.items_minted = 0;
         collection_config.bump = ctx.bumps.collection_config;
@@ -310,7 +335,7 @@ pub mod whiskeyprogram {
 
     // Add the new MintNft instruction and its Accounts struct here
     #[derive(Accounts)]
-    #[instruction(nft_name: String, nft_symbol: String, nft_uri: String)] // Arguments for the new NFT's metadata
+    #[instruction(nft_name: String, nft_symbol: String, nft_uri: String)]
     pub struct MintNft<'info> {
         #[account(mut)]
         pub payer: Signer<'info>, // The user minting the NFT
@@ -319,6 +344,16 @@ pub mod whiskeyprogram {
             mut // To increment items_minted and potentially check/use authority
         )]
         pub collection_config: Account<'info, CollectionConfig>,
+
+        // Wallet NFT counter to track per-wallet limits
+        #[account(
+            init_if_needed,
+            payer = payer,
+            space = WalletNftCounter::SPACE,
+            seeds = [b"wallet_nft_counter", payer.key().as_ref()],
+            bump
+        )]
+        pub wallet_nft_counter: Account<'info, WalletNftCounter>,
 
         // The Collection NFT's Mint account (to link the new NFT to this collection)
         /// CHECK: This is the account of the collection mint, used for linking. Already initialized.
@@ -356,6 +391,28 @@ pub mod whiskeyprogram {
         #[account(mut, address = collection_config.authority)]
         pub collection_authority_receiver: UncheckedAccount<'info>,
 
+        // For whiskey token payments - these are required since we only accept whiskey tokens
+        /// CHECK: Whiskey token mint account
+        #[account(address = WHISKEY_TOKEN_MINT)]
+        pub whiskey_token_mint: Account<'info, Mint>,
+
+        // Payer's whiskey token account - create if needed
+        #[account(
+            init_if_needed,
+            payer = payer,
+            associated_token::mint = whiskey_token_mint,
+            associated_token::authority = payer
+        )]
+        pub payer_whiskey_token_account: Account<'info, TokenAccount>,
+
+        // Authority's whiskey token account for receiving payment - create if needed
+        #[account(
+            init_if_needed,
+            payer = payer,
+            associated_token::mint = whiskey_token_mint,
+            associated_token::authority = collection_authority_receiver
+        )]
+        pub authority_whiskey_token_account: Account<'info, TokenAccount>,
 
         // System Programs
         pub token_program: Program<'info, Token>,
@@ -368,13 +425,26 @@ pub mod whiskeyprogram {
     pub fn mint_nft(ctx: Context<MintNft>, nft_name: String, nft_symbol: String, nft_uri: String) -> Result<()> {
         msg!("MINT_NFT_HANDLER_ENTRY_POINT_LOG");
         let collection_config = &mut ctx.accounts.collection_config;
+        let wallet_counter = &mut ctx.accounts.wallet_nft_counter;
 
-        // 1. Check item limit
+        // 1. Check wallet NFT limit
+        if wallet_counter.nft_count >= MAX_NFTS_PER_WALLET {
+            return Err(ErrorCode::WalletNftLimitExceeded.into());
+        }
+
+        // 2. Check collection item limit
         if collection_config.items_minted >= collection_config.item_limit {
             return Err(ErrorCode::CollectionFull.into());
         }
 
-        // 2. Validate new NFT metadata inputs (similar to collection creation)
+        // 3. Initialize wallet counter if needed
+        if wallet_counter.wallet == Pubkey::default() {
+            wallet_counter.wallet = ctx.accounts.payer.key();
+            wallet_counter.nft_count = 0;
+            wallet_counter.bump = ctx.bumps.wallet_nft_counter;
+        }
+
+        // 4. Validate new NFT metadata inputs (similar to collection creation)
         if nft_name.len() > MAX_NAME_LENGTH || nft_name.is_empty() {
             return Err(ErrorCode::NftNameTooLong.into());
         }
@@ -385,19 +455,21 @@ pub mod whiskeyprogram {
             return Err(ErrorCode::NftUriTooLong.into());
         }
         
-        // 3. Handle mint price payment (transfer SOL from payer to collection_config.authority)
-        if collection_config.mint_price > 0 {
-            anchor_lang::system_program::transfer(
+        // 5. Handle payment - only whiskey tokens are accepted
+        if collection_config.mint_price_whiskey > 0 {
+            // Transfer whiskey tokens from payer to authority
+            transfer(
                 CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: ctx.accounts.payer.to_account_info(),
-                        to: ctx.accounts.collection_authority_receiver.to_account_info(),
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.payer_whiskey_token_account.to_account_info(),
+                        to: ctx.accounts.authority_whiskey_token_account.to_account_info(),
+                        authority: ctx.accounts.payer.to_account_info(),
                     },
                 ),
-                collection_config.mint_price,
+                collection_config.mint_price_whiskey,
             )?;
-            msg!("Transferred {} lamports from payer to collection authority.", collection_config.mint_price);
+            msg!("Transferred {} whiskey tokens from payer to collection authority.", collection_config.mint_price_whiskey);
         }
 
         // Signer seeds for the CollectionConfig PDA
@@ -506,6 +578,10 @@ pub mod whiskeyprogram {
         collection_config.items_minted += 1;
         msg!("Incremented items_minted. New count: {}", collection_config.items_minted);
 
+        // 8. Increment wallet NFT counter
+        wallet_counter.nft_count += 1;
+        msg!("Incremented wallet NFT count. New count for wallet {}: {}", wallet_counter.wallet, wallet_counter.nft_count);
+
         Ok(())
     }
 }
@@ -525,12 +601,14 @@ pub enum ErrorCode {
     ItemLimitZero,
     #[msg("Unauthorized: Caller is not the super admin.")]
     UnauthorizedSuperAdmin,
-    #[msg("Collection is full. No more items can be minted.")] // New Error
+    #[msg("Collection is full. No more items can be minted.")]
     CollectionFull,
-    #[msg("NFT Name too long.")] // New Error
+    #[msg("NFT Name too long.")]
     NftNameTooLong,
-    #[msg("NFT Symbol too long.")] // New Error
+    #[msg("NFT Symbol too long.")]
     NftSymbolTooLong,
-    #[msg("NFT URI too long.")] // New Error
+    #[msg("NFT URI too long.")]
     NftUriTooLong,
+    #[msg("Wallet has reached the maximum NFT limit of 5.")]
+    WalletNftLimitExceeded,
 }

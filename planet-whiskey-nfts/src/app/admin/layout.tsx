@@ -6,7 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 // Define a type for the session user data we expect
 interface AdminUser {
   username: string;
-  // Add other user properties if your session-status API returns them
 }
 
 interface SessionStatus {
@@ -16,15 +15,14 @@ interface SessionStatus {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname(); // Get current path
+  const pathname = usePathname();
   const [sessionStatus, setSessionStatus] = useState<SessionStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Don't run auth check if we are already on the login page
     if (pathname === '/admin/login') {
       setIsLoading(false);
-      setSessionStatus({ isLoggedIn: false }); // Assume not logged in for login page itself
+      setSessionStatus({ isLoggedIn: false });
       return;
     }
 
@@ -38,7 +36,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             router.push('/admin/login');
           }
         } else {
-          // Handle non-ok response, e.g., server error
           setSessionStatus({ isLoggedIn: false });
           router.push('/admin/login'); 
         }
@@ -56,67 +53,126 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-accent"></div>
-        <p className="ml-3 text-brand-text-secondary font-sans">Loading admin section...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white">
+        <div className="flex items-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+          <p className="ml-3 text-lg text-gray-600">Loading admin section...</p>
+        </div>
       </div>
     );
   }
 
-  // If not logged in and not on the login page (initial load might briefly pass isLoading)
   if (!sessionStatus?.isLoggedIn && pathname !== '/admin/login') {
-    // This case should ideally be handled by the redirect in useEffect,
-    // but as a fallback or for very fast navigations, return null or a loading indicator.
-    // Or, if router.push hasn't completed, it might render children briefly.
-    // To be absolutely sure, you might not render children until isLoggedIn is true.
-    return null; // Or a minimal loading state
+    return null;
   }
 
-  // If on the login page, just render children (which is the login form)
   if (pathname === '/admin/login') {
-    return <div className="min-h-screen bg-brand-background flex items-center justify-center p-4">{children}</div>;
+    return <>{children}</>;
   }
 
-  // If logged in, render the admin layout and its children
+  // Logout handler
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (response.ok) {
+        setSessionStatus({ isLoggedIn: false });
+        router.push('/admin/login');
+        router.refresh();
+      } else {
+        console.error('Logout failed:', await response.json());
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-brand-background text-brand-text-primary py-8 font-sans">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b border-brand-border">
-          <h1 className="text-3xl font-semibold text-brand-text-primary mb-4 sm:mb-0">Admin Dashboard</h1>
-          {sessionStatus?.user && <span className="text-brand-text-secondary">Welcome, {sessionStatus.user.username}!</span>}
-        </div>
-        <nav className="mb-8">
-          <ul className="flex flex-wrap gap-x-4 gap-y-2 sm:gap-x-6 items-center">
-            <li><a href="/admin" className="text-brand-text-secondary hover:text-brand-primary transition-colors pb-1 border-b-2 border-transparent hover:border-brand-primary">Dashboard</a></li>
-            <li><a href="/admin/companies" className="text-brand-text-secondary hover:text-brand-primary transition-colors pb-1 border-b-2 border-transparent hover:border-brand-primary">Companies</a></li>
-            <li><a href="/admin/collections" className="text-brand-text-secondary hover:text-brand-primary transition-colors pb-1 border-b-2 border-transparent hover:border-brand-primary">Collections</a></li>
-            <li><a href="/admin/purchases" className="text-brand-text-secondary hover:text-brand-primary transition-colors pb-1 border-b-2 border-transparent hover:border-brand-primary">Purchases</a></li>
-            <li className="ml-auto mt-2 sm:mt-0">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-amber-50">
+      {/* Header */}
+      <div className="bg-white shadow-lg border-b border-amber-200">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-amber-800 font-serif">NFT Treasury Admin</h1>
+              <div className="hidden sm:block w-px h-6 bg-amber-300"></div>
+              {sessionStatus?.user && (
+                <span className="hidden sm:block text-gray-600">
+                  Welcome, <span className="font-semibold text-amber-700">{sessionStatus.user.username}</span>
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <a 
+                href="/" 
+                className="text-amber-600 hover:text-amber-800 font-medium transition-colors duration-200"
+              >
+                ← Back to Site
+              </a>
               <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/auth/logout', {
-                      method: 'POST',
-                    });
-                    if (response.ok) {
-                      setSessionStatus({ isLoggedIn: false });
-                      router.push('/admin/login');
-                      router.refresh();
-                    } else {
-                      console.error('Logout failed:', await response.json());
-                    }
-                  } catch (error) {
-                    console.error('Error during logout:', error);
-                  }
-                }}
-                className="px-4 py-2 text-sm text-brand-text-primary bg-brand-surface hover:bg-brand-primary border border-brand-border hover:border-brand-primary rounded-md transition-colors shadow-sm hover:shadow-md"
+                onClick={handleLogout}
+                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-medium px-4 py-2 rounded-lg shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
               >
                 Logout
               </button>
-            </li>
-          </ul>
-        </nav>
-        <main className="bg-brand-surface shadow-lg rounded-lg p-6 min-h-[calc(100vh-280px)]">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 shadow-md">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="py-4">
+            <ul className="flex flex-wrap gap-x-8 gap-y-2 items-center">
+              <li>
+                <a 
+                  href="/admin" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  Dashboard
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="/admin/companies" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin/companies' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  Companies
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="/admin/collections" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin/collections' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  Collections
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="/admin/purchases" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin/purchases' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  Purchases
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="bg-white shadow-xl rounded-xl p-8 border border-amber-100">
           {children}
         </main>
       </div>

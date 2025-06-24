@@ -15,6 +15,7 @@ interface INftCollectionWithMintedCount {
   metadataUri: string;
   nftBaseMetadataUri: string;
   mintPriceLamports: number; // Keep these as numbers from DB
+  mintPriceWhiskeyTokens: number; // Price in whiskey tokens
   itemLimit: number; // Keep these as numbers from DB
   companyId: string; // Assuming companyId is string representation of ObjectId
   isActive: boolean;

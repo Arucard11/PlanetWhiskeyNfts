@@ -16,6 +16,7 @@ interface CollectionDataFromApi {
     nftBaseMetadataUri: string; // Still needed for the card to fetch internally
     collectionMintAddress: string; // Still needed for the card to fetch internally
     mintPriceLamports: number;
+    mintPriceWhiskeyTokens: number;
     itemLimit: number;
     itemsMintedOnChain?: number;
     // any other fields from your INftCollection model + augmented data
@@ -90,65 +91,108 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
     const pageTitle = companyName ? `Collections from ${companyName}` : `NFT Collections`;
 
     return (
-        // <Layout> // Remove this
-        <> {/* Use React Fragment */}
-            <div className="py-12 md:py-16 lg:py-20"> {/* This padding is on the direct child of main, which itself has padding. Consider adjusting. */}
-                <div className="text-center mb-12 md:mb-16">
-                    <h1 className="text-4xl sm:text-5xl font-bold mb-3 text-brand-text-primary cool-gradient-text">{pageTitle}</h1>
-                    {companyName && 
-                        <p className="text-lg font-sans text-brand-text-secondary max-w-xl mx-auto">
-                            Browse the unique NFT offerings from {companyName}.
-                        </p>
-                    }
-                    {!companyName && companyId && 
-                        <p className="text-sm font-sans text-brand-text-secondary">
-                            Company ID: {companyId}
-                        </p>
-                    }
-                    {mintMessage && (
-                         <p className={`mt-4 text-sm font-sans px-4 py-2 rounded-md inline-block 
-                            ${mintMessage.toLowerCase().includes("failed") || mintMessage.toLowerCase().includes("error") 
-                                ? 'bg-red-700 text-red-100' // Darker bg for better contrast if needed
-                                : 'bg-green-700 text-green-100'}`}>
-                            {mintMessage}
-                        </p>
-                    )}
+        <div className="min-h-screen bg-gradient-to-b from-slate-900 to-black relative">
+            {/* Background Image */}
+            <div 
+                className="fixed inset-0 bg-cover bg-center bg-no-repeat opacity-20"
+                style={{
+                    backgroundImage: `url('/background.jpg')`
+                }}
+            />
+            
+            {/* Hero Section */}
+            <div className="relative bg-gradient-to-r from-amber-900/80 via-amber-800/60 to-amber-900/80 backdrop-blur-sm text-white py-20">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center">
+                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 font-serif text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-300 to-amber-100">
+                            {pageTitle}
+                        </h1>
+                        {companyName && (
+                            <p className="text-xl text-amber-100 max-w-2xl mx-auto leading-relaxed font-light">
+                                Discover authentic treasury-backed NFTs from <span className="text-amber-300 font-bold">{companyName}</span> assets
+                            </p>
+                        )}
+                        {!companyName && companyId && (
+                            <p className="text-amber-200">
+                                Company ID: {companyId}
+                            </p>
+                        )}
+                        {mintMessage && (
+                            <div className={`mt-6 inline-block px-6 py-3 rounded-2xl shadow-2xl backdrop-blur-sm
+                                ${mintMessage.toLowerCase().includes("failed") || mintMessage.toLowerCase().includes("error") 
+                                    ? 'bg-red-600/90 text-white border border-red-400/30' 
+                                    : 'bg-green-600/90 text-white border border-green-400/30'}`}>
+                                {mintMessage}
+                            </div>
+                        )}
+                    </div>
                 </div>
+            </div>
 
+            {/* Content Section */}
+            <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-16">
                 {isLoading && (
-                    <div className="flex justify-center items-center py-8">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-accent"></div>
-                        <p className="ml-4 text-brand-text-secondary font-sans">Loading collections...</p>
+                    <div className="flex flex-col justify-center items-center py-20">
+                        <div className="relative">
+                            <div className="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-amber-500"></div>
+                            <div className="absolute inset-0 animate-pulse rounded-full h-24 w-24 border-4 border-amber-300 opacity-30"></div>
+                        </div>
+                        <p className="text-2xl text-amber-300 mt-8 font-light">Loading collections...</p>
                     </div>
                 )}
-                {error && <p className="text-center font-sans text-red-400 py-8">Error: {error}</p>}
+                
+                {error && (
+                    <div className="text-center py-20">
+                        <div className="bg-gradient-to-br from-red-900/40 to-red-950/60 backdrop-blur-xl border border-red-700/30 rounded-3xl p-12 max-w-2xl mx-auto shadow-2xl">
+                            <div className="text-6xl mb-6">⚠️</div>
+                            <p className="text-red-300 text-xl font-medium">Error: {error}</p>
+                        </div>
+                    </div>
+                )}
 
                 {!isLoading && !error && collections.length === 0 && (
-                    <p className="text-center font-sans text-brand-text-secondary py-8">No NFT collections found for this company yet. Please check back soon.</p>
+                    <div className="text-center py-20">
+                        <div className="bg-gradient-to-br from-amber-900/40 to-amber-950/60 backdrop-blur-xl border border-amber-700/30 rounded-3xl p-16 max-w-4xl mx-auto shadow-2xl">
+                            <div className="text-8xl mb-8">🥃</div>
+                            <h3 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500 font-serif mb-6">
+                                No Collections Yet
+                            </h3>
+                            <p className="text-xl text-gray-300 leading-relaxed font-light">
+                                This asset type hasn't launched any NFT collections yet. Check back soon for exciting new offerings from this treasury asset!
+                            </p>
+                        </div>
+                    </div>
                 )}
 
                 {!isLoading && !error && collections.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 xl:gap-8"> {/* Adjusted gap for sm screens */}
-                        {collections.map((collection) => (
-                            <NftCollectionCard
-                                key={collection._id || collection.collectionOnChainAddress}
-                                _id={collection._id}
-                                collectionOnChainAddress={collection.collectionOnChainAddress}
-                                name={collection.name}
-                                symbol={collection.symbol}
-                                metadataUri={collection.metadataUri}
-                                // nftBaseMetadataUri={collection.nftBaseMetadataUri} // Not a direct prop
-                                // collectionMintAddress={collection.collectionMintAddress} // Not a direct prop
-                                mintPriceLamports={collection.mintPriceLamports}
-                                itemLimit={collection.itemLimit}
-                                itemsMintedOnChain={collection.itemsMintedOnChain}
-                                onMintSuccess={handleMintSuccess}
-                            />
-                        ))}
+                    <div>
+                        <div className="text-center mb-12">
+                            <h2 className="text-4xl sm:text-5xl font-black mb-8 text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-300 font-serif">
+                                Available Collections
+                            </h2>
+                            <div className="h-2 w-24 bg-gradient-to-r from-amber-400 to-amber-600 mx-auto rounded-full shadow-lg shadow-amber-500/50"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {collections.map((collection) => (
+                                <NftCollectionCard
+                                    key={collection._id || collection.collectionOnChainAddress}
+                                    _id={collection._id}
+                                    collectionOnChainAddress={collection.collectionOnChainAddress}
+                                    name={collection.name}
+                                    symbol={collection.symbol}
+                                    metadataUri={collection.metadataUri}
+                                    mintPriceLamports={collection.mintPriceLamports}
+                                    mintPriceWhiskeyTokens={collection.mintPriceWhiskeyTokens}
+                                    itemLimit={collection.itemLimit}
+                                    itemsMintedOnChain={collection.itemsMintedOnChain}
+                                    onMintSuccess={handleMintSuccess}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
-        </>
-        // </Layout> // Remove this
+        </div>
     );
 } 
