@@ -109,12 +109,7 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
                         </h1>
                         {companyName && (
                             <p className="text-xl text-amber-100 max-w-2xl mx-auto leading-relaxed font-light">
-                                Discover authentic treasury-backed NFTs from <span className="text-amber-300 font-bold">{companyName}</span> assets
-                            </p>
-                        )}
-                        {!companyName && companyId && (
-                            <p className="text-amber-200">
-                                Company ID: {companyId}
+                                Discover authentic treasury-backed NFTs from <span className="text-amber-300 font-bold">{companyName}</span>
                             </p>
                         )}
                         {mintMessage && (

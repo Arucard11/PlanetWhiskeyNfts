@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Twitter, Bot, Send } from 'lucide-react';
 
 const Footer = () => {
@@ -23,11 +24,17 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row justify-between items-center space-y-8 md:space-y-0">
           {/* Logo and Brand Name */}
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">🥃</span>
-              </div>
-            <span className="font-bold text-xl text-white font-serif">NFT Treasury</span>
+            <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-amber-400/50 shadow-lg shadow-amber-500/30">
+              <Image
+                src="/header.jpg"
+                alt="NFT Treasury Logo"
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
+              />
             </div>
+            <span className="font-bold text-xl text-white font-serif">NFT Treasury</span>
+          </div>
             
           {/* Navigation Links */}
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
