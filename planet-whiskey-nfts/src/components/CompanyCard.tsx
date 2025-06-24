@@ -1,8 +1,9 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { ArrowRight, Building2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export interface CompanyCardProps {
     id: string;
@@ -17,8 +18,16 @@ const CompanyCard: React.FC<CompanyCardProps> = ({ id, name, description }) => {
                 
                 {/* Icon */}
                 <div className="mb-6 text-center">
-                    <div className="inline-block p-4 bg-gradient-to-br from-amber-500/10 to-amber-600/20 rounded-full border border-white/10">
-                         <Building2 className="w-8 h-8 text-amber-400" />
+                    <div className="inline-block p-2 bg-gradient-to-br from-amber-500/10 to-amber-600/20 rounded-full border border-white/10 overflow-hidden">
+                        <div className="w-16 h-16 rounded-full overflow-hidden">
+                            <Image
+                                src="/company.jpg"
+                                alt="Company"
+                                width={64}
+                                height={64}
+                                className="w-full h-full object-cover rounded-full"
+                            />
+                        </div>
                     </div>
                 </div>
 
