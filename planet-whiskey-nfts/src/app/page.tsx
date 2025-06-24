@@ -104,7 +104,7 @@ export default function Home() {
 
 
       {/* Revolutionary Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center">
         {/* Advanced Background */}
         <motion.div
           className="absolute inset-0 z-0"
@@ -125,13 +125,13 @@ export default function Home() {
         <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/80 via-black/40 to-black/90" />
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-amber-900/20 via-transparent to-purple-900/20" />
         
-        <div className="relative z-20 text-center px-4 max-w-7xl mx-auto">
+        <div className="relative z-20 text-center px-4 max-w-7xl mx-auto pt-8">
           {/* Premium Header Icon */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-12"
+            className="mb-8"
           >
             <div className="relative inline-block">
               <div className="w-48 h-48 mx-auto rounded-full shadow-2xl shadow-amber-500/40 overflow-hidden border-4 border-amber-400/50">
@@ -171,10 +171,11 @@ export default function Home() {
           
           {/* Epic Title */}
           <motion.h1 
-            className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-white mb-8 leading-[0.9] font-sans"
+            className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-white mb-16 leading-tight font-sans pb-12"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            style={{ paddingBottom: '2.5rem', lineHeight: '1.2' }}
           >
             Own part of the{' '}
             <motion.span 
@@ -305,7 +306,7 @@ export default function Home() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <h2 className="text-6xl sm:text-7xl font-bold text-white mb-8 font-serif">
+            <h2 className="text-6xl sm:text-7xl font-bold text-white mb-8 font-serif leading-normal pb-8" style={{ lineHeight: '1.3' }}>
               Treasury{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500">
                 Assets
@@ -636,7 +637,7 @@ export default function Home() {
               </span>
             </motion.h2>
             
-            <p className="text-2xl text-gray-300 max-w-4xl mx-auto mb-16 leading-relaxed">
+            <p className="text-2xl text-gray-300 max-w-4xl mx-auto mb-16 leading-loose pb-4">
               Join thousands of collectors who have already secured their place in treasury history. Start building your <span className="text-amber-400 font-semibold">premium portfolio</span> today.
             </p>
             
