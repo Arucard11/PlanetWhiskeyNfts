@@ -1,15 +1,18 @@
+[workspace]
+members = ["programs/solana_program", "programs/marketplaceprogram"]
+exclude = []
+
+[features]
+idl-build = ["anchor-spl/idl-build"]
+
 [toolchain]
 package_manager = "yarn"
 
-[features]
-resolution = true
-skip-lint = false
-idl-build = ["anchor-spl/idl-build"]
-
-# programs.localnet.whiskeyprogram = "9hftLAxd9VnowQENSZtHxoKf3ZjjzKZxaWqqzUAtRTva"
-
 [programs.devnet]
 whiskeyprogram = "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L"
+marketplaceprogram = "NqQ2fJ6TzMn44wdkKGGCT71P7nJggZSp4qoqZPWfJTW"
+
+# programs.localnet.whiskeyprogram = "9hftLAxd9VnowQENSZtHxoKf3ZjjzKZxaWqqzUAtRTva"
 
 [registry]
 url = "https://api.apr.dev"

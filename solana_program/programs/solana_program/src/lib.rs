@@ -40,7 +40,7 @@ pub struct WalletNftCounter {
 const MAX_NAME_LENGTH: usize = 32;
 const MAX_SYMBOL_LENGTH: usize = 10;
 const MAX_URI_LENGTH: usize = 200;
-const MAX_NFTS_PER_WALLET: u8 = 5;
+const MAX_NFTS_PER_WALLET_PER_COLLECTION: u8 = 5;
 
 impl CollectionConfig {
     // Calculate space based on max string lengths + other fixed-size fields
@@ -345,12 +345,12 @@ pub mod whiskeyprogram {
         )]
         pub collection_config: Account<'info, CollectionConfig>,
 
-        // Wallet NFT counter to track per-wallet limits
+        // Wallet NFT counter to track per-wallet limits PER COLLECTION
         #[account(
             init_if_needed,
             payer = payer,
             space = WalletNftCounter::SPACE,
-            seeds = [b"wallet_nft_counter", payer.key().as_ref()],
+            seeds = [b"wallet_nft_counter", payer.key().as_ref(), collection_config.key().as_ref()],
             bump
         )]
         pub wallet_nft_counter: Account<'info, WalletNftCounter>,
@@ -427,8 +427,8 @@ pub mod whiskeyprogram {
         let collection_config = &mut ctx.accounts.collection_config;
         let wallet_counter = &mut ctx.accounts.wallet_nft_counter;
 
-        // 1. Check wallet NFT limit
-        if wallet_counter.nft_count >= MAX_NFTS_PER_WALLET {
+        // 1. Check wallet NFT limit PER COLLECTION
+        if wallet_counter.nft_count >= MAX_NFTS_PER_WALLET_PER_COLLECTION {
             return Err(ErrorCode::WalletNftLimitExceeded.into());
         }
 
@@ -609,6 +609,6 @@ pub enum ErrorCode {
     NftSymbolTooLong,
     #[msg("NFT URI too long.")]
     NftUriTooLong,
-    #[msg("Wallet has reached the maximum NFT limit of 5.")]
+    #[msg("Wallet has reached the maximum NFT limit of 5 per collection.")]
     WalletNftLimitExceeded,
 }
