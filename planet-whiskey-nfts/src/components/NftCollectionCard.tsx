@@ -30,7 +30,17 @@ const IPFS_GATEWAYS = [
     'https://dweb.link/ipfs/'
 ];
 
-// Component for handling image loading with multiple gateway fallbacks
+// Simple IPFS to Pinata conversion function (same as marketplace)
+const ipfsToPinataUrl = (uri: string): string => {
+    if (!uri || typeof uri !== 'string') return '';
+    if (uri.startsWith('http')) return uri;
+    if (!uri.startsWith('ipfs://')) {
+        return uri;
+    }
+    const hash = uri.substring(7);
+    return `https://gateway.pinata.cloud/ipfs/${hash}`;
+};
+
 interface ImageWithFallbackProps {
     src: string;
     alt: string;
@@ -46,180 +56,50 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     onLoad, 
     onError 
 }) => {
-    const [imageSrc, setImageSrc] = useState<string>(src);
-    const [imageError, setImageError] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [isLoadingImage, setIsLoadingImage] = useState(true);
-
-    // Convert IPFS URI to our proxy URL to avoid CORS issues
-    const convertIpfsUri = (uri: string): string => {
-        if (!uri.startsWith('ipfs://')) return uri;
-        const hash = uri.slice(7); // Remove 'ipfs://' prefix
-        return `/api/ipfs-proxy?hash=${hash}`;
-    };
-
-    const fetchImageAsBlob = async (url: string): Promise<string | null> => {
-        try {
-            console.log(`[ImageWithFallback] Attempting to fetch image: ${url}`);
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob);
-            console.log(`[ImageWithFallback] Successfully fetched and created blob URL for: ${url}`);
-            return objectUrl;
-        } catch (error) {
-            console.warn(`[ImageWithFallback] Failed to fetch ${url}:`, error);
-            return null;
-        }
-    };
+    const [imageSrc, setImageSrc] = useState<string>('');
+    const [hasErrored, setHasErrored] = useState(false);
 
     useEffect(() => {
-        let isMounted = true;
-        let objectUrl: string | null = null;
+        if (!src) {
+            setImageSrc('/placeholder-image.svg');
+            return;
+        }
 
-        const loadImage = async () => {
-            if (!src || src === '/placeholder-image.svg') {
-                if (isMounted) {
-                    setImageSrc('/placeholder-image.svg');
-                    setImageError(false);
-                    setImageLoaded(true);
-                    setIsLoadingImage(false);
-                }
-                return;
-            }
-
-            setIsLoadingImage(true);
-            setImageError(false);
-            setImageLoaded(false);
-
-            try {
-                if (src.startsWith('http://') || src.startsWith('https://')) {
-                    // Direct HTTP/HTTPS URL
-                    const img = new window.Image();
-                    img.onload = () => {
-                        if (isMounted) {
-                            setImageSrc(src);
-                            setImageLoaded(true);
-                            setImageError(false);
-                            setIsLoadingImage(false);
-                            console.log(`[ImageWithFallback] Successfully loaded direct URL: ${src}`);
-                        }
-                    };
-                    img.onerror = () => {
-                        if (isMounted) {
-                            console.warn(`[ImageWithFallback] Failed to load direct URL: ${src}`);
-                            setImageSrc('/placeholder-image.svg');
-                            setImageError(true);
-                            setImageLoaded(true);
-                            setIsLoadingImage(false);
-                        }
-                    };
-                    img.src = src;
-                } else if (src.startsWith('ipfs://')) {
-                    // IPFS URL - use our proxy to avoid CORS issues
-                    const proxyUrl = convertIpfsUri(src);
-                    console.log(`[ImageWithFallback] Using IPFS proxy: ${proxyUrl}`);
-                    
-                    const img = new window.Image();
-                    img.onload = () => {
-                        if (isMounted) {
-                            setImageSrc(proxyUrl);
-                            setImageLoaded(true);
-                            setImageError(false);
-                            setIsLoadingImage(false);
-                            console.log(`[ImageWithFallback] Successfully loaded IPFS via proxy: ${proxyUrl}`);
-                        }
-                    };
-                    img.onerror = () => {
-                        if (isMounted) {
-                            console.warn(`[ImageWithFallback] IPFS proxy failed for: ${src}`);
-                            setImageSrc('/placeholder-image.svg');
-                            setImageError(true);
-                            setImageLoaded(true);
-                            setIsLoadingImage(false);
-                        }
-                    };
-                    img.src = proxyUrl;
-                } else {
-                    // Relative or other URL
-                    const img = new window.Image();
-                    img.onload = () => {
-                        if (isMounted) {
-                            setImageSrc(src);
-                            setImageLoaded(true);
-                            setImageError(false);
-                            setIsLoadingImage(false);
-                        }
-                    };
-                    img.onerror = () => {
-                        if (isMounted) {
-                            setImageSrc('/placeholder-image.svg');
-                            setImageError(true);
-                            setImageLoaded(true);
-                            setIsLoadingImage(false);
-                        }
-                    };
-                    img.src = src;
-                }
-            } catch (error) {
-                console.error(`[ImageWithFallback] Unexpected error loading image:`, error);
-                if (isMounted) {
-                    setImageSrc('/placeholder-image.svg');
-                    setImageError(true);
-                    setImageLoaded(true);
-                    setIsLoadingImage(false);
-                }
-            }
-        };
-
-        loadImage();
-
-        return () => {
-            isMounted = false;
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-            }
-        };
+        // Convert IPFS URI to Pinata gateway URL (same as marketplace)
+        const convertedSrc = ipfsToPinataUrl(src);
+        console.log(`[ImageWithFallback] Converting: ${src} -> ${convertedSrc}`);
+        setImageSrc(convertedSrc);
+        setHasErrored(false);
     }, [src]);
 
-    const handleImageLoad = () => {
-        setImageLoaded(true);
-        setIsLoadingImage(false);
-        console.log(`[ImageWithFallback] Image loaded successfully: ${imageSrc}`);
-        if (onLoad) onLoad();
-    };
-
     const handleImageError = () => {
-        console.warn(`[ImageWithFallback] Image failed to load: ${imageSrc}`);
-        if (!imageError && imageSrc !== '/placeholder-image.svg') {
-            setImageSrc('/placeholder-image.svg');
-            setImageError(true);
-        }
-        setIsLoadingImage(false);
+        console.warn(`[ImageWithFallback] Failed to load image from: ${imageSrc}`);
+        setHasErrored(true);
         if (onError) onError();
     };
 
+    const handleImageLoad = () => {
+        console.log(`[ImageWithFallback] Successfully loaded image: ${imageSrc}`);
+        if (onLoad) onLoad();
+    };
+
+    // If there's no valid image source or it has errored, show placeholder
+    if (!imageSrc || hasErrored) {
+        return (
+            <div className={`${className} flex items-center justify-center bg-gray-200 text-gray-500`}>
+                <span>No Image Available</span>
+            </div>
+        );
+    }
+
     return (
-        <div className={`relative ${className}`}>
-            <img
-                src={imageSrc}
-                alt={alt}
-                className="w-full h-full object-cover"
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-                style={{ 
-                    opacity: imageLoaded ? 1 : 0,
-                    transition: 'opacity 0.3s ease-in-out'
-                }}
-            />
-            {/* Show a subtle loading indicator only if still loading */}
-            {isLoadingImage && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 bg-opacity-80">
-                    <div className="animate-pulse w-8 h-8 bg-gray-300 rounded-full"></div>
-                </div>
-            )}
-        </div>
+        <img
+            src={imageSrc}
+            alt={alt}
+            className={className}
+            onError={handleImageError}
+            onLoad={handleImageLoad}
+        />
     );
 };
 
@@ -265,72 +145,31 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
             return undefined;
         }
 
-        let effectiveUri = metadataUri;
-        // If it's an IPFS URI, use our proxy to avoid CORS issues
-        if (metadataUri.startsWith("ipfs://")) {
-            const ipfsHash = metadataUri.substring("ipfs://".length);
-            // Use our IPFS proxy
-            effectiveUri = `/api/ipfs-proxy?hash=${ipfsHash}`;
-            console.log(`[NftCollectionCard] 🔗 Converting IPFS URI to proxy: ${effectiveUri}`);
-        } else {
-            // For non-IPFS URIs, we can still use them directly if they are https.
-            if (!metadataUri.startsWith("https://")) {
-                console.warn(`[NftCollectionCard] ⚠️ Metadata URI is not IPFS and not HTTPS: "${metadataUri}". Cannot fetch.`);
-                return undefined;
-            }
-            console.log(`[NftCollectionCard] 🌐 Using direct HTTPS URI: ${effectiveUri}`);
-        }
+        // Use the same approach as marketplace - convert IPFS URI to Pinata gateway
+        const metadataUrl = ipfsToPinataUrl(metadataUri);
+        console.log(`[NftCollectionCard] 📥 Fetching metadata from: ${metadataUrl}`);
         
-        // For IPFS, we only need one try since our proxy handles fallbacks
-        const gateways = [effectiveUri];
-
-        let metadata: any = null;
-        let lastError = null;
-
-        for (const gatewayUri of gateways) {
-            try {
-                console.log(`[NftCollectionCard] 📥 Fetching metadata from: ${gatewayUri}`);
-                const response = await fetch(gatewayUri);
-                if (response.ok) {
-                    metadata = await response.json();
-                    console.log(`[NftCollectionCard] ✅ Successfully fetched metadata from: ${gatewayUri}`);
-                    break;
-                } else {
-                    console.warn(`[NftCollectionCard] ⚠️ Gateway ${gatewayUri} returned ${response.status}: ${response.statusText}`);
-                }
-            } catch (error: any) {
-                console.warn(`[NftCollectionCard] ⚠️ Gateway ${gatewayUri} failed:`, error.message);
-                lastError = error;
-                continue;
-            }
-        }
-
-        if (!metadata) {
-            console.error(`[NftCollectionCard] ❌ All gateways failed. Last error:`, lastError);
+        const response = await fetch(metadataUrl);
+        if (!response.ok) {
+            console.warn(`[NftCollectionCard] ⚠️ Failed to fetch metadata: ${response.status} ${response.statusText}`);
             return undefined;
         }
 
+        const metadata = await response.json();
         console.log("[NftCollectionCard] 📄 Fetched metadata:", metadata);
 
-        let imageUrl = metadata.image || metadata.image_url;
-        if (!imageUrl) {
-            console.warn(`[NftCollectionCard] ⚠️ 'image' or 'image_url' not found in metadata.`);
-            console.log(`[NftCollectionCard] 📝 Available metadata keys:`, Object.keys(metadata));
+        if (!metadata || !metadata.image) {
+            console.warn("[NftCollectionCard] ⚠️ No image found in metadata");
             return undefined;
         }
-        console.log(`[NftCollectionCard] 🖼️ Found image URL in metadata: "${imageUrl}"`);
 
-        // If the image URL itself is IPFS, convert it using our proxy
-        if (imageUrl.startsWith("ipfs://")) {
-             const imageIpfsHash = imageUrl.substring("ipfs://".length);
-             imageUrl = `/api/ipfs-proxy?hash=${imageIpfsHash}`;
-             console.log(`[NftCollectionCard] 🔄 Converted IPFS image URL to proxy: "${imageUrl}"`);
-        }
-        
-        console.log(`[NftCollectionCard] ✅ Final image URL: "${imageUrl}"`);
+        // Convert the image URL to Pinata gateway if it's IPFS
+        const imageUrl = ipfsToPinataUrl(metadata.image);
+        console.log(`[NftCollectionCard] ✅ Image URL: ${imageUrl}`);
         return imageUrl;
+
     } catch (error) {
-        console.error("[NftCollectionCard] ❌ Error in getCollectionImageFromMetadata:", error);
+        console.error(`[NftCollectionCard] ❌ Error fetching collection image:`, error);
         return undefined;
     }
 }
