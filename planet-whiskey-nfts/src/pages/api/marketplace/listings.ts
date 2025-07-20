@@ -7,8 +7,10 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { Metaplex } from '@metaplex-foundation/js';
 
 const ipfsToPinataUrl = (uri: string): string => {
-  if (!uri || !uri.startsWith('ipfs://')) {
-    return uri; // Return original if not an IPFS URI or if it's already a URL
+  if (!uri || typeof uri !== 'string') return ''; // Return empty string for invalid input
+  if (uri.startsWith('http')) return uri; // Return as-is if it's already a URL
+  if (!uri.startsWith('ipfs://')) {
+    return uri; // Return original if not an IPFS URI
   }
   const hash = uri.substring(7);
   return `https://gateway.pinata.cloud/ipfs/${hash}`;
