@@ -1,109 +1,102 @@
-{
-  "address": "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L",
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/marketplaceprogram.json`.
+ */
+export type Marketplaceprogram = {
+  "address": "NqQ2fJ6TzMn44wdkKGGCT71P7nJggZSp4qoqZPWfJTW",
   "metadata": {
-    "name": "whiskeyprogram",
+    "name": "marketplaceprogram",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "A Solana program for an NFT marketplace"
   },
   "instructions": [
     {
-      "name": "create_collection",
+      "name": "buyNft",
       "discriminator": [
-        156,
-        251,
-        92,
-        54,
-        233,
-        2,
-        16,
-        82
+        96,
+        0,
+        28,
+        190,
+        49,
+        107,
+        83,
+        222
       ],
       "accounts": [
         {
-          "name": "payer",
+          "name": "buyer",
           "writable": true,
           "signer": true
         },
         {
-          "name": "program_admin_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  103,
-                  114,
-                  97,
-                  109,
-                  95,
-                  115,
-                  117,
-                  112,
-                  101,
-                  114,
-                  95,
-                  97,
-                  100,
-                  109,
-                  105,
-                  110
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "collection_config",
+          "name": "listing",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
                   108,
-                  108,
-                  101,
-                  99,
+                  105,
+                  115,
                   116,
                   105,
-                  111,
-                  110
+                  110,
+                  103
                 ]
               },
               {
-                "kind": "arg",
-                "path": "name"
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "account",
+                "path": "nftToBuyMint"
               }
             ]
           }
         },
         {
-          "name": "collection_mint",
+          "name": "seller",
           "writable": true,
-          "signer": true
+          "relations": [
+            "listing"
+          ]
         },
         {
-          "name": "metadata_account",
-          "writable": true
+          "name": "escrowTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing"
+              }
+            ]
+          }
         },
         {
-          "name": "master_edition_account",
-          "writable": true
-        },
-        {
-          "name": "token_account",
+          "name": "buyerNftTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "buyer"
               },
               {
                 "kind": "const",
@@ -144,7 +137,7 @@
               },
               {
                 "kind": "account",
-                "path": "collection_mint"
+                "path": "nftToBuyMint"
               }
             ],
             "program": {
@@ -187,308 +180,18 @@
           }
         },
         {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
-          "name": "associated_token_program",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "token_metadata_program",
-          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "rent",
-          "address": "SysvarRent111111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "name": "symbol",
-          "type": "string"
-        },
-        {
-          "name": "metadata_uri",
-          "type": "string"
-        },
-        {
-          "name": "mint_price_sol",
-          "type": "u64"
-        },
-        {
-          "name": "mint_price_whiskey",
-          "type": "u64"
-        },
-        {
-          "name": "item_limit",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "initialize",
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
-      "accounts": [],
-      "args": []
-    },
-    {
-      "name": "initialize_super_admin",
-      "discriminator": [
-        104,
-        242,
-        235,
-        74,
-        225,
-        193,
-        166,
-        116
-      ],
-      "accounts": [
-        {
-          "name": "payer",
+          "name": "whiskeyTokenMint",
           "writable": true,
-          "signer": true
-        },
-        {
-          "name": "program_admin_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  103,
-                  114,
-                  97,
-                  109,
-                  95,
-                  115,
-                  117,
-                  112,
-                  101,
-                  114,
-                  95,
-                  97,
-                  100,
-                  109,
-                  105,
-                  110
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "mint_nft",
-      "discriminator": [
-        211,
-        57,
-        6,
-        167,
-        15,
-        219,
-        35,
-        251
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "collection_config",
-          "writable": true
-        },
-        {
-          "name": "wallet_nft_counter",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  97,
-                  108,
-                  108,
-                  101,
-                  116,
-                  95,
-                  110,
-                  102,
-                  116,
-                  95,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "account",
-                "path": "collection_config"
-              }
-            ]
-          }
-        },
-        {
-          "name": "collection_mint_account"
-        },
-        {
-          "name": "nft_mint",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "nft_metadata_account",
-          "writable": true
-        },
-        {
-          "name": "nft_master_edition_account",
-          "writable": true
-        },
-        {
-          "name": "nft_token_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "nft_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "collection_authority_receiver",
-          "writable": true
-        },
-        {
-          "name": "whiskey_token_mint",
           "address": "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu"
         },
         {
-          "name": "payer_whiskey_token_account",
+          "name": "buyerWhiskeyTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "buyer"
               },
               {
                 "kind": "const",
@@ -529,7 +232,7 @@
               },
               {
                 "kind": "account",
-                "path": "whiskey_token_mint"
+                "path": "whiskeyTokenMint"
               }
             ],
             "program": {
@@ -572,13 +275,13 @@
           }
         },
         {
-          "name": "authority_whiskey_token_account",
+          "name": "sellerWhiskeyTokenAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "collection_authority_receiver"
+                "path": "seller"
               },
               {
                 "kind": "const",
@@ -619,7 +322,7 @@
               },
               {
                 "kind": "account",
-                "path": "whiskey_token_mint"
+                "path": "whiskeyTokenMint"
               }
             ],
             "program": {
@@ -662,20 +365,368 @@
           }
         },
         {
-          "name": "token_program",
+          "name": "nftToBuyMint"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "associated_token_program",
+          "name": "associatedTokenProgram",
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelListing",
+      "discriminator": [
+        41,
+        183,
+        50,
+        232,
+        230,
+        233,
+        157,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "seller",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "listing"
+          ]
         },
         {
-          "name": "token_metadata_program",
-          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "account",
+                "path": "nftToListMint"
+              }
+            ]
+          }
         },
         {
-          "name": "system_program",
+          "name": "sellerNftTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nftToListMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "escrowTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nftToListMint"
+        },
+        {
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "listNft",
+      "discriminator": [
+        88,
+        221,
+        93,
+        166,
+        63,
+        220,
+        106,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "seller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "account",
+                "path": "nftToListMint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sellerNftTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nftToListMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "escrowTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nftToListMint"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
           "name": "rent",
@@ -684,190 +735,61 @@
       ],
       "args": [
         {
-          "name": "nft_name",
-          "type": "string"
-        },
-        {
-          "name": "nft_symbol",
-          "type": "string"
-        },
-        {
-          "name": "nft_uri",
-          "type": "string"
+          "name": "price",
+          "type": "u64"
         }
       ]
     }
   ],
   "accounts": [
     {
-      "name": "CollectionConfig",
+      "name": "marketplaceListing",
       "discriminator": [
-        223,
-        110,
-        152,
-        160,
-        174,
-        157,
+        211,
         106,
-        255
-      ]
-    },
-    {
-      "name": "ProgramAdminConfig",
-      "discriminator": [
-        140,
-        32,
-        187,
-        50,
-        249,
-        70,
-        153,
-        65
-      ]
-    },
-    {
-      "name": "WalletNftCounter",
-      "discriminator": [
-        43,
-        236,
-        244,
-        4,
-        66,
-        57,
-        133,
-        11
+        229,
+        109,
+        73,
+        75,
+        97,
+        122
       ]
     }
   ],
   "errors": [
     {
       "code": 6000,
-      "name": "NameTooLong",
-      "msg": "Name too long."
+      "name": "insufficientNftBalance",
+      "msg": "Insufficient NFT balance. You must own the NFT to list it."
     },
     {
       "code": 6001,
-      "name": "SymbolTooLong",
-      "msg": "Symbol too long."
+      "name": "cannotBuyOwnNft",
+      "msg": "Cannot buy your own NFT. Please use a different wallet."
     },
     {
       "code": 6002,
-      "name": "UriTooLong",
-      "msg": "URI too long."
-    },
-    {
-      "code": 6003,
-      "name": "ItemLimitZero",
-      "msg": "Item limit cannot be zero."
-    },
-    {
-      "code": 6004,
-      "name": "UnauthorizedSuperAdmin",
-      "msg": "Unauthorized: Caller is not the super admin."
-    },
-    {
-      "code": 6005,
-      "name": "CollectionFull",
-      "msg": "Collection is full. No more items can be minted."
-    },
-    {
-      "code": 6006,
-      "name": "NftNameTooLong",
-      "msg": "NFT Name too long."
-    },
-    {
-      "code": 6007,
-      "name": "NftSymbolTooLong",
-      "msg": "NFT Symbol too long."
-    },
-    {
-      "code": 6008,
-      "name": "NftUriTooLong",
-      "msg": "NFT URI too long."
-    },
-    {
-      "code": 6009,
-      "name": "WalletNftLimitExceeded",
-      "msg": "Wallet has reached the maximum NFT limit of 5 per collection."
+      "name": "insufficientWhiskeyBalance",
+      "msg": "Insufficient WHISKEY token balance to complete the purchase."
     }
   ],
   "types": [
     {
-      "name": "CollectionConfig",
+      "name": "marketplaceListing",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "authority",
+            "name": "seller",
             "type": "pubkey"
           },
           {
-            "name": "collection_mint",
+            "name": "nftMint",
             "type": "pubkey"
           },
           {
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "name": "symbol",
-            "type": "string"
-          },
-          {
-            "name": "metadata_uri",
-            "type": "string"
-          },
-          {
-            "name": "mint_price_sol",
+            "name": "price",
             "type": "u64"
-          },
-          {
-            "name": "mint_price_whiskey",
-            "type": "u64"
-          },
-          {
-            "name": "item_limit",
-            "type": "u64"
-          },
-          {
-            "name": "items_minted",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ProgramAdminConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "super_admin_key",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WalletNftCounter",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "wallet",
-            "type": "pubkey"
-          },
-          {
-            "name": "nft_count",
-            "type": "u8"
           },
           {
             "name": "bump",
@@ -877,4 +799,4 @@
       }
     }
   ]
-}
+};

@@ -365,6 +365,10 @@ export type Whiskeyprogram = {
               {
                 "kind": "account",
                 "path": "payer"
+              },
+              {
+                "kind": "account",
+                "path": "collectionConfig"
               }
             ]
           }
@@ -686,15 +690,15 @@ export type Whiskeyprogram = {
       ],
       "args": [
         {
-          "name": "nft_name",
+          "name": "nftName",
           "type": "string"
         },
         {
-          "name": "nft_symbol",
+          "name": "nftSymbol",
           "type": "string"
         },
         {
-          "name": "nft_uri",
+          "name": "nftUri",
           "type": "string"
         }
       ]
@@ -790,7 +794,7 @@ export type Whiskeyprogram = {
     {
       "code": 6009,
       "name": "walletNftLimitExceeded",
-      "msg": "Wallet has reached the maximum NFT limit of 5."
+      "msg": "Wallet has reached the maximum NFT limit of 5 per collection."
     }
   ],
   "types": [

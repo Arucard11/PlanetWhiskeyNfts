@@ -382,46 +382,46 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     // Effect to check wallet NFT count when wallet connects
     useEffect(() => {
         const checkWalletNftCount = async () => {
-            if (!publicKey || !connected) {
+            if (!publicKey || !connected || !signTransaction || !signAllTransactions) {
                 setWalletNftCount(null);
                 return;
             }
 
             setIsCheckingWalletLimit(true);
             try {
-                // Create wallet counter PDA to check current count
-                const seeds = [
-                    Buffer.from("wallet_nft_counter"),
-                    publicKey.toBuffer(),
-                ];
+                // Use Anchor to fetch and decode the account data safely
+                const walletAdapter = { publicKey, signTransaction, signAllTransactions } as Wallet;
+                const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
+                const program = new Program<Whiskeyprogram>(idl as any, provider);
+
+                // Use the collection-specific PDA that matches the updated smart contract
+                const collectionConfigPda = new PublicKey(collectionOnChainAddress);
                 const [walletNftCounterPda] = PublicKey.findProgramAddressSync(
-                    seeds,
-                    WHISKEY_PROGRAM_ID
+                    [Buffer.from("wallet_nft_counter"), publicKey.toBuffer(), collectionConfigPda.toBuffer()],
+                    program.programId // Use program's ID
                 );
 
-                // Try to fetch the account
-                const accountInfo = await connection.getAccountInfo(walletNftCounterPda);
-                
-                if (accountInfo) {
-                    // Account exists, parse the nft_count (it's at offset 40: 8 discriminator + 32 wallet pubkey)
-                    const nftCount = accountInfo.data.readUInt8(40);
-                    setWalletNftCount(nftCount);
-                    console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted ${nftCount}/5 NFTs`);
-                } else {
-                    // Account doesn't exist, user hasn't minted any NFTs yet
-                    setWalletNftCount(0);
-                    console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted 0/5 NFTs (no counter account)`);
-                }
+                // Fetch the account using the program instance
+                const counterAccount = await program.account.walletNftCounter.fetch(walletNftCounterPda);
+                setWalletNftCount(counterAccount.nftCount);
+                console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted ${counterAccount.nftCount}/5 NFTs for this collection (decoded).`);
             } catch (error) {
-                console.error('[WalletLimit] Error checking wallet NFT count:', error);
-                setWalletNftCount(null);
+                // It's expected for the account to not exist if the user has never minted.
+                // This is not an error state, it just means the count is 0.
+                if (error instanceof Error && error.message.includes("Account does not exist")) {
+                     setWalletNftCount(0);
+                     console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted 0/5 NFTs for this collection (no counter account found).`);
+                } else {
+                    console.error('[WalletLimit] Error checking wallet NFT count:', error);
+                    setWalletNftCount(null); // Set to null to indicate an error state
+                }
             } finally {
                 setIsCheckingWalletLimit(false);
             }
         };
 
         checkWalletNftCount();
-    }, [publicKey, connected, connection]);
+    }, [publicKey, connected, connection, signTransaction, signAllTransactions]);
 
     // Effect for loading image only when metadataUri changes
     useEffect(() => {
@@ -475,6 +475,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         // Check wallet NFT limit before proceeding
         if (walletNftCount !== null && walletNftCount >= 5) {
             setMintMessage("❌ Wallet limit reached! You can only mint 5 NFTs total per wallet across all collections.");
+            return;
+        }
+
+        // Prevent multiple simultaneous minting attempts
+        if (isMinting) {
+            console.warn("Minting already in progress, ignoring duplicate request");
             return;
         }
 
@@ -597,6 +603,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             }
             
             // Create unique metadata for this NFT using the create-nft-metadata API
+            const mintTimestamp = Date.now();
             const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
                 method: 'POST',
                 headers: {
@@ -611,11 +618,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         { trait_type: "Edition", value: mintNumber.toString() },
                         { trait_type: "Collection", value: liveCollectionData.name },
                         { trait_type: "Type", value: "Treasury NFT" },
-                        { trait_type: "Rarity", value: mintNumber <= 10 ? "Legendary" : mintNumber <= 50 ? "Rare" : "Common" }
+                        { trait_type: "Rarity", value: mintNumber <= 10 ? "Legendary" : mintNumber <= 50 ? "Rare" : "Common" },
+                        { trait_type: "Mint Timestamp", value: mintTimestamp.toString() }
                     ],
                     collectionName: liveCollectionData.name,
                     collectionFamily: liveCollectionData.name,
-                    mintNumber: mintNumber
+                    mintNumber: mintNumber,
+                    mintTimestamp: mintTimestamp // Add timestamp for uniqueness
                 })
             });
 
@@ -629,7 +638,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage(`Metadata created: ${nftUri}`);
 
 
+            // Generate a completely fresh keypair for this transaction
             const nftMintKeypair = web3.Keypair.generate();
+            console.log(`[NFT_MINT] Generated fresh NFT mint keypair: ${nftMintKeypair.publicKey.toBase58()}`);
 
             const metadataPda = PublicKey.findProgramAddressSync(
                 [
@@ -739,8 +750,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Add compute budget instructions at the beginning
             transaction.instructions.unshift(computeUnitLimitIx, computeUnitPriceIx);
 
-            // Get recent blockhash and fee payer
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+            // Get fresh blockhash and fee payer
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = publicKey;
 
@@ -748,11 +759,11 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             transaction.partialSign(nftMintKeypair);
             const signedTransaction = await signTransaction(transaction);
 
-            // Send the transaction
+            // Send the transaction with unique signature
             const tx = await connection.sendRawTransaction(signedTransaction.serialize(), {
                 skipPreflight: false,
                 preflightCommitment: 'confirmed',
-                maxRetries: 3,
+                maxRetries: 2, // Reduced retries to avoid duplicate transaction issues
             });
 
             // Confirm the transaction
@@ -807,6 +818,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             let errorMsg = error.message;
             
+            // Handle specific duplicate transaction error
+            if (errorMsg.includes("This transaction has already been processed") || 
+                errorMsg.includes("already been processed") ||
+                errorMsg.includes("duplicate transaction")) {
+                errorMsg = "⚠️ Transaction already submitted. Please wait for the previous transaction to complete and check your wallet.";
+                // Don't log this as an error since it's likely a user double-click
+                console.warn("Duplicate transaction detected - user may have clicked mint multiple times");
+            }
+            
             if (error.logs) { // Anchor errors often have logs
                 error.logs.forEach((log: string) => console.log(log));
                 
@@ -844,7 +864,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             setMintMessage(`Minting failed: ${errorMsg}`);
         } finally {
-            setIsMinting(false);
+            // Add a brief delay before enabling the button again to prevent rapid clicking
+            setTimeout(() => {
+                setIsMinting(false);
+            }, 1000);
         }
     }, [
         publicKey, connected, signTransaction, signAllTransactions, connection, 

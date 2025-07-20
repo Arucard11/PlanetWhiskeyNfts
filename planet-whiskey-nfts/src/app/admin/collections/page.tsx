@@ -97,12 +97,6 @@ export default function ManageCollectionsPage() {
   return (
     <div>
       <h2 className="text-3xl font-serif text-whiskey-brown-dark font-semibold mb-6">Create New NFT Collection</h2>
-      {message && (
-        <div className={`mb-4 p-4 rounded-md text-sm font-sans 
-          ${message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-          {message.text}
-        </div>
-      )}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="companyId" className={formLabelClass}>Select Asset Type</label>
@@ -168,10 +162,17 @@ export default function ManageCollectionsPage() {
         <button 
             type="submit" 
             disabled={isLoading || companies.length === 0}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-semibold font-sans text-white bg-amber-gold-DEFAULT hover:bg-amber-gold-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-gold-dark disabled:opacity-70 disabled:bg-stone-gray-400 transition-colors mt-8"
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-semibold font-sans text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-gold-dark disabled:opacity-70 disabled:bg-stone-gray-400 transition-colors mt-8"
         >
           {isLoading ? 'Creating Collection...' : 'Create NFT Collection'}
         </button>
+
+        {message && (
+            <div className={`mt-4 p-4 rounded-md text-sm font-sans 
+            ${message.type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+            {message.text}
+            </div>
+        )}
       </form>
     </div>
   );
