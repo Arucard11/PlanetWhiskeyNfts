@@ -96,14 +96,14 @@ const Navbar = () => {
                   className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 font-serif"
                   whileHover={{ scale: 1.05 }}
                 >
-                  NFT Treasury
+                  Planet Whiskey
                 </motion.h1>
                 <motion.p 
                   className="text-xs text-amber-200/80 font-medium tracking-[0.2em] uppercase"
                   initial={{ opacity: 0.6 }}
                   whileHover={{ opacity: 1 }}
                 >
-                  Premium NFT Collections
+                  RESERVE VAULT
                 </motion.p>
               </div>
             </Link>

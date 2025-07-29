@@ -61,9 +61,9 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
 
     useEffect(() => {
         if (!src) {
-            setImageSrc('/placeholder-image.svg');
-            return;
-        }
+                    setImageSrc('/placeholder-image.svg');
+                return;
+            }
 
         // Convert IPFS URI to Pinata gateway URL (same as marketplace)
         const convertedSrc = ipfsToPinataUrl(src);
@@ -93,13 +93,13 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     }
 
     return (
-        <img
-            src={imageSrc}
-            alt={alt}
+            <img
+                src={imageSrc}
+                alt={alt}
             className={className}
-            onError={handleImageError}
+                onError={handleImageError}
             onLoad={handleImageLoad}
-        />
+            />
     );
 };
 
@@ -145,17 +145,23 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
             return undefined;
         }
 
-        // Use the same approach as marketplace - convert IPFS URI to Pinata gateway
-        const metadataUrl = ipfsToPinataUrl(metadataUri);
-        console.log(`[NftCollectionCard] 📥 Fetching metadata from: ${metadataUrl}`);
+        // Use our server-side API to avoid CORS issues
+        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        console.log(`[NftCollectionCard] 📥 Fetching metadata from API: ${apiUrl}`);
         
-        const response = await fetch(metadataUrl);
+        const response = await fetch(apiUrl);
         if (!response.ok) {
             console.warn(`[NftCollectionCard] ⚠️ Failed to fetch metadata: ${response.status} ${response.statusText}`);
             return undefined;
         }
 
-        const metadata = await response.json();
+        const result = await response.json();
+        if (!result.success) {
+            console.warn(`[NftCollectionCard] ⚠️ API returned error: ${result.message}`);
+            return undefined;
+        }
+
+        const metadata = result.data;
         console.log("[NftCollectionCard] 📄 Fetched metadata:", metadata);
 
         if (!metadata || !metadata.image) {
@@ -163,8 +169,8 @@ async function getCollectionImageFromMetadata(metadataUri: string): Promise<stri
             return undefined;
         }
 
-        // Convert the image URL to Pinata gateway if it's IPFS
-        const imageUrl = ipfsToPinataUrl(metadata.image);
+        // The API already converts IPFS URLs to Pinata URLs
+        const imageUrl = metadata.image;
         console.log(`[NftCollectionCard] ✅ Image URL: ${imageUrl}`);
         return imageUrl;
 

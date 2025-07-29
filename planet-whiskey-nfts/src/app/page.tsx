@@ -232,12 +232,12 @@ export default function Home() {
             >
               <Link
                 href="#assets"
-                className="group relative inline-flex items-center justify-center px-12 py-6 text-2xl font-bold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-2xl shadow-2xl shadow-amber-500/40 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-amber-300 overflow-hidden"
+                className="group relative inline-flex items-center justify-center px-12 py-6 text-2xl font-bold text-amber-400 bg-transparent border-2 border-amber-400 rounded-2xl shadow-lg shadow-amber-500/20 transition-all duration-300 hover:bg-amber-400/10 hover:text-white focus:outline-none focus:ring-4 focus:ring-amber-300 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-300 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="absolute inset-0 bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <Zap size={28} className="mr-4 -ml-1 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 relative z-10" />
                 <span className="relative z-10">Explore Collections</span>
-                <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+                <div className="absolute inset-0 border-2 border-transparent group-hover:border-amber-300 rounded-2xl transition-all duration-300 transform scale-110 group-hover:scale-100" />
               </Link>
             </motion.div>
           </motion.div>
@@ -547,16 +547,6 @@ export default function Home() {
                     </motion.div>
                     <div className={`absolute inset-0 w-28 h-28 bg-gradient-to-br ${item.gradient} rounded-full blur-2xl opacity-40`} />
                     
-                    {/* Step number */}
-                    <motion.div 
-                      className="absolute -top-3 -right-3 w-8 h-8 bg-white text-black rounded-full flex items-center justify-center text-sm font-bold shadow-lg"
-                      initial={{ scale: 0 }}
-                      whileInView={{ scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: index * 0.2 + 0.5, type: "spring", stiffness: 500 }}
-                    >
-                      {item.step}
-                    </motion.div>
                   </div>
                   
                   <motion.div 
@@ -647,24 +637,11 @@ export default function Home() {
             >
               <Link
                 href="#assets"
-                className="group relative inline-flex items-center justify-center px-16 py-8 text-3xl font-bold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-3xl shadow-2xl shadow-amber-500/40 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-amber-300 overflow-hidden"
+                className="group relative inline-flex items-center justify-center px-16 py-8 text-3xl font-bold text-amber-400 bg-transparent border-2 border-amber-400 rounded-3xl shadow-2xl shadow-amber-500/40 transition-all duration-300 hover:bg-amber-400/10 hover:text-white focus:outline-none focus:ring-4 focus:ring-amber-300 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-300 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <motion.span 
-                  className="text-4xl mr-6 relative z-10"
-                  animate={{ 
-                    rotate: [0, 15, 0],
-                    scale: [1, 1.1, 1]
-                  }}
-                  transition={{ 
-                    duration: 2, 
-                    repeat: Infinity 
-                  }}
-                >
-                  🚀
-                </motion.span>
+                <div className="absolute inset-0 bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <span className="relative z-10">Explore Collections Now</span>
-                <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                <div className="absolute inset-0 border-2 border-transparent group-hover:border-amber-300 rounded-3xl transition-all duration-500 transform scale-110 group-hover:scale-100" />
               </Link>
             </motion.div>
             
