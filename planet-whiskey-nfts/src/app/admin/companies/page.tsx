@@ -18,6 +18,7 @@ export default function ManageCompaniesPage() {
   const [newCompanyDescription, setNewCompanyDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
 
   async function fetchCompanies() {
     setIsLoading(true);
@@ -26,7 +27,7 @@ export default function ManageCompaniesPage() {
       const response = await fetch('/api/admin/companies');
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch companies');
+        throw new Error(errorData.message || 'Failed to fetch assets');
       }
       const data = await response.json();
       setCompanies(data.companies || []);
@@ -53,7 +54,7 @@ export default function ManageCompaniesPage() {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to add company');
+        throw new Error(errorData.message || 'Failed to add asset');
       }
       setNewCompanyName('');
       setNewCompanyDescription('');
@@ -65,16 +66,38 @@ export default function ManageCompaniesPage() {
     }
   };
 
+  const handleDeleteCompany = async (companyId: string) => {
+    if (!confirm('Are you sure you want to delete this asset? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingCompanyId(companyId);
+    try {
+      const response = await fetch(`/api/admin/companies/${companyId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete asset');
+      }
+      await fetchCompanies(); // Refresh the list
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setDeletingCompanyId(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-semibold text-whiskey-brown-dark">Manage Companies</h2>
+      <h2 className="text-2xl font-semibold text-whiskey-brown-dark">Manage Assets</h2>
 
       <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Add New Company</h3>
+        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Add New Asset</h3>
         <form onSubmit={handleAddCompany} className="space-y-4">
           <div>
             <label htmlFor="newCompanyName" className="block text-sm font-sans font-medium text-stone-gray-700">
-              Company Name
+              Asset Name
             </label>
             <input
               type="text"
@@ -103,23 +126,34 @@ export default function ManageCompaniesPage() {
             disabled={isSubmitting}
             className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-sans font-medium rounded-md text-white bg-amber-gold-DEFAULT hover:bg-amber-gold-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-gold-dark disabled:opacity-70 disabled:bg-stone-gray-400 transition-colors"
           >
-            {isSubmitting ? 'Adding...' : 'Add Company'}
+            {isSubmitting ? 'Adding...' : 'Add Asset'}
           </button>
         </form>
       </div>
 
       <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Existing Companies</h3>
-        {isLoading && <p className="font-sans text-stone-gray-600">Loading companies...</p>}
+        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Existing Assets</h3>
+        {isLoading && <p className="font-sans text-stone-gray-600">Loading assets...</p>}
         {error && <p className="text-sm text-red-600 font-sans">Error: {error}</p>}
-        {!isLoading && !error && companies.length === 0 && <p className="font-sans text-stone-gray-500">No companies found.</p>}
+        {!isLoading && !error && companies.length === 0 && <p className="font-sans text-stone-gray-500">No assets found.</p>}
         {!isLoading && !error && companies.length > 0 && (
           <ul className="divide-y divide-stone-gray-300">
             {companies.map((company) => (
               <li key={company._id} className="py-4">
-                <h4 className="text-lg font-serif font-semibold text-whiskey-brown-dark">{company.name}</h4>
-                {company.description && <p className="text-sm font-sans text-stone-gray-700 mt-1">{company.description}</p>}
-                <p className="text-xs font-sans text-stone-gray-500 mt-1">Created: {new Date(company.createdAt).toLocaleDateString()}</p>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h4 className="text-lg font-serif font-semibold text-whiskey-brown-dark">{company.name}</h4>
+                    {company.description && <p className="text-sm font-sans text-stone-gray-700 mt-1">{company.description}</p>}
+                    <p className="text-xs font-sans text-stone-gray-500 mt-1">Created: {new Date(company.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteCompany(company._id)}
+                    disabled={deletingCompanyId === company._id}
+                    className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {deletingCompanyId === company._id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

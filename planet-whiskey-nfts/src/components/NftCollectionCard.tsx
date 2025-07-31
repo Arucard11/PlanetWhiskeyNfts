@@ -3,105 +3,27 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-// import { Metaplex, walletAdapterIdentity } from '@metaplex-foundation/js'; // No longer directly using Metaplex.nfts().create()
 import { PublicKey, SystemProgram, Keypair, SYSVAR_RENT_PUBKEY, ComputeBudgetProgram, TransactionInstruction } from '@solana/web3.js';
-// import * as anchor from '@coral-xyz/anchor'; // Removed
-import { Program, AnchorProvider, type Wallet, BN, type Idl, web3 } from '@coral-xyz/anchor'; // Modified: Added BN and Idl type
+import { Program, AnchorProvider, type Wallet, BN, type Idl, web3 } from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
 // Assuming your IDL and program types are here - adjust path as necessary
 import { Whiskeyprogram } from '@/lib/idl/solana_program';
 import idl from '@/lib/idl/whiskeyprogram.json';
-// import { Whiskeyprogram as WhiskeyprogramType } from '@/types/whiskeyprogram'; // REMOVED: Assuming a type file
-// import idlJson from '@/lib/idl/whiskeyprogram.json'; // Old alias import
-// import idlJson from '../lib/idl/whiskeyprogram.json'; // Use relative path // REMOVE THIS LINE
+import ImageWithFallback from './ImageWithFallback';
+
+// Global cache for metadata to prevent duplicate API calls
+const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Debounce mechanism to prevent rapid API calls
+let pendingRequests = new Map<string, Promise<any>>();
 
 // Ensure your program ID is correctly sourced, e.g., from an environment variable or a constants file
 const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L");
 
-// MPL_TOKEN_METADATA_PROGRAM_ID is already imported from @metaplex-foundation/mpl-token-metadata
 
-// IPFS Gateways for fallback
-const IPFS_GATEWAYS = [
-    'https://gateway.pinata.cloud/ipfs/',
-    'https://ipfs.io/ipfs/',
-    'https://cloudflare-ipfs.com/ipfs/',
-    'https://dweb.link/ipfs/'
-];
-
-// Simple IPFS to Pinata conversion function (same as marketplace)
-const ipfsToPinataUrl = (uri: string): string => {
-    if (!uri || typeof uri !== 'string') return '';
-    if (uri.startsWith('http')) return uri;
-    if (!uri.startsWith('ipfs://')) {
-        return uri;
-    }
-    const hash = uri.substring(7);
-    return `https://gateway.pinata.cloud/ipfs/${hash}`;
-};
-
-interface ImageWithFallbackProps {
-    src: string;
-    alt: string;
-    className?: string;
-    onLoad?: () => void;
-    onError?: () => void;
-}
-
-const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({ 
-    src, 
-    alt, 
-    className = '', 
-    onLoad, 
-    onError 
-}) => {
-    const [imageSrc, setImageSrc] = useState<string>('');
-    const [hasErrored, setHasErrored] = useState(false);
-
-    useEffect(() => {
-        if (!src) {
-                    setImageSrc('/placeholder-image.svg');
-                return;
-            }
-
-        // Convert IPFS URI to Pinata gateway URL (same as marketplace)
-        const convertedSrc = ipfsToPinataUrl(src);
-        console.log(`[ImageWithFallback] Converting: ${src} -> ${convertedSrc}`);
-        setImageSrc(convertedSrc);
-        setHasErrored(false);
-    }, [src]);
-
-    const handleImageError = () => {
-        console.warn(`[ImageWithFallback] Failed to load image from: ${imageSrc}`);
-        setHasErrored(true);
-        if (onError) onError();
-    };
-
-    const handleImageLoad = () => {
-        console.log(`[ImageWithFallback] Successfully loaded image: ${imageSrc}`);
-        if (onLoad) onLoad();
-    };
-
-    // If there's no valid image source or it has errored, show placeholder
-    if (!imageSrc || hasErrored) {
-        return (
-            <div className={`${className} flex items-center justify-center bg-gray-200 text-gray-500`}>
-                <span>No Image Available</span>
-            </div>
-        );
-    }
-
-    return (
-            <img
-                src={imageSrc}
-                alt={alt}
-            className={className}
-                onError={handleImageError}
-            onLoad={handleImageLoad}
-            />
-    );
-};
 
 // Augmented collection data interface that the API endpoint /api/collections/:collectionOnChainAddress returns
 interface IAugmentedNftCollection {
@@ -137,48 +59,7 @@ export interface NftCollectionCardProps {
     onMintSuccess?: () => void; 
 }
 
-async function getCollectionImageFromMetadata(metadataUri: string): Promise<string | undefined> {
-    try {
-        console.log(`[NftCollectionCard] ⭐ Starting image fetch for metadataUri: "${metadataUri}"`);
-        if (!metadataUri) {
-            console.warn("[NftCollectionCard] ❌ metadataUri is undefined or empty.");
-            return undefined;
-        }
 
-        // Use our server-side API to avoid CORS issues
-        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
-        console.log(`[NftCollectionCard] 📥 Fetching metadata from API: ${apiUrl}`);
-        
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            console.warn(`[NftCollectionCard] ⚠️ Failed to fetch metadata: ${response.status} ${response.statusText}`);
-            return undefined;
-        }
-
-        const result = await response.json();
-        if (!result.success) {
-            console.warn(`[NftCollectionCard] ⚠️ API returned error: ${result.message}`);
-            return undefined;
-        }
-
-        const metadata = result.data;
-        console.log("[NftCollectionCard] 📄 Fetched metadata:", metadata);
-
-        if (!metadata || !metadata.image) {
-            console.warn("[NftCollectionCard] ⚠️ No image found in metadata");
-            return undefined;
-        }
-
-        // The API already converts IPFS URLs to Pinata URLs
-        const imageUrl = metadata.image;
-        console.log(`[NftCollectionCard] ✅ Image URL: ${imageUrl}`);
-        return imageUrl;
-
-    } catch (error) {
-        console.error(`[NftCollectionCard] ❌ Error fetching collection image:`, error);
-        return undefined;
-    }
-}
 
 const NftCollectionCard: React.FC<NftCollectionCardProps> = ({ 
     _id, 
@@ -206,10 +87,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
     const { connection } = useConnection();
     const { publicKey, connected, signTransaction, signAllTransactions } = useWallet();
-    const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
-    const [isImageLoading, setIsImageLoading] = useState(true);
+
     const [isMinting, setIsMinting] = useState(false);
     const [mintMessage, setMintMessage] = useState<string | null>(null);
+    const [imageUrl, setImageUrl] = useState<string>('');
 
     const [displayItemsMinted, setDisplayItemsMinted] = useState(initialItemsMintedOnChain);
     const [displayItemLimit, setDisplayItemLimit] = useState(initialItemLimit);
@@ -223,6 +104,99 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     useEffect(() => {
         setDisplayPriceFormatted(`${(initialMintPriceWhiskeyTokens / 1e9).toFixed(0)} WHISKEY`);
     }, [initialMintPriceWhiskeyTokens]);
+
+    // Effect to fetch collection image from metadata using our proxy
+    useEffect(() => {
+        const fetchCollectionImage = async () => {
+            if (!metadataUri) {
+                setImageUrl('/placeholder-image.svg');
+                return;
+            }
+
+            try {
+                console.log(`[NftCollectionCard] Fetching collection image for: ${initialName}`);
+                
+                // Check global cache first
+                const cached = globalMetadataCache.get(metadataUri);
+                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                    console.log(`[NftCollectionCard] Using cached metadata for: ${initialName}`);
+                    if (cached.data && cached.data.image) {
+                        setImageUrl(cached.data.image);
+                    } else {
+                        setImageUrl('/placeholder-image.svg');
+                    }
+                    return;
+                }
+
+                // Check if there's already a pending request for this metadata
+                if (pendingRequests.has(metadataUri)) {
+                    console.log(`[NftCollectionCard] Waiting for pending request for: ${initialName}`);
+                    const result = await pendingRequests.get(metadataUri);
+                    if (result && result.image) {
+                        setImageUrl(result.image);
+                    } else {
+                        setImageUrl('/placeholder-image.svg');
+                    }
+                    return;
+                }
+
+                // Create a new request promise
+                const requestPromise = (async () => {
+                    try {
+                        // Add a small delay to prevent rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        
+                        // Use our server-side proxy to avoid CORS issues
+                        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+                        const response = await fetch(apiUrl);
+                        
+                        if (!response.ok) {
+                            console.warn(`[NftCollectionCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+                            return null;
+                        }
+
+                        const result = await response.json();
+                        if (!result.success) {
+                            console.warn(`[NftCollectionCard] API returned error: ${result.message}`);
+                            return null;
+                        }
+
+                        const metadata = result.data;
+                        console.log(`[NftCollectionCard] Fetched metadata:`, metadata);
+
+                        // Cache the result
+                        globalMetadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });
+
+                        return metadata;
+                    } catch (error) {
+                        console.error(`[NftCollectionCard] Error fetching collection image:`, error);
+                        return null;
+                    } finally {
+                        // Remove from pending requests
+                        pendingRequests.delete(metadataUri);
+                    }
+                })();
+
+                // Store the pending request
+                pendingRequests.set(metadataUri, requestPromise);
+
+                // Wait for the result
+                const metadata = await requestPromise;
+                if (metadata && metadata.image) {
+                    console.log(`[NftCollectionCard] Setting image URL: ${metadata.image}`);
+                    setImageUrl(metadata.image);
+                } else {
+                    console.warn(`[NftCollectionCard] No image found in metadata`);
+                    setImageUrl('/placeholder-image.svg');
+                }
+            } catch (error) {
+                console.error(`[NftCollectionCard] Error in fetchCollectionImage:`, error);
+                setImageUrl('/placeholder-image.svg');
+            }
+        };
+
+        fetchCollectionImage();
+    }, [metadataUri, initialName]);
 
     // Effect to check wallet NFT count when wallet connects
     useEffect(() => {
@@ -268,42 +242,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         checkWalletNftCount();
     }, [publicKey, connected, connection, signTransaction, signAllTransactions]);
 
-    // Effect for loading image only when metadataUri changes
-    useEffect(() => {
-        let isMounted = true;
-        
-        // Reset image URL and set loading state only when metadataUri changes
-        setImageUrl(undefined);
-        setIsImageLoading(true);
-        
-        if (metadataUri) {
-            console.log(`[NftCollectionCard] Loading image for collection: ${initialName}, metadataUri: ${metadataUri}`);
-            getCollectionImageFromMetadata(metadataUri).then(imgUrl => {
-                if (isMounted) {
-                    if (imgUrl) {
-                        console.log(`[NftCollectionCard] Image loaded for ${initialName}: ${imgUrl}`);
-                        setImageUrl(imgUrl);
-                    } else {
-                        console.warn(`[NftCollectionCard] No image found for ${initialName}`);
-                        setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
-                    }
-                    setIsImageLoading(false);
-                }
-            }).catch(error => {
-                if (isMounted) {
-                    console.error(`[NftCollectionCard] Error loading image for ${initialName}:`, error);
-                    setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
-                    setIsImageLoading(false);
-                }
-            });
-        } else {
-            console.warn(`[NftCollectionCard] No metadataUri provided for collection: ${initialName}`);
-            setImageUrl(''); // Set empty string to trigger ImageWithFallback error state
-            setIsImageLoading(false);
-        }
 
-        return () => { isMounted = false; };
-    }, [metadataUri, initialName]); // Only depend on metadataUri and name
 
     // Separate effect for updating display values without affecting image loading
     useEffect(() => {
@@ -381,10 +320,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
             // Setup Anchor Provider and Program
             const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
-
-            // Create program instance using the JSON IDL with proper type casting
-            console.log("[NftCollectionCard] Program ID before Program creation:", WHISKEY_PROGRAM_ID.toBase58());
-            const program = new Program<Whiskeyprogram>(idl, provider);
+            const program = new Program<Whiskeyprogram>(idl as any, provider);
 
             const collectionConfigPda = new PublicKey(collectionOnChainAddress); // This is liveCollectionData.collectionOnChainAddress
             const collectionMintAccountPk = new PublicKey(liveCollectionData.collectionMintAddress);
@@ -733,11 +669,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         className="w-full h-full object-cover"
                     />
                 </div>
-                {isImageLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-400"></div>
-                    </div>
-                )}
+
             </div>
 
             <div className="p-6 flex flex-col flex-grow">

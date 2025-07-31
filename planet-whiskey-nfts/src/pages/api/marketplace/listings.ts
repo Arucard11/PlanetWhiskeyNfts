@@ -6,14 +6,79 @@ import { getMarketplaceProgram } from '@/lib/solanaUtils';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { Metaplex } from '@metaplex-foundation/js';
 
-const ipfsToPinataUrl = (uri: string): string => {
-  if (!uri || typeof uri !== 'string') return ''; // Return empty string for invalid input
-  if (uri.startsWith('http')) return uri; // Return as-is if it's already a URL
-  if (!uri.startsWith('ipfs://')) {
-    return uri; // Return original if not an IPFS URI
+// Global cache for metadata to prevent duplicate API calls
+const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Debounce mechanism to prevent rapid API calls
+let pendingRequests = new Map<string, Promise<any>>();
+
+// Fetch metadata using our server-side proxy (same as NftCollectionCard)
+const fetchMetadataWithProxy = async (metadataUri: string): Promise<any | null> => {
+  if (!metadataUri) return null;
+  
+  try {
+    // Check global cache first
+    const cached = globalMetadataCache.get(metadataUri);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`[marketplace-listings] Using cached metadata for: ${metadataUri}`);
+      return cached.data;
+    }
+
+    // Check if there's already a pending request for this metadata
+    if (pendingRequests.has(metadataUri)) {
+      console.log(`[marketplace-listings] Waiting for pending request for: ${metadataUri}`);
+      return await pendingRequests.get(metadataUri);
+    }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        // Add a small delay to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Use our server-side proxy to avoid CORS issues (same as NftCollectionCard)
+        // Since this is server-side, we need to use the full URL
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          console.warn(`[marketplace-listings] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          return null;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[marketplace-listings] API returned error: ${result.message}`);
+          return null;
+        }
+
+        const metadata = result.data;
+        console.log(`[marketplace-listings] Fetched metadata:`, metadata);
+
+        // Cache the result
+        globalMetadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });
+
+        return metadata;
+      } catch (error) {
+        console.error(`[marketplace-listings] Error fetching metadata:`, error);
+        return null;
+      } finally {
+        // Remove from pending requests
+        pendingRequests.delete(metadataUri);
+      }
+    })();
+
+    // Store the pending request
+    pendingRequests.set(metadataUri, requestPromise);
+
+    // Wait for the result
+    return await requestPromise;
+  } catch (error) {
+    console.error(`[marketplace-listings] Error in fetchMetadataWithProxy:`, error);
+    return null;
   }
-  const hash = uri.substring(7);
-  return `https://gateway.pinata.cloud/ipfs/${hash}`;
 };
 
 async function verifyListingExistsOnChain(
@@ -71,17 +136,38 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               
               let loadedJson = nft.json;
               if (!loadedJson) {
-                // Use the conversion ONLY to fetch the metadata
-                const metadataUrl = ipfsToPinataUrl(nft.uri);
-                const response = await fetch(metadataUrl);
-                if (response.ok) loadedJson = await response.json();
+                // Use our server-side proxy to fetch the metadata (same as NftCollectionCard)
+                console.log(`[marketplace-listings] NFT JSON not pre-loaded for ${listing.nftMintAddress}. Fetching from URI: ${nft.uri}`);
+                try {
+                  loadedJson = await fetchMetadataWithProxy(nft.uri);
+                  if (loadedJson) {
+                    console.log(`[marketplace-listings] Successfully fetched metadata for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
+                  } else {
+                    console.warn(`[marketplace-listings] Failed to fetch metadata for ${listing.nftMintAddress} using proxy`);
+                  }
+                } catch (e) {
+                  console.error(`[marketplace-listings] Error fetching metadata for ${listing.nftMintAddress} from ${nft.uri}`, e);
+                }
+              } else {
+                console.log(`[marketplace-listings] NFT JSON was pre-loaded for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
+              }
+
+              // Convert image URL to use our proxy to avoid CORS issues
+              let imageUrl = loadedJson?.image || '/placeholder-image.svg';
+              if (imageUrl && imageUrl.startsWith('ipfs://')) {
+                const hash = imageUrl.substring(7);
+                imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+                console.log(`[marketplace-listings] Converted image URL to proxy: ${imageUrl}`);
+              } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+                console.log(`[marketplace-listings] Converted Pinata URL to proxy: ${imageUrl}`);
               }
 
               return {
                 ...listing,
                 _id: listing._id.toString(),
                 nftName: loadedJson?.name || 'Unknown NFT',
-                nftImageUrl: loadedJson?.image || '/placeholder-image.svg',
+                nftImageUrl: imageUrl,
                 collectionName: collection?.name || loadedJson?.collection?.name || 'Unknown',
               };
             } catch (e) {
@@ -95,11 +181,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         
         let collectionImageUrl;
         if (collection?.metadataUri) {
-            // Use the conversion ONLY to fetch the metadata
-            const metadataResponse = await fetch(ipfsToPinataUrl(collection.metadataUri));
-            if (metadataResponse.ok) {
-                const collectionJson = await metadataResponse.json();
-                collectionImageUrl = collectionJson.image || ''; // Use the image URL directly
+            try {
+                // Use our server-side proxy to avoid CORS issues
+                const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+                const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(collection.metadataUri)}`;
+                const metadataResponse = await fetch(apiUrl);
+                if (metadataResponse.ok) {
+                    const result = await metadataResponse.json();
+                    if (result.success && result.data && result.data.image) {
+                        collectionImageUrl = result.data.image;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching collection metadata:', error);
             }
         }
         
@@ -145,11 +239,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         const augmentedCollections = await Promise.all(collectionsWithVerifiedListings.map(async (col) => {
             let imageUrl;
             if (col.metadataUri) {
-                // Use the conversion ONLY to fetch the metadata
-                const metadataResponse = await fetch(ipfsToPinataUrl(col.metadataUri));
-                if (metadataResponse.ok) {
-                    const collectionJson = await metadataResponse.json();
-                    imageUrl = collectionJson.image || ''; // Use the image URL directly
+                try {
+                    // Use our server-side proxy to avoid CORS issues
+                    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+                    const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(col.metadataUri)}`;
+                    const metadataResponse = await fetch(apiUrl);
+                    if (metadataResponse.ok) {
+                        const result = await metadataResponse.json();
+                        if (result.success && result.data && result.data.image) {
+                            imageUrl = result.data.image;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching collection metadata:', error);
                 }
             }
             return { ...col, imageUrl: imageUrl || '/placeholder-image.svg' };

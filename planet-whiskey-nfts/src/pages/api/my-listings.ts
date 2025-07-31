@@ -6,61 +6,79 @@ import { getMarketplaceProgram } from '@/lib/solanaUtils';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { Metaplex } from '@metaplex-foundation/js';
 
-// Multiple IPFS gateways as fallbacks
-const IPFS_GATEWAYS = [
-  'https://gateway.pinata.cloud/ipfs/',  // Primary gateway
-  'https://ipfs.io/ipfs/',              // Public IPFS gateway
-  'https://cloudflare-ipfs.com/ipfs/',  // Cloudflare IPFS gateway
-  'https://dweb.link/ipfs/',            // Protocol Labs gateway
-];
+// Global cache for metadata to prevent duplicate API calls
+const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const ipfsToPinataUrl = (uri: string): string => {
-  if (!uri || !uri.startsWith('ipfs://')) {
-    return uri;
-  }
-  const hash = uri.substring(7);
-  return `${IPFS_GATEWAYS[0]}${hash}`;  // Use primary gateway
-};
+// Debounce mechanism to prevent rapid API calls
+let pendingRequests = new Map<string, Promise<any>>();
 
-// Try multiple IPFS gateways if one fails
-const fetchMetadataWithFallback = async (uri: string): Promise<any | null> => {
-  if (!uri || !uri.startsWith('ipfs://')) {
-    try {
-      const response = await fetch(uri);
-      if (response.ok) return await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch non-IPFS metadata: ${uri}`, error);
+// Fetch metadata using our server-side proxy (same as NftCollectionCard)
+const fetchMetadataWithProxy = async (metadataUri: string): Promise<any | null> => {
+  if (!metadataUri) return null;
+  
+  try {
+    // Check global cache first
+    const cached = globalMetadataCache.get(metadataUri);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`[my-listings] Using cached metadata for: ${metadataUri}`);
+      return cached.data;
     }
+
+    // Check if there's already a pending request for this metadata
+    if (pendingRequests.has(metadataUri)) {
+      console.log(`[my-listings] Waiting for pending request for: ${metadataUri}`);
+      return await pendingRequests.get(metadataUri);
+    }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        // Add a small delay to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Use our server-side proxy to avoid CORS issues (same as NftCollectionCard)
+        // Since this is server-side, we need to use the full URL
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          console.warn(`[my-listings] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          return null;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[my-listings] API returned error: ${result.message}`);
+          return null;
+        }
+
+        const metadata = result.data;
+        console.log(`[my-listings] Fetched metadata:`, metadata);
+
+        // Cache the result
+        globalMetadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });
+
+        return metadata;
+      } catch (error) {
+        console.error(`[my-listings] Error fetching metadata:`, error);
+        return null;
+      } finally {
+        // Remove from pending requests
+        pendingRequests.delete(metadataUri);
+      }
+    })();
+
+    // Store the pending request
+    pendingRequests.set(metadataUri, requestPromise);
+
+    // Wait for the result
+    return await requestPromise;
+  } catch (error) {
+    console.error(`[my-listings] Error in fetchMetadataWithProxy:`, error);
     return null;
   }
-
-  const hash = uri.substring(7);
-  
-  for (let i = 0; i < IPFS_GATEWAYS.length; i++) {
-    const gatewayUrl = `${IPFS_GATEWAYS[i]}${hash}`;
-    try {
-      console.log(`[my-listings] Trying gateway ${i + 1}/${IPFS_GATEWAYS.length}: ${gatewayUrl}`);
-      const response = await fetch(gatewayUrl, {
-        headers: {
-          'Accept': 'application/json',
-        },
-        // Add timeout to prevent hanging
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`[my-listings] Successfully fetched metadata from gateway ${i + 1}`);
-        return data;
-      }
-    } catch (error) {
-      console.warn(`[my-listings] Gateway ${i + 1} failed for ${uri}:`, error);
-      continue;
-    }
-  }
-  
-  console.error(`[my-listings] All gateways failed for ${uri}`);
-  return null;
 };
 
 // Function to verify if a listing still exists on-chain
@@ -146,7 +164,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           
           let loadedJson = nft.json;
           if (!loadedJson) {
-            loadedJson = await fetchMetadataWithFallback(nft.uri);
+            // Use our server-side proxy to fetch the metadata (same as NftCollectionCard)
+            console.log(`[my-listings] NFT JSON not pre-loaded for ${listing.nftMintAddress}. Fetching from URI: ${nft.uri}`);
+            try {
+              loadedJson = await fetchMetadataWithProxy(nft.uri);
+              if (loadedJson) {
+                console.log(`[my-listings] Successfully fetched metadata for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
+              } else {
+                console.warn(`[my-listings] Failed to fetch metadata for ${listing.nftMintAddress} using proxy`);
+              }
+            } catch (e) {
+              console.error(`[my-listings] Error fetching metadata for ${listing.nftMintAddress} from ${nft.uri}`, e);
+            }
+          } else {
+            console.log(`[my-listings] NFT JSON was pre-loaded for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
           }
 
           // Get collection info
@@ -154,11 +185,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             collectionMintAddress: listing.collectionMintAddress 
           }).lean();
 
+          // Convert image URL to use our proxy to avoid CORS issues
+          let imageUrl = loadedJson?.image || '';
+          if (imageUrl && imageUrl.startsWith('ipfs://')) {
+            const hash = imageUrl.substring(7);
+            imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+            console.log(`[my-listings] Converted image URL to proxy: ${imageUrl}`);
+          } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+            imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+            console.log(`[my-listings] Converted Pinata URL to proxy: ${imageUrl}`);
+          }
+
           return {
             ...listing,
             _id: listing._id.toString(),
             nftName: loadedJson?.name || 'Unknown NFT',
-            nftImageUrl: loadedJson?.image || '',
+            nftImageUrl: imageUrl,
             collectionName: collection?.name || 'Unknown Collection',
             priceInWhiskey: listing.priceInWhiskey,
           };

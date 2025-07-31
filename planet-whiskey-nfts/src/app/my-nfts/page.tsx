@@ -2,6 +2,7 @@
 
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import MyNftCard from '@/components/MyNftCard';
 import ListNftModal from '@/components/ListNftModal';
 import ListedNftCard from '@/components/ListedNftCard';
@@ -67,6 +68,15 @@ export default function MyNftsPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedNft, setSelectedNft] = useState<NftForListing | null>(null);
   const [selectedListing, setSelectedListing] = useState<ListingForCancel | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const fetchNfts = async () => {
     if (connected && wallet?.adapter.publicKey) {
@@ -79,6 +89,18 @@ export default function MyNftsPage() {
         if (result.success) {
           const owned = result.data.filter((nft: SerializableNft) => nft.isOwnedCollection);
           const unknown = result.data.filter((nft: SerializableNft) => !nft.isOwnedCollection);
+          
+          // Debug logging to see what image URLs we're getting
+          console.log('[my-nfts-page] Owned collection NFTs:', owned.map(nft => ({
+            name: nft.name,
+            imageUrl: nft.json?.image,
+            hasImage: !!nft.json?.image
+          })));
+          console.log('[my-nfts-page] Unknown collection NFTs:', unknown.map(nft => ({
+            name: nft.name,
+            imageUrl: nft.json?.image,
+            hasImage: !!nft.json?.image
+          })));
           
           setOwnedCollectionNfts(owned);
           setUnknownCollectionNfts(unknown);
@@ -104,7 +126,7 @@ export default function MyNftsPage() {
         const result = await response.json();
 
         if (result.success) {
-          setListedNfts(result.data);
+          setListedNfts(result.data || []);
         } else {
           console.error('Failed to fetch listings:', result.message);
         }
@@ -119,84 +141,160 @@ export default function MyNftsPage() {
   };
 
   useEffect(() => {
-    if (connected) {
-      fetchNfts();
-      fetchListings();
-    }
-  }, [connected, wallet]);
+    fetchNfts();
+    fetchListings();
+  }, [connected, wallet?.adapter.publicKey]);
 
   const handleOpenListModal = (mintAddress: string) => {
-    const nft = ownedCollectionNfts.find(n => n.address === mintAddress);
-    if (!nft) {
-      toast.error("NFT not found.");
-      return;
+    const nft = [...ownedCollectionNfts, ...unknownCollectionNfts].find(n => n.address === mintAddress);
+    if (nft) {
+      setSelectedNft({
+        mintAddress: nft.address,
+        name: nft.json?.name || nft.name,
+        imageUrl: nft.json?.image || '',
+        collectionMintAddress: nft.collectionMintAddress
+      });
+      setIsListModalOpen(true);
     }
-    
-    if (!nft.collection?.address) {
-      toast.error("This NFT is not part of a known collection and cannot be listed.");
-      return;
-    }
-    setSelectedNft({
-      mintAddress: nft.address,
-      name: nft.json?.name || nft.name,
-      imageUrl: nft.json?.image || '',
-      collectionMintAddress: nft.collection.address,
-    });
-    setIsListModalOpen(true);
   };
 
   const handleCloseListModal = () => {
     setIsListModalOpen(false);
     setSelectedNft(null);
-    // Refresh both NFTs and listings after successful listing
-    fetchNfts();
-    fetchListings();
+    fetchListings(); // Refresh listings after listing
   };
 
   const handleOpenCancelModal = (nftMintAddress: string) => {
     const listing = listedNfts.find(l => l.nftMintAddress === nftMintAddress);
-    if (!listing) {
-      toast.error("Listing not found.");
-      return;
+    if (listing) {
+      setSelectedListing({
+        nftMintAddress: listing.nftMintAddress,
+        nftName: listing.nftName,
+        nftImageUrl: listing.nftImageUrl,
+        collectionName: listing.collectionName,
+        priceInWhiskey: listing.priceInWhiskey
+      });
+      setIsCancelModalOpen(true);
     }
-    
-    setSelectedListing({
-      nftMintAddress: listing.nftMintAddress,
-      nftName: listing.nftName,
-      nftImageUrl: listing.nftImageUrl,
-      collectionName: listing.collectionName,
-      priceInWhiskey: listing.priceInWhiskey,
-    });
-    setIsCancelModalOpen(true);
   };
 
   const handleCloseCancelModal = () => {
     setIsCancelModalOpen(false);
     setSelectedListing(null);
-    // Refresh both NFTs and listings after successful cancellation
-    fetchNfts();
-    fetchListings();
+    fetchListings(); // Refresh listings after cancellation
   };
 
   if (!connected) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-900 to-yellow-600 flex items-center justify-center">
-        <div className="text-center p-8">
-          <h1 className="text-4xl font-bold text-white mb-4">Connect Your Wallet</h1>
-          <p className="text-amber-200 text-lg">Please connect your wallet to view your NFTs.</p>
+      <div className="min-h-screen bg-black text-white overflow-hidden relative">
+        {/* Animated Background Elements */}
+        <div className="fixed inset-0 z-0">
+          {/* Gradient Orbs */}
+          <motion.div 
+            className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-full blur-3xl"
+            animate={{ 
+              x: mousePosition.x * 0.02,
+              y: mousePosition.y * 0.02,
+              scale: [1, 1.1, 1],
+              opacity: [0.3, 0.5, 0.3]
+            }}
+            transition={{ 
+              scale: { duration: 4, repeat: Infinity },
+              opacity: { duration: 3, repeat: Infinity }
+            }}
+          />
+          <motion.div 
+            className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-3xl"
+            animate={{ 
+              x: -mousePosition.x * 0.015,
+              y: -mousePosition.y * 0.015,
+              scale: [1, 1.2, 1],
+              opacity: [0.2, 0.4, 0.2]
+            }}
+            transition={{ 
+              scale: { duration: 5, repeat: Infinity },
+              opacity: { duration: 4, repeat: Infinity }
+            }}
+          />
+        </div>
+        
+        <div className="relative z-20 flex items-center justify-center min-h-screen">
+          <div className="text-center p-8">
+            <h1 className="text-4xl font-bold text-white mb-4">Connect Your Wallet</h1>
+            <p className="text-amber-200 text-lg">Please connect your wallet to view your NFTs.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-900 to-yellow-600">
-      <div className="container mx-auto px-6 py-8">
-        <h1 className="text-4xl font-bold text-white mb-8">My NFTs</h1>
+    <div className="min-h-screen bg-black text-white overflow-hidden relative">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 z-0">
+        {/* Gradient Orbs */}
+        <motion.div 
+          className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-full blur-3xl"
+          animate={{ 
+            x: mousePosition.x * 0.02,
+            y: mousePosition.y * 0.02,
+            scale: [1, 1.1, 1],
+            opacity: [0.3, 0.5, 0.3]
+          }}
+          transition={{ 
+            scale: { duration: 4, repeat: Infinity },
+            opacity: { duration: 3, repeat: Infinity }
+          }}
+        />
+        <motion.div 
+          className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-3xl"
+          animate={{ 
+            x: -mousePosition.x * 0.015,
+            y: -mousePosition.y * 0.015,
+            scale: [1, 1.2, 1],
+            opacity: [0.2, 0.4, 0.2]
+          }}
+          transition={{ 
+            scale: { duration: 5, repeat: Infinity },
+            opacity: { duration: 4, repeat: Infinity }
+          }}
+        />
+        
+        {/* Floating Particles */}
+        {[...Array(30)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-amber-400/40 rounded-full"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              y: [0, -100, 0],
+              opacity: [0, 1, 0],
+            }}
+            transition={{
+              duration: Math.random() * 3 + 2,
+              repeat: Infinity,
+              delay: Math.random() * 2,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="relative z-20 container mx-auto px-6 py-8">
+        <motion.h1 
+          className="text-4xl font-bold text-white mb-8"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          My NFTs
+        </motion.h1>
 
         {loading && (
           <div className="flex justify-center items-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400"></div>
           </div>
         )}
 
@@ -210,7 +308,12 @@ export default function MyNftsPage() {
           <>
             {/* Listed NFTs Section */}
             {listedNfts.length > 0 && (
-              <div className="mb-12">
+              <motion.div 
+                className="mb-12"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              >
                 <h2 className="text-2xl font-bold text-white mb-6">
                   Your Active Listings ({listedNfts.length})
                 </h2>
@@ -228,32 +331,46 @@ export default function MyNftsPage() {
                     />
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {ownedCollectionNfts.length > 0 && (
-              <div className="mb-12">
+              <motion.div 
+                className="mb-12"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              >
                 <h2 className="text-2xl font-bold text-white mb-6">
                   Your Planet Whiskey NFTs ({ownedCollectionNfts.length})
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {ownedCollectionNfts.map((nft) => (
+                  {ownedCollectionNfts.map((nft) => {
+                    const imageUrl = nft.json?.image || '';
+                    console.log(`[my-nfts-page] Rendering MyNftCard for ${nft.name} with imageUrl:`, imageUrl);
+                    return (
                       <MyNftCard
                         key={nft.address}
                         mintAddress={nft.address}
                         name={nft.json?.name || nft.name}
-                        imageUrl={nft.json?.image || ''}
+                        imageUrl={imageUrl}
                         collectionName={nft.collectionName}
                         collectionMintAddress={nft.collectionMintAddress}
                         onList={handleOpenListModal}
                       />
-                  ))}
+                    );
+                  })}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {unknownCollectionNfts.length > 0 && (
-              <div className="mb-12">
+              <motion.div 
+                className="mb-12"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+              >
                 <h2 className="text-2xl font-bold text-white mb-4">
                   Other NFTs ({unknownCollectionNfts.length})
                 </h2>
@@ -262,36 +379,54 @@ export default function MyNftsPage() {
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {unknownCollectionNfts.map((nft) => (
-                      <div key={nft.address} className="bg-amber-800 bg-opacity-30 backdrop-blur-sm rounded-lg p-4 opacity-60">
-                        <div className="aspect-square bg-amber-700 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                          {nft.json?.image ? (
+                      <div key={nft.address} className="group relative bg-slate-900/50 backdrop-blur-xl border border-amber-700/30 rounded-3xl shadow-2xl hover:shadow-amber-500/20 transform hover:-translate-y-2 transition-all duration-700 flex flex-col h-full overflow-hidden opacity-60">
+                        <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
+                          {/* Image Aspect Ratio Container - same as NftCollectionCard */}
+                          <div className="aspect-w-1 aspect-h-1 w-full h-full">
                             <ImageWithFallback
-                              src={nft.json.image}
-                              alt={nft.json?.name || nft.name}
-                              className="w-full h-full object-cover rounded-lg"
+                              src={nft.json?.image || '/placeholder-image.svg'}
+                              alt={`${nft.json?.name || nft.name} image`}
+                              className="w-full h-full object-cover"
                             />
-                          ) : (
-                            <span className="text-amber-200">No Image</span>
-                          )}
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10"></div>
+                          <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
+                            {nft.collectionName}
+                          </div>
                         </div>
-                        <h3 className="font-semibold text-white text-sm mb-2">
-                          {nft.json?.name || nft.name}
-                        </h3>
-                        <p className="text-amber-200 text-xs">{nft.collectionName}</p>
-                        <p className="text-amber-400 text-xs mt-1">Not listable</p>
+                        <div className="p-6 flex flex-col flex-grow">
+                          <h3 className="mb-3 text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500 font-serif truncate" title={nft.json?.name || nft.name}>
+                            {nft.json?.name || nft.name}
+                          </h3>
+                          <div className="font-sans text-sm text-gray-300 space-y-2 mb-6 flex-grow">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium text-gray-400">Collection:</span> 
+                              <span className="font-bold text-amber-200">{nft.collectionName}</span>
+                            </div>
+                            <div className="bg-red-900/20 border border-red-700/40 rounded-xl p-4 text-center">
+                              <p className="font-bold text-red-200 text-sm">Not Listable</p>
+                              <p className="text-xs text-gray-400 mt-2">This NFT is not from a Planet Whiskey collection</p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {(!loading && ownedCollectionNfts.length === 0 && unknownCollectionNfts.length === 0 && listedNfts.length === 0) && (
-              <div className="text-center py-16">
+              <motion.div 
+                className="text-center py-16"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
+              >
                 <h2 className="text-2xl font-bold text-white mb-4">No NFTs Found</h2>
                 <p className="text-amber-200">
                   You don't own any NFTs yet. Visit our collections to mint your first NFT!
                 </p>
-              </div>
+              </motion.div>
             )}
           </>
         )}

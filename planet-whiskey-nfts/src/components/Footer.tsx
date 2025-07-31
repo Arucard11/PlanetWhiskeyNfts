@@ -2,18 +2,31 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Twitter, Bot, Send } from 'lucide-react';
+import { Bot, Send, Globe } from 'lucide-react';
+
+// Custom X (Twitter) icon component
+const XIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+);
 
 const Footer = () => {
   const socialLinks = [
-    { name: 'Twitter', icon: Twitter, href: '#' },
-    { name: 'Discord', icon: Bot, href: '#' },
-    { name: 'Telegram', icon: Send, href: '#' },
+    { name: 'X (Twitter)', icon: XIcon, href: 'https://x.com/planetwhiskey' },
+    { name: 'Telegram', icon: Send, href: 'https://t.me/PlanetWhiskey' },
+    { name: 'Website', icon: Globe, href: 'https://www.planetwhiskey.xyz' },
   ];
 
   const footerLinks = [
     { name: 'Assets', href: '/#assets' },
-    { name: 'How It Works', href: '/#how-it-works' },
+    { name: 'Distiller\'s Guide', href: '/#how-it-works' },
     { name: 'Terms of Service', href: '#' },
     { name: 'Privacy Policy', href: '#' },
   ];
@@ -33,7 +46,7 @@ const Footer = () => {
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-bold text-xl text-white font-serif">NFT Treasury</span>
+            <span className="font-bold text-xl text-white font-serif">Planet Whiskey</span>
           </div>
             
           {/* Navigation Links */}
@@ -51,6 +64,8 @@ const Footer = () => {
               <a 
                 key={social.name} 
                 href={social.href} 
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label={social.name}
                 className="text-gray-500 hover:text-white transition-colors duration-300 transform hover:scale-110"
               >
@@ -62,7 +77,7 @@ const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-white/10 text-center text-sm text-gray-500">
-          <p>&copy; {new Date().getFullYear()} NFT Treasury. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Planet Whiskey. All rights reserved.</p>
           <p className="mt-1">Powered by the Solana Blockchain.</p>
         </div>
       </div>

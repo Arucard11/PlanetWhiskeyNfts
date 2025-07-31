@@ -271,7 +271,7 @@ export default function Home() {
 
 
 
-      {/* Treasury Assets Section */}
+      {/* Reserve Assets Section */}
       <section id="assets" className="py-32 bg-gradient-to-b from-black via-slate-900 to-black relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/background.jpg')] bg-cover bg-center opacity-5" />
         
@@ -307,7 +307,7 @@ export default function Home() {
             transition={{ duration: 0.8 }}
           >
             <h2 className="text-6xl sm:text-7xl font-bold text-white mb-8 font-serif leading-normal pb-8" style={{ lineHeight: '1.3' }}>
-              Treasury{' '}
+              Reserve{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500">
                 Assets
               </span>
@@ -345,8 +345,8 @@ export default function Home() {
                   <span className="text-4xl filter drop-shadow-lg">🏭</span>
                 </motion.div>
                 
-                <h3 className="text-5xl font-bold text-white mb-6 font-serif">Loading Distilleries</h3>
-                <p className="text-2xl text-gray-300 mb-12 leading-relaxed">Fetching our partner distilleries...</p>
+                <h3 className="text-5xl font-bold text-white mb-6 font-serif">Loading Assets</h3>
+                <p className="text-2xl text-gray-300 mb-12 leading-relaxed">Fetching our partner assets...</p>
                 
                 <div className="inline-flex items-center text-amber-400 font-bold text-lg">
                   <motion.div 
@@ -360,7 +360,7 @@ export default function Home() {
                       repeat: Infinity 
                     }}
                   />
-                  Loading premium distillery partnerships...
+                  Loading premium asset partnerships...
                 </div>
               </div>
             </motion.div>
@@ -456,7 +456,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Revolutionary How It Works Section */}
+      {/* Revolutionary Distiller's Guide Section */}
       <section id="how-it-works" className="py-32 bg-gradient-to-b from-black via-slate-900 to-black relative">
         <div className="container mx-auto px-4">
           <motion.div 
@@ -467,9 +467,9 @@ export default function Home() {
             transition={{ duration: 0.8 }}
           >
             <h2 className="text-6xl sm:text-7xl font-bold text-white mb-8 font-serif">
-              How It{' '}
+              Distiller's{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500">
-                Works
+                Guide
               </span>
             </h2>
             <p className="text-2xl text-gray-400 max-w-4xl mx-auto leading-relaxed">

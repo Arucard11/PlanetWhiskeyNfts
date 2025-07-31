@@ -142,7 +142,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     pathname === '/admin/companies' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
                   }`}
                 >
-                  Companies
+                  Assets
                 </a>
               </li>
               <li>
@@ -152,7 +152,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     pathname === '/admin/collections' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
                   }`}
                 >
-                  Collections
+                  Create Collections
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="/admin/collections/manage" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin/collections/manage' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  Manage Collections
                 </a>
               </li>
               <li>

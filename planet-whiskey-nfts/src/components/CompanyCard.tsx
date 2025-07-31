@@ -22,7 +22,7 @@ const CompanyCard: React.FC<CompanyCardProps> = ({ id, name, description }) => {
                         <div className="w-16 h-16 rounded-full overflow-hidden">
                             <Image
                                 src="/company.jpg"
-                                alt="Company"
+                                alt="Asset"
                                 width={64}
                                 height={64}
                                 className="w-full h-full object-cover rounded-full"
@@ -31,7 +31,7 @@ const CompanyCard: React.FC<CompanyCardProps> = ({ id, name, description }) => {
                     </div>
                 </div>
 
-                {/* Company Name */}
+                {/* Asset Name */}
                 <h3 className="text-2xl font-bold text-white text-center mb-3 font-serif">
                     {name}
                 </h3>

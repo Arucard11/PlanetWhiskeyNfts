@@ -4,61 +4,79 @@ import { Metaplex, Metadata } from '@metaplex-foundation/js';
 import dbConnect from '@/lib/mongodb';
 import NftCollection, { INftCollection } from '@/models/NftCollection';
 
-// Multiple IPFS gateways as fallbacks
-const IPFS_GATEWAYS = [
-  'https://gateway.pinata.cloud/ipfs/',  // Primary gateway
-  'https://ipfs.io/ipfs/',              // Public IPFS gateway
-  'https://cloudflare-ipfs.com/ipfs/',  // Cloudflare IPFS gateway
-  'https://dweb.link/ipfs/',            // Protocol Labs gateway
-];
+// Global cache for metadata to prevent duplicate API calls
+const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const ipfsToPinataUrl = (uri: string): string => {
-  if (!uri || !uri.startsWith('ipfs://')) {
-    return uri; // Return original if not an IPFS URI or if it's already a URL
-  }
-  const hash = uri.substring(7);
-  return `${IPFS_GATEWAYS[0]}${hash}`;  // Use primary gateway
-};
+// Debounce mechanism to prevent rapid API calls
+let pendingRequests = new Map<string, Promise<any>>();
 
-// Try multiple IPFS gateways if one fails
-const fetchMetadataWithFallback = async (uri: string): Promise<any | null> => {
-  if (!uri || !uri.startsWith('ipfs://')) {
-    try {
-      const response = await fetch(uri);
-      if (response.ok) return await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch non-IPFS metadata: ${uri}`, error);
+// Fetch metadata using our server-side proxy (same as NftCollectionCard)
+const fetchMetadataWithProxy = async (metadataUri: string): Promise<any | null> => {
+  if (!metadataUri) return null;
+  
+  try {
+    // Check global cache first
+    const cached = globalMetadataCache.get(metadataUri);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`[my-nfts] Using cached metadata for: ${metadataUri}`);
+      return cached.data;
     }
+
+    // Check if there's already a pending request for this metadata
+    if (pendingRequests.has(metadataUri)) {
+      console.log(`[my-nfts] Waiting for pending request for: ${metadataUri}`);
+      return await pendingRequests.get(metadataUri);
+    }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        // Add a small delay to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Use our server-side proxy to avoid CORS issues (same as NftCollectionCard)
+        // Since this is server-side, we need to use the full URL
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          console.warn(`[my-nfts] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          return null;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[my-nfts] API returned error: ${result.message}`);
+          return null;
+        }
+
+        const metadata = result.data;
+        console.log(`[my-nfts] Fetched metadata:`, metadata);
+
+        // Cache the result
+        globalMetadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });
+
+        return metadata;
+      } catch (error) {
+        console.error(`[my-nfts] Error fetching metadata:`, error);
+        return null;
+      } finally {
+        // Remove from pending requests
+        pendingRequests.delete(metadataUri);
+      }
+    })();
+
+    // Store the pending request
+    pendingRequests.set(metadataUri, requestPromise);
+
+    // Wait for the result
+    return await requestPromise;
+  } catch (error) {
+    console.error(`[my-nfts] Error in fetchMetadataWithProxy:`, error);
     return null;
   }
-
-  const hash = uri.substring(7);
-  
-  for (let i = 0; i < IPFS_GATEWAYS.length; i++) {
-    const gatewayUrl = `${IPFS_GATEWAYS[i]}${hash}`;
-    try {
-      console.log(`[my-nfts] Trying gateway ${i + 1}/${IPFS_GATEWAYS.length}: ${gatewayUrl}`);
-      const response = await fetch(gatewayUrl, {
-        headers: {
-          'Accept': 'application/json',
-        },
-        // Add timeout to prevent hanging
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`[my-nfts] Successfully fetched metadata from gateway ${i + 1}`);
-        return data;
-      }
-    } catch (error) {
-      console.warn(`[my-nfts] Gateway ${i + 1} failed for ${uri}:`, error);
-      continue;
-    }
-  }
-  
-  console.error(`[my-nfts] All gateways failed for ${uri}`);
-  return null;
 };
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -116,15 +134,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       let loadedJson = nft.json;
 
-      // If the JSON wasn't loaded by Metaplex, fetch it directly from the URI
+      // If the JSON wasn't loaded by Metaplex, fetch it using our proxy (same as NftCollectionCard)
       if (!loadedJson) {
         console.log(`[my-nfts] NFT JSON not pre-loaded for ${nft.name}. Fetching from URI: ${nft.uri}`);
         try {
-          loadedJson = await fetchMetadataWithFallback(nft.uri);
+          loadedJson = await fetchMetadataWithProxy(nft.uri);
           if (loadedJson) {
             console.log(`[my-nfts] Successfully fetched metadata for ${nft.name}. Image URL: ${loadedJson?.image}`);
           } else {
-            console.warn(`[my-nfts] Failed to fetch metadata for ${nft.name} from all gateways`);
+            console.warn(`[my-nfts] Failed to fetch metadata for ${nft.name} using proxy`);
           }
         } catch (e) {
           console.error(`[my-nfts] Error fetching metadata for ${nft.name} from ${nft.uri}`, e);
@@ -156,11 +174,53 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         console.log(`[my-nfts] NFT ${nft.name} belongs to an UNKNOWN collection with mint: ${collectionAddress}`);
       }
 
+      // Convert image URL to use our proxy to avoid CORS issues
+      let imageUrl = loadedJson?.image || '';
+      
+      // If the image URL is an IPFS URI, we need to check if it's actually an image or metadata
+      if (imageUrl && imageUrl.startsWith('ipfs://')) {
+        // Check if this is actually an image by looking at the file extension or content
+        const hash = imageUrl.substring(7);
+        
+        // Try to fetch the actual image URL from the metadata first
+        try {
+          const baseMetadataUrl = imageUrl.startsWith('ipfs://') 
+            ? imageUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+            : imageUrl;
+            
+          const baseMetadataResponse = await fetch(baseMetadataUrl);
+          if (baseMetadataResponse.ok) {
+            const baseMetadata = await baseMetadataResponse.json();
+            
+            // If the metadata has an image field, use that instead
+            if (baseMetadata.image) {
+              imageUrl = baseMetadata.image;
+              console.log(`[my-nfts] Found actual image URL in metadata: ${imageUrl}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`[my-nfts] Could not fetch base metadata for image URL: ${imageUrl}`, error);
+        }
+      }
+      
+      // Now convert the final image URL to use our proxy
+      if (imageUrl && imageUrl.startsWith('ipfs://')) {
+        const hash = imageUrl.substring(7);
+        imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+        console.log(`[my-nfts] Converted image URL to proxy: ${imageUrl}`);
+      } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+        imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+        console.log(`[my-nfts] Converted Pinata URL to proxy: ${imageUrl}`);
+      }
+
+      // Create a copy of loadedJson with the converted image URL
+      const processedJson = loadedJson ? { ...loadedJson, image: imageUrl } : loadedJson;
+
       const finalNftData = {
         address: nft.address.toBase58(),
         name: nft.name,
         uri: nft.uri,
-        json: loadedJson,
+        json: processedJson,
         collection: {
           address: collectionAddress,
           verified: nft.collection.verified,
