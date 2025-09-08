@@ -115,6 +115,7 @@ const Navbar = () => {
                 { href: "/#assets", label: "Assets" },
                 { href: "/#how-it-works", label: "Process" },
                 { href: "/marketplace", label: "Marketplace" },
+                { href: "/lending", label: "Lending" },
                 { href: "/my-nfts", label: "My NFTs" }
               ].map((item, index) => (
                 <motion.div key={item.href} className="relative">
@@ -198,6 +199,7 @@ const Navbar = () => {
                   { href: "/", label: "Home", icon: "🏠" },
                   { href: "/#assets", label: "Assets", icon: "💎" },
                   { href: "/marketplace", label: "Marketplace", icon: "🛒" },
+                  { href: "/lending", label: "Lending", icon: "🏦" },
                   { href: "/my-nfts", label: "My NFTs", icon: "🖼️" }
                 ].map((item, index) => (
                   <motion.div

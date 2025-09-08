@@ -3,16 +3,18 @@ import {promises as fs} from 'fs';
 import path from 'path';
 import formidable from 'formidable'; // Use 'formidable' instead of 'formidable-serverless'
 import { Writable, Readable } from 'stream';
-import { getAdminSolanaProgram, adminKeypair as actualAdminKeypair } from '../../../lib/solanaUtils'; // Assuming adminKeypair is exported for payer
+// REMOVED: Server-side admin wallet operations - All admin operations now require client-side wallet signing
 import { Keypair, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY, sendAndConfirmTransaction, ComputeBudgetProgram } from '@solana/web3.js';
+import { getAnchorProvider, getSolanaConnection, getSolanaProgram } from '@/lib/solanaUtils';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 import { BN, Program } from '@coral-xyz/anchor';
-import { Whiskeyprogram as SolanaProgram } from '../../../lib/idl/solana_program';
+import { Whiskeyprogram as SolanaProgram } from '../../../lib/idl/whiskeyprogram';
 import PinataClient from '@pinata/sdk';
 import connectToDatabase from '../../../lib/mongodb';
 import Company from '../../../models/Company';
 import NftCollection from '../../../models/NftCollection';
+// Removed convertUsdToWhiskeyTokens import - conversion now happens at mint time
 
 // console.log("DEBUG: PINATA_API_KEY from env:", process.env.PINATA_API_KEY); // Removed
 // console.log("DEBUG: PINATA_SECRET_API_KEY from env:", process.env.PINATA_SECRET_API_KEY); // Removed
@@ -66,6 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: collection.name,
         symbol: collection.symbol,
         mintPriceWhiskeyTokens: collection.mintPriceWhiskeyTokens,
+        mintPriceUsd: collection.mintPriceUsd, // NEW: Include USD price
         itemLimit: collection.itemLimit,
         itemsMintedOnChain: collection.itemsMintedOnChain,
         companyId: collection.companyId,
@@ -105,27 +108,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // console.log("[ADMIN_CREATE_COLLECTION] Raw files.nftBaseImageFile details:", JSON.stringify(files.nftBaseImageFile, null, 2)); // Removed
 
     const {
-      name,
-      symbol,
+      collectionName,
+      collectionSymbol,
       collectionDescription,
       mintPriceWhiskey,
+      mintPriceUsd, // NEW: USD price field
       itemLimit,
       companyId,
       nftBaseName, // e.g., "Whiskey Barrel #{ID}"
       nftBaseDescription,
+      adminWalletAddress, // NEW: Admin wallet address from frontend
       // Attributes will be an array of { trait_type: string, value: string }
       // It needs to be parsed from JSON string if sent as such
     } = fields;
 
     // Handle potential string[] from formidable, ensure single string values
-    const sName = Array.isArray(name) ? name[0] : name;
-    const sSymbol = Array.isArray(symbol) ? symbol[0] : symbol;
+    const sName = Array.isArray(collectionName) ? collectionName[0] : collectionName;
+    const sSymbol = Array.isArray(collectionSymbol) ? collectionSymbol[0] : collectionSymbol;
     const sDescription = Array.isArray(collectionDescription) ? collectionDescription[0] : collectionDescription;
     const sMintPriceWhiskey = Array.isArray(mintPriceWhiskey) ? mintPriceWhiskey[0] : mintPriceWhiskey;
+    const sMintPriceUsd = Array.isArray(mintPriceUsd) ? mintPriceUsd[0] : mintPriceUsd; // NEW: Handle USD price
     const sItemLimit = Array.isArray(itemLimit) ? itemLimit[0] : itemLimit;
     const sCompanyId = Array.isArray(companyId) ? companyId[0] : companyId;
     const sNftBaseName = (Array.isArray(nftBaseName) ? nftBaseName[0] : nftBaseName) ?? '' as string;
     const sNftBaseDescription = (Array.isArray(nftBaseDescription) ? nftBaseDescription[0] : nftBaseDescription) ?? '' as string;
+    const sAdminWalletAddress = Array.isArray(adminWalletAddress) ? adminWalletAddress[0] : adminWalletAddress;
     const attributesString = (Array.isArray(fields.attributes) ? fields.attributes[0] : fields.attributes) ?? '' as string;
 
     let attributes: Array<{ trait_type: string, value: string }> = [];
@@ -145,28 +152,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sName,
         sSymbol,
         sDescription,
-        sMintPriceWhiskey,
+        sMintPriceUsd,
         sItemLimit,
         sCompanyId,
         sNftBaseName,
         sNftBaseDescription
     });
 
-    // Basic Validations
-    if (!sName || !sSymbol || !sDescription || !sMintPriceWhiskey || !sItemLimit || !sCompanyId || !sNftBaseName || !sNftBaseDescription) {
-      return res.status(400).json({ message: 'Missing required fields. Ensure name, symbol, description, whiskey mint price, item limit, company ID, NFT base name, and NFT base description are provided.' });
+    // Basic Validations - now requiring USD price instead of WHISKEY price
+    if (!sName || !sSymbol || !sDescription || !sMintPriceUsd || !sItemLimit || !sCompanyId || !sNftBaseName || !sNftBaseDescription || !sAdminWalletAddress) {
+      return res.status(400).json({ message: 'Missing required fields. Ensure name, symbol, description, USD mint price, item limit, company ID, NFT base name, NFT base description, and admin wallet address are provided.' });
     }
 
-    // console.log("[ADMIN_CREATE_COLLECTION] Checking uploaded files. collectionImageFile:", files.collectionImageFile); // Removed
-    // console.log("[ADMIN_CREATE_COLLECTION] nftBaseImageFile:", files.nftBaseImageFile); // Removed
+    console.log("[ADMIN_CREATE_COLLECTION] Checking uploaded files. collectionImage:", files.collectionImage ? 'Found' : 'Missing');
 
-    if (!files.collectionImageFile || !files.nftBaseImageFile) {
-        return res.status(400).json({ message: 'Missing collection image or NFT base image.' });
+    if (!files.collectionImage) {
+        return res.status(400).json({ message: 'Missing collection image.' });
     }
     // console.log("[ADMIN_CREATE_COLLECTION] Input validation passed for basic fields."); // Removed
 
-    const collectionImageFile = (Array.isArray(files.collectionImageFile) ? files.collectionImageFile[0] : files.collectionImageFile) as formidable.File;
-    const nftBaseImageFile = (Array.isArray(files.nftBaseImageFile) ? files.nftBaseImageFile[0] : files.nftBaseImageFile) as formidable.File;
+    const collectionImageFile = (Array.isArray(files.collectionImage) ? files.collectionImage[0] : files.collectionImage) as formidable.File;
+    // Use the same image for both collection and NFT base for simplicity
+    const nftBaseImageFile = collectionImageFile;
 
     // --- 0. DB Checks ---
     // console.log("[ADMIN_CREATE_COLLECTION] Connecting to DB for company check..."); // Removed
@@ -243,22 +250,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const uploadedNftBaseMetadataUri = `ipfs://${nftBaseMetadataResult.IpfsHash}`;
     console.log('[ADMIN_CREATE_COLLECTION] NFT base JSON metadata template uploaded to:', uploadedNftBaseMetadataUri);
 
-    // --- 3. Interact with Solana Program ---
-    const program = getAdminSolanaProgram();
+    // --- 3. Prepare Solana Transaction for Client-Side Signing ---
+    const connection = getSolanaConnection();
+    
+    // Use the admin wallet address from the frontend
+    const adminWalletPublicKey = new PublicKey(sAdminWalletAddress as string);
 
-    console.log("ACTUAL PROGRAM ID BEING USED BY API:", program.programId.toBase58());
-
-    if (!program.provider.wallet) {
-      console.error("[ADMIN_CREATE_COLLECTION] Critical error: Provider wallet is not initialized. Check solanaUtils.ts and provider setup.");
-      return res.status(500).json({ message: 'Provider wallet not available. Server configuration issue.' });
+    // Validate that the provided admin wallet address matches the expected admin wallet
+    const expectedAdminWallet = process.env.NEXT_PUBLIC_ADMIN_WALLET || "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk";
+    if (adminWalletPublicKey.toBase58() !== expectedAdminWallet) {
+      console.error("[ADMIN_CREATE_COLLECTION] Unauthorized: Provided wallet is not the admin wallet");
+      return res.status(403).json({ message: 'Unauthorized: Only the admin wallet can create collections.' });
     }
-    const adminWalletPublicKey = program.provider.wallet.publicKey; // This is the public key of the admin
 
-    // Ensure the actualAdminKeypair (the one that will sign) is available
-    if (!actualAdminKeypair) {
-      console.error("[ADMIN_CREATE_COLLECTION] Critical error: Admin keypair is not loaded. Check ADMIN_WALLET_PRIVATE_KEY env var.");
-      return res.status(500).json({ message: 'Admin keypair not available. Server configuration issue.' });
-    }
+    // Create a temporary keypair for program interaction (will be replaced by client wallet)
+    const tempKeypair = Keypair.generate();
+    const provider = getAnchorProvider(tempKeypair);
+    const program = getSolanaProgram(provider);
 
     // This keypair is for the *new collection's mint account itself*, NOT the fee payer.
     const collectionMintKeypair = Keypair.generate();
@@ -269,17 +277,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Derive PDAs
     console.log('[ADMIN_CREATE_COLLECTION] Deriving PDAs...');
-    const programAdminConfigSeedString = "program_super_admin";
-    const programAdminConfigSeedBuffer = Buffer.from(programAdminConfigSeedString);
-    // console.log(`[DEBUG] Seed for programAdminConfigPDA: "${programAdminConfigSeedString}", Buffer:`, programAdminConfigSeedBuffer.toString('hex')); // Optional: if program_admin_config was an issue
-
-    const [programAdminConfigPDA] = await PublicKey.findProgramAddress(
-        [programAdminConfigSeedBuffer],
-        program.programId
-    );
-    // console.log(`[DEBUG] programAdminConfigPDA: ${programAdminConfigPDA.toBase58()}`);
-
-
     // UPDATED SEEDS for collectionConfigPDA to match the program
     const collectionSeedConstant = "collection"; 
     const collectionSeedConstantBuffer = Buffer.from(collectionSeedConstant);
@@ -328,8 +325,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ASSOCIATED_TOKEN_PROGRAM_ID
     );
     console.log('[ADMIN_CREATE_COLLECTION] PDAs derived:', 
-        { programAdminConfigPDA: programAdminConfigPDA.toBase58(), 
-          collectionConfigPDA: collectionConfigPDA.toBase58(),
+        { collectionConfigPDA: collectionConfigPDA.toBase58(),
           metadataAccountPDA: metadataAccountPDA.toBase58(),
           masterEditionAccountPDA: masterEditionAccountPDA.toBase58(),
           tokenAccountPDA: tokenAccountPDA.toBase58()
@@ -339,9 +335,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Set SOL price to 0 since we only accept whiskey tokens
     const mintPriceLamports = new BN(0); // No SOL pricing
-    const mintPriceWhiskeyTokens = new BN(parseFloat(sMintPriceWhiskey as string) * 1_000_000_000); // Convert whiskey tokens (assuming 9 decimals)
+    
+    // Convert USD price to microdollars (6 decimal places)
+    const mintPriceUsdMicrodollars = new BN(parseFloat(sMintPriceUsd as string) * 1_000_000);
+    
+    // For collection creation, we'll set a placeholder WHISKEY price
+    // The actual conversion will happen during minting when WHISKEY price is fetched
+    const mintPriceWhiskeyTokens = new BN(1_000_000_000); // 1 WHISKEY token as placeholder
+    console.log('[ADMIN_CREATE_COLLECTION] Using USD price:', mintPriceUsdMicrodollars.toString(), 'microdollars, placeholder WHISKEY price:', mintPriceWhiskeyTokens.toString());
+    
     const itemLimitBN = new BN(parseInt(sItemLimit as string));
-    console.log('[ADMIN_CREATE_COLLECTION] Set SOL price to 0 (whiskey tokens only), mintPriceWhiskey to tokens:', mintPriceWhiskeyTokens.toString(), 'itemLimit to BN:', itemLimitBN.toString());
+    console.log('[ADMIN_CREATE_COLLECTION] Set SOL price to 0 (whiskey tokens only), USD price to microdollars:', mintPriceUsdMicrodollars.toString(), 'itemLimit to BN:', itemLimitBN.toString());
 
 
     console.log('[ADMIN_CREATE_COLLECTION] Attempting to call program.methods.create_collection on-chain with URI:', uploadedCollectionMetadataUri); // Keep: important action
@@ -352,11 +356,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadedCollectionMetadataUri,
       mintPriceLamports,
       mintPriceWhiskeyTokens,
+      mintPriceUsd: mintPriceUsdMicrodollars,
       itemLimitBN,
     });
     console.log('[ADMIN_CREATE_COLLECTION] create_collection accounts:', { // Keep: important context
-      payer: adminWalletPublicKey.toBase58(),
-      programAdminConfig: programAdminConfigPDA.toBase58(),
+      admin: adminWalletPublicKey.toBase58(),
       collectionConfig: collectionConfigPDA.toBase58(),
       collectionMint: collectionMintKeypair.publicKey.toBase58(),
       metadataAccount: metadataAccountPDA.toBase58(),
@@ -371,8 +375,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // ------------- BEGINNING OF PUBKEY VALIDATION LOGS -------------
     console.log('!!!!!!!!!! VALIDATING PUBKEYS !!!!!!!!!!');
-    console.log('payer.publicKey instanceof PublicKey:', adminWalletPublicKey instanceof PublicKey, 'Value:', adminWalletPublicKey?.toBase58());
-    console.log('programAdminConfigPDA instanceof PublicKey:', programAdminConfigPDA instanceof PublicKey, 'Value:', programAdminConfigPDA?.toBase58());
+    console.log('admin.publicKey instanceof PublicKey:', adminWalletPublicKey instanceof PublicKey, 'Value:', adminWalletPublicKey?.toBase58());
+
     console.log('collectionConfigPDA instanceof PublicKey:', collectionConfigPDA instanceof PublicKey, 'Value:', collectionConfigPDA?.toBase58());
     console.log('collectionMintKeypair.publicKey instanceof PublicKey:', collectionMintKeypair.publicKey instanceof PublicKey, 'Value:', collectionMintKeypair.publicKey?.toBase58());
     console.log('metadataAccountPDA instanceof PublicKey:', metadataAccountPDA instanceof PublicKey, 'Value:', metadataAccountPDA?.toBase58());
@@ -398,11 +402,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           uploadedCollectionMetadataUri,
           mintPriceLamports,
           mintPriceWhiskeyTokens,
+          mintPriceUsdMicrodollars,
           itemLimitBN
         )
         .accounts({
-          payer: adminWalletPublicKey,
-          programAdminConfig: programAdminConfigPDA,
+          admin: adminWalletPublicKey,
           collectionConfig: collectionConfigPDA,
           collectionMint: collectionMintKeypair.publicKey,
           metadataAccount: metadataAccountPDA,
@@ -414,7 +418,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           systemProgram: SystemProgram.programId,
           rent: SYSVAR_RENT_PUBKEY,
         } as any)
-        .signers([actualAdminKeypair, collectionMintKeypair])
+        .signers([collectionMintKeypair])
         .instruction();
     } catch (err: any) {
         console.error("[ADMIN_CREATE_COLLECTION] Error building instruction:", err);
@@ -434,42 +438,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     transaction.add(instruction);
 
     transaction.feePayer = adminWalletPublicKey;
-    const connection = program.provider.connection;
 
     console.log('[ADMIN_CREATE_COLLECTION] Transaction created, feePayer:', transaction.feePayer?.toBase58());
 
-    const signature = await sendAndConfirmTransaction(
-      connection,
-      transaction,
-      [actualAdminKeypair, collectionMintKeypair],
-      { commitment: 'confirmed' } 
-    );
+    // Get a fresh blockhash for the transaction
+    const { blockhash } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
 
-    // --- 4. Save collection to MongoDB ---
-    const newCollection = new NftCollection({
+    console.log('[ADMIN_CREATE_COLLECTION] Set recent blockhash:', blockhash);
+
+    // Sign the transaction with the collection mint keypair (server-side signing)
+    transaction.partialSign(collectionMintKeypair);
+    console.log('[ADMIN_CREATE_COLLECTION] Transaction partially signed with collection mint keypair');
+
+    // Serialize the transaction for the client to sign
+    const serializedTransaction = transaction.serialize({
+      requireAllSignatures: false, // Allow partial signing
+      verifySignatures: false
+    });
+
+    // Prepare collection data for saving after successful transaction
+    const collectionData = {
       name: sName as string,
       symbol: sSymbol as string,
-      collectionOnChainAddress: collectionConfigPDA.toBase58(), // This is the CollectionConfig PDA
-      collectionMintAddress: collectionMintKeypair.publicKey.toBase58(),    // This is the actual Collection NFT Mint address
-      metadataUri: uploadedCollectionMetadataUri,              // Schema field: metadataUri
-      nftBaseMetadataUri: uploadedNftBaseMetadataUri,       // Schema field: nftBaseMetadataUri
-      mintPriceLamports: mintPriceLamports.toNumber(),   // Schema field: mintPriceLamports (Number)
-      mintPriceWhiskeyTokens: mintPriceWhiskeyTokens.toNumber(), // Schema field: mintPriceWhiskeyTokens (Number)
-      itemLimit: parseInt(sItemLimit as string),             // Schema field: itemLimit
-      companyId: company._id,                            // Schema field: companyId (ObjectId)
-      isActive: true,                                    // Schema field: isActive
-      authority: adminWalletPublicKey.toBase58(), // Added authority field
-    });
-    await newCollection.save();
+      description: sDescription as string,
+      collectionOnChainAddress: collectionConfigPDA.toBase58(),
+      collectionMintAddress: collectionMintKeypair.publicKey.toBase58(),
+      metadataUri: uploadedCollectionMetadataUri,
+      nftBaseMetadataUri: uploadedNftBaseMetadataUri,
+      nftBaseName: sNftBaseName as string,
+      mintPriceLamports: mintPriceLamports.toNumber(),
+      mintPriceUsd: parseFloat(sMintPriceUsd as string),
+      itemLimit: parseInt(sItemLimit as string),
+      companyId: company._id,
+      isActive: true,
+      authority: adminWalletPublicKey.toBase58(),
+      collectionMintKeypair: Array.from(collectionMintKeypair.secretKey), // Include the keypair for re-signing
+    };
 
-    console.log("[ADMIN_CREATE_COLLECTION] Transaction Signature for on-chain creation:", signature);
+    console.log("[ADMIN_CREATE_COLLECTION] Returning unsigned transaction for client signing");
 
-    res.status(201).json({
-      message: 'Collection created successfully on-chain and in DB.',
-      collectionId: newCollection._id,
-      onChainAddress: collectionMintKeypair.publicKey.toBase58(), // Return the actual Collection NFT mint address to the client
-      transactionSignature: signature,
-      collectionMetadataUri: uploadedCollectionMetadataUri, // Add the metadata URI to the response
+    res.status(200).json({
+      message: 'Transaction prepared successfully. Please sign with your wallet.',
+      transaction: Buffer.from(serializedTransaction).toString('base64'),
+      collectionData,
+      collectionConfigPDA: collectionConfigPDA.toBase58(),
+      needsWalletSignature: true,
+      collectionMetadataUri: uploadedCollectionMetadataUri,
     });
 
   } catch (error: any) {

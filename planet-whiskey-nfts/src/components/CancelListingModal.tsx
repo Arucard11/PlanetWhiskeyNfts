@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, XCircle } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction } from '@solana/web3.js';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
 
 export interface CancelListingModalProps {
   isOpen: boolean;
@@ -171,7 +171,7 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-24 h-24 rounded-lg border-2 border-red-500/50 overflow-hidden">
               {nftImageUrl ? (
-                <ImageWithFallback 
+                <MediaWithFallback 
                   src={nftImageUrl} 
                   alt={nftName} 
                   className="w-full h-full object-cover"
@@ -185,7 +185,7 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
             <div>
               <p className="text-sm text-red-400">{collectionName}</p>
               <h4 className="font-bold text-2xl text-white">{nftName}</h4>
-              <p className="text-amber-300 text-sm">Listed for {(priceInWhiskey / 1e9).toLocaleString()} WHISKEY</p>
+              <p className="text-amber-300 text-sm">Listed for {(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</p>
             </div>
           </div>
 

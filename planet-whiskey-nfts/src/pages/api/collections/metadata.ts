@@ -48,7 +48,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     
     // Convert IPFS URI to gateway URLs
-    const hash = metadataUri.startsWith('ipfs://') ? metadataUri.substring(7) : metadataUri;
+    let hash;
+    if (metadataUri.startsWith('ipfs://')) {
+      // Extract hash from ipfs:// URI, handling .json extensions
+      const uriPath = metadataUri.substring(7);
+      // Remove .json extension if present
+      hash = uriPath.endsWith('.json') ? uriPath.slice(0, -5) : uriPath;
+    } else {
+      hash = metadataUri;
+    }
     console.log(`[metadata-api] IPFS hash: ${hash}`);
     
     // Try multiple gateways

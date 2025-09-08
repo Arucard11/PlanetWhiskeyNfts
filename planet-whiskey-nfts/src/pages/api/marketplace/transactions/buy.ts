@@ -5,6 +5,8 @@ import { BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import MarketplaceListing from '@/models/MarketplaceListing';
 import dbConnect from '@/lib/mongodb';
+import fs from 'fs';
+import path from 'path';
 
 const SPL_MEMO_PROGRAM_ID = new PublicKey('Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo');
 
@@ -98,10 +100,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Associated Token Accounts
-        const whiskeyMint = new PublicKey("Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+        const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT || "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
         const buyerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, buyer);
         const sellerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, seller);
         const buyerNftTokenAccount = await getAssociatedTokenAddress(nftMint, buyer);
+
+        // Get treasury wallet from environment variables
+        const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+        console.log(`💸 Using treasury wallet: ${treasuryWallet.toString()}`);
+        
+        // Get treasury wallet's WHISKEY token account
+        const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, treasuryWallet);
 
         // Check if seller's WHISKEY token account exists
         console.log("🔍 DEBUG: Checking seller's WHISKEY token account...");
@@ -163,7 +172,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                     const buyerTokenAccount = await connection.getTokenAccountBalance(buyerWhiskeyTokenAccount);
                     const buyerBalanceUI = buyerTokenAccount.value.uiAmount || 0;
                     const buyerBalanceRaw = buyerTokenAccount.value.amount;
-                    const requiredBalanceUI = listingFromDb.priceInWhiskey / 1e9; // Convert from smallest unit to UI amount
+                    const requiredBalanceUI = listingFromDb.priceInWhiskey / 1e6; // Convert from smallest unit to UI amount
                     const requiredBalanceRaw = listingFromDb.priceInWhiskey;
 
                     console.log(`💰 DEBUG: Buyer balance UI: ${buyerBalanceUI} WHISKEY`);
@@ -201,7 +210,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           })
         );
 
-        // Build the instruction
+        // Derive GlobalMarket PDA from lending program for dynamic fees
+        const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || "25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+        const [globalMarketPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("global_market")],
+            LENDING_PROGRAM_ID
+        );
+
+        // Build the instruction with treasury fee account
         const instruction = await program.methods
             .buyNft()
             .accounts({
@@ -213,6 +229,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                 whiskeyTokenMint: whiskeyMint,
                 buyerWhiskeyTokenAccount,
                 sellerWhiskeyTokenAccount,
+                treasuryWhiskeyTokenAccount, // Treasury wallet's WHISKEY token account
+                treasuryWallet, // Treasury wallet
+                globalMarket: globalMarketPda, // ← NEW: For dynamic admin fees
                 nftToBuyMint: nftMint,
                 systemProgram: SystemProgram.programId,
                 tokenProgram: TOKEN_PROGRAM_ID,

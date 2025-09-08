@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { XCircle, Tag, Clock } from 'lucide-react';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
 
 export interface ListedNftCardProps {
   nftMintAddress: string;
@@ -46,9 +46,9 @@ const ListedNftCard: React.FC<ListedNftCardProps> = ({
 
       <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
         {nftImageUrl ? (
-          <ImageWithFallback
+          <MediaWithFallback
             src={nftImageUrl}
-            alt={`Image of ${nftName}`}
+            alt={`Media of ${nftName}`}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           />
         ) : (
@@ -70,7 +70,7 @@ const ListedNftCard: React.FC<ListedNftCardProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center text-green-400 text-sm">
             <Tag className="h-4 w-4 mr-1" />
-            <span className="font-bold">{(priceInWhiskey / 1e9).toLocaleString()} WHISKEY</span>
+            <span className="font-bold">{(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</span>
           </div>
         </div>
 

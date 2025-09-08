@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Shield } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, SendTransactionError } from '@solana/web3.js';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
 
 export interface BuyNftModalProps {
   isOpen: boolean;
@@ -171,7 +171,7 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-24 h-24 rounded-lg border-2 border-amber-500/50 overflow-hidden">
               {nftImageUrl ? (
-                <ImageWithFallback 
+                <MediaWithFallback 
                   src={nftImageUrl} 
                   alt={nftName} 
                   className="w-full h-full object-cover"
@@ -191,7 +191,7 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
           <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
              <div className="flex justify-between items-center text-lg">
                 <span className="text-gray-300">Price:</span>
-                <span className="font-bold text-amber-300">{(priceInWhiskey / 1e9).toLocaleString()} WHISKEY</span>
+                <span className="font-bold text-amber-300">{(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</span>
              </div>
              <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Transaction Fee:</span>

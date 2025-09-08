@@ -1,0 +1,6 @@
+{
+  "network": "Devnet",
+  "testUsdcMint": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR",
+  "capitalVaultPda": "He84QophgrA8GCQTGjkLkUi5qjKCF5Qmrb4Q6Nrt3jL9",
+  "capitalVaultTokenAccount": "GR1a3JcYR7tYWNqcatd9bdBvh4d4YKLFTkpuP2Nd1c5v"
+}

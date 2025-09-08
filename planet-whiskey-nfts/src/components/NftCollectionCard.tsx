@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import Image from 'next/image';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey, SystemProgram, Keypair, SYSVAR_RENT_PUBKEY, ComputeBudgetProgram, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, SystemProgram,  SYSVAR_RENT_PUBKEY, ComputeBudgetProgram } from '@solana/web3.js';
 import { Program, AnchorProvider, type Wallet, BN, type Idl, web3 } from '@coral-xyz/anchor';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
 // Assuming your IDL and program types are here - adjust path as necessary
-import { Whiskeyprogram } from '@/lib/idl/solana_program';
+import { Whiskeyprogram } from '@/lib/idl/whiskeyprogram';
 import idl from '@/lib/idl/whiskeyprogram.json';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
+import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange } from '@/lib/coingeckoPricing';
 
 // Global cache for metadata to prevent duplicate API calls
 const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
@@ -21,7 +21,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 let pendingRequests = new Map<string, Promise<any>>();
 
 // Ensure your program ID is correctly sourced, e.g., from an environment variable or a constants file
-const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L");
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
 
 
 
@@ -36,6 +36,7 @@ interface IAugmentedNftCollection {
     nftBaseMetadataUri: string; // Base URI for individual NFTs      
     mintPriceLamports: number;
     mintPriceWhiskeyTokens: number;
+    mintPriceUsd?: number; // NEW: USD price (what admin sets)
     itemLimit: number;
     companyId: string; 
     isActive: boolean;
@@ -53,7 +54,8 @@ export interface NftCollectionCardProps {
     symbol: string;                   
     metadataUri: string;              
     mintPriceLamports: number; 
-    mintPriceWhiskeyTokens: number;   // Add whiskey token price
+    mintPriceWhiskeyTokens: number;   // WHISKEY token amount (calculated from USD)
+    mintPriceUsd?: number;            // NEW: USD price (what admin sets)
     itemLimit: number; 
     itemsMintedOnChain?: number; 
     onMintSuccess?: () => void; 
@@ -69,10 +71,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     metadataUri, 
     mintPriceLamports: initialMintPriceLamports, 
     mintPriceWhiskeyTokens: initialMintPriceWhiskeyTokens,
+    mintPriceUsd,
     itemLimit: initialItemLimit,
     itemsMintedOnChain: initialItemsMintedOnChain = 0,
     onMintSuccess
 }) => {
+    // Real-time WHISKEY price hook that updates every 5 seconds
+    // Removed duplicate price hook - using the one below
     // Debug log the props received by this component
     console.log(`[NftCollectionCard] 🎯 Component initialized for collection:`, {
         name: initialName,
@@ -81,6 +86,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         metadataUri,
         mintPriceLamports: initialMintPriceLamports,
         mintPriceWhiskeyTokens: initialMintPriceWhiskeyTokens,
+        mintPriceUsd,
         itemLimit: initialItemLimit,
         itemsMintedOnChain: initialItemsMintedOnChain
     });
@@ -97,13 +103,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const [walletNftCount, setWalletNftCount] = useState<number | null>(null);
     const [isCheckingWalletLimit, setIsCheckingWalletLimit] = useState(false);
     
-    // Price display effect - only show whiskey token price
-    const [displayPriceFormatted, setDisplayPriceFormatted] = useState<string>('');
-    
-    // Price display effect - only show whiskey token price
-    useEffect(() => {
-        setDisplayPriceFormatted(`${(initialMintPriceWhiskeyTokens / 1e9).toFixed(0)} WHISKEY`);
-    }, [initialMintPriceWhiskeyTokens]);
+    const [whiskeyRate, setWhiskeyRate] = useState<number | null>(null);
 
     // Effect to fetch collection image from metadata using our proxy
     useEffect(() => {
@@ -211,7 +211,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 // Use Anchor to fetch and decode the account data safely
                 const walletAdapter = { publicKey, signTransaction, signAllTransactions } as Wallet;
                 const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
-                const program = new Program<Whiskeyprogram>(idl as any, provider);
+                const program = new Program(idl as any, provider);
 
                 // Use the collection-specific PDA that matches the updated smart contract
                 const collectionConfigPda = new PublicKey(collectionOnChainAddress);
@@ -221,18 +221,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 );
 
                 // Fetch the account using the program instance
-                const counterAccount = await program.account.walletNftCounter.fetch(walletNftCounterPda);
+                const counterAccount = await (program.account as any).walletNftCounter.fetch(walletNftCounterPda);
                 setWalletNftCount(counterAccount.nftCount);
                 console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted ${counterAccount.nftCount}/5 NFTs for this collection (decoded).`);
-            } catch (error) {
+            } catch (error: any) {
                 // It's expected for the account to not exist if the user has never minted.
                 // This is not an error state, it just means the count is 0.
-                if (error instanceof Error && error.message.includes("Account does not exist")) {
+                if (error.message && error.message.includes("Account does not exist")) {
                      setWalletNftCount(0);
                      console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted 0/5 NFTs for this collection (no counter account found).`);
                 } else {
                     console.error('[WalletLimit] Error checking wallet NFT count:', error);
-                    setWalletNftCount(null); // Set to null to indicate an error state
+                    setWalletNftCount(0); // Set to 0 instead of null for better UX
                 }
             } finally {
                 setIsCheckingWalletLimit(false);
@@ -242,7 +242,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         checkWalletNftCount();
     }, [publicKey, connected, connection, signTransaction, signAllTransactions]);
 
-
+    // Use real-time WHISKEY rate from the hook - same as admin dashboard
+    const { priceData: whiskeyPriceData, loading: priceLoading, error: priceError } = useRealTimeWhiskeyPrice(30000);
+    
+    useEffect(() => {
+        if (whiskeyPriceData?.usd) {
+            setWhiskeyRate(whiskeyPriceData.usd);
+        }
+    }, [whiskeyPriceData]);
 
     // Separate effect for updating display values without affecting image loading
     useEffect(() => {
@@ -253,6 +260,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const handleMint = useCallback(async () => {
         if (!connected || !publicKey || !signTransaction || !signAllTransactions) {
             setMintMessage("Wallet not connected. Please connect your wallet to mint.");
+            return;
+        }
+
+        // Check if whiskey rate is loaded
+        if (!whiskeyRate) {
+            setMintMessage("⏳ Loading WHISKEY price data... Please wait a moment and try again.");
             return;
         }
 
@@ -320,7 +333,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
             // Setup Anchor Provider and Program
             const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
-            const program = new Program<Whiskeyprogram>(idl as any, provider);
+            const program = new Program(idl as any, provider);
 
             const collectionConfigPda = new PublicKey(collectionOnChainAddress); // This is liveCollectionData.collectionOnChainAddress
             const collectionMintAccountPk = new PublicKey(liveCollectionData.collectionMintAddress);
@@ -334,42 +347,98 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             setMintMessage("Creating unique NFT metadata...");
             
-            // Get the actual image URL from the base metadata
+            // Get the actual image URL from the base metadata with retry logic
             let actualImageUrl = liveCollectionData.nftBaseMetadataUri; // Default fallback
             let baseNftDescription = `${liveCollectionData.name} - Edition #${mintNumber}. A premium treasury NFT from our exclusive collection.`; // Default fallback
+            
+            // Multiple gateway attempts for better reliability
+            const tryMultipleGateways = async (ipfsHash: string) => {
+                const gateways = [
+                    `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
+                    `https://ipfs.io/ipfs/${ipfsHash}`,
+                    `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`,
+                    `https://dweb.link/ipfs/${ipfsHash}`
+                ];
+                
+                for (const gateway of gateways) {
+                    try {
+                        console.log(`[NFT_MINT] Trying gateway: ${gateway}`);
+                        const response = await fetch(gateway, { 
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log(`[NFT_MINT] ✅ Success with gateway: ${gateway}`);
+                            return data;
+                        }
+                    } catch (error) {
+                        console.warn(`[NFT_MINT] Gateway ${gateway} failed:`, error.message);
+                        continue;
+                    }
+                }
+                throw new Error('All gateways failed');
+            };
             
             try {
                 console.log(`[NFT_MINT] Fetching base metadata to extract image URL and description from: ${liveCollectionData.nftBaseMetadataUri}`);
                 
-                // Convert IPFS URI to gateway URL for fetching
-                const baseMetadataUrl = liveCollectionData.nftBaseMetadataUri.startsWith('ipfs://') 
-                    ? liveCollectionData.nftBaseMetadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
-                    : liveCollectionData.nftBaseMetadataUri;
-                    
-                const baseMetadataResponse = await fetch(baseMetadataUrl);
-                if (baseMetadataResponse.ok) {
-                    const baseMetadata = await baseMetadataResponse.json();
-                    
+                let baseMetadata: any = null;
+                
+                if (liveCollectionData.nftBaseMetadataUri.startsWith('ipfs://')) {
+                    // Extract IPFS hash and try multiple gateways
+                    const ipfsHash = liveCollectionData.nftBaseMetadataUri.replace('ipfs://', '');
+                    console.log(`[NFT_MINT] Extracted IPFS hash: ${ipfsHash}`);
+                    baseMetadata = await tryMultipleGateways(ipfsHash);
+                } else {
+                    // Direct URL
+                    const response = await fetch(liveCollectionData.nftBaseMetadataUri);
+                    if (response.ok) {
+                        baseMetadata = await response.json();
+                    }
+                }
+                
+                if (baseMetadata) {
                     // Extract image URL if available
                     if (baseMetadata.image) {
                         actualImageUrl = baseMetadata.image;
-                        console.log(`[NFT_MINT] Successfully extracted image URL: ${actualImageUrl}`);
+                        console.log(`[NFT_MINT] ✅ Successfully extracted image URL: ${actualImageUrl}`);
                     } else {
-                        console.warn(`[NFT_MINT] No image field found in base metadata, using metadata URI as fallback`);
+                        console.warn(`[NFT_MINT] ⚠️ No image field found in base metadata. Available fields:`, Object.keys(baseMetadata));
+                        console.warn(`[NFT_MINT] Full metadata:`, baseMetadata);
                     }
                     
                     // Extract and use admin's description instead of hardcoded one
                     if (baseMetadata.description) {
                         baseNftDescription = baseMetadata.description;
-                        console.log(`[NFT_MINT] Successfully extracted admin's description: ${baseNftDescription}`);
+                        console.log(`[NFT_MINT] ✅ Successfully extracted admin's description: ${baseNftDescription}`);
                     } else {
-                        console.warn(`[NFT_MINT] No description field found in base metadata, using default fallback`);
+                        console.warn(`[NFT_MINT] ⚠️ No description field found in base metadata, using default fallback`);
                     }
                 } else {
-                    console.warn(`[NFT_MINT] Failed to fetch base metadata (${baseMetadataResponse.status}), using fallback values`);
+                    console.warn(`[NFT_MINT] ❌ Failed to fetch base metadata from all sources, trying backup image source...`);
+                    
+                    // BACKUP: Try to get image from collection's metadataUri (collection image)
+                    try {
+                        console.log(`[NFT_MINT] 🔄 Attempting backup: using collection metadata image`);
+                        const collectionMetadataUrl = liveCollectionData.metadataUri.startsWith('ipfs://') 
+                            ? liveCollectionData.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+                            : liveCollectionData.metadataUri;
+                        
+                        const collectionResponse = await fetch(collectionMetadataUrl);
+                        if (collectionResponse.ok) {
+                            const collectionMetadata = await collectionResponse.json();
+                            if (collectionMetadata.image) {
+                                actualImageUrl = collectionMetadata.image;
+                                console.log(`[NFT_MINT] ✅ BACKUP SUCCESS: Using collection image: ${actualImageUrl}`);
+                            }
+                        }
+                    } catch (backupError) {
+                        console.warn(`[NFT_MINT] ❌ Backup image source also failed:`, backupError);
+                        console.log(`[NFT_MINT] 🎯 FINAL FALLBACK: Will use placeholder image`);
+                    }
                 }
             } catch (error) {
-                console.warn(`[NFT_MINT] Error extracting data from base metadata:`, error);
+                console.warn(`[NFT_MINT] ❌ Error extracting data from base metadata:`, error);
                 console.log(`[NFT_MINT] Using fallback values for image and description`);
             }
             
@@ -457,8 +526,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             setMintMessage(`Calling program. Program ID: ${WHISKEY_PROGRAM_ID.toBase58()}`);
             
-            // TODO: Implement proper whiskey token account handling
-            const WHISKEY_TOKEN_MINT_PK = new PublicKey("Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+            // Use the new WHISKEY token mint from environment variables
+            const WHISKEY_TOKEN_MINT_PK = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
             
             // Get the payer's whiskey token account
             const payerWhiskeyTokenAccount = await getAssociatedTokenAddress(
@@ -472,52 +541,157 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 collectionAuthorityReceiverPk
             );
             
-            // Check if payer's whiskey token account exists and has sufficient balance
+            // Calculate current WHISKEY cost from USD price
+            let currentWhiskeyPrice: number;
+            if (liveCollectionData.mintPriceUsd && whiskeyRate) {
+                // Use real-time USD to WHISKEY conversion
+                currentWhiskeyPrice = liveCollectionData.mintPriceUsd / whiskeyRate;
+                // Convert to 6 decimal format for the program
+                currentWhiskeyPrice = currentWhiskeyPrice * 1000000;
+            } else {
+                throw new Error("Cannot calculate WHISKEY price - missing USD price or WHISKEY rate");
+            }
+            
+            // Check if payer's whiskey token account exists, create if needed
+            let createPayerAccountIx: any = null;
             try {
                 const payerTokenAccountInfo = await connection.getTokenAccountBalance(payerWhiskeyTokenAccount);
                 console.log(`Payer whiskey token balance: ${payerTokenAccountInfo.value.uiAmount} WHISKEY`);
                 
-                if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < liveCollectionData.mintPriceWhiskeyTokens) {
-                    throw new Error(`Insufficient WHISKEY tokens. You have ${payerTokenAccountInfo.value.uiAmount || 0} but need ${liveCollectionData.mintPriceWhiskeyTokens}.`);
+                const currentWhiskeyPriceFormatted = currentWhiskeyPrice / 1e6; // Convert from smallest units to display units
+                if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < currentWhiskeyPriceFormatted) {
+                    throw new Error(`Insufficient WHISKEY tokens. You have ${payerTokenAccountInfo.value.uiAmount || 0} but need ${currentWhiskeyPriceFormatted.toFixed(2)}.`);
                 }
             } catch (accountError: any) {
                 if (accountError.message.includes('could not find account')) {
-                    throw new Error(`WHISKEY token account not found. Please ensure you have WHISKEY tokens in your wallet.`);
+                    console.log('🪙 Payer WHISKEY token account does not exist, creating...');
+                    createPayerAccountIx = createAssociatedTokenAccountInstruction(
+                        publicKey, // payer
+                        payerWhiskeyTokenAccount,
+                        publicKey, // owner
+                        WHISKEY_TOKEN_MINT_PK // mint
+                    );
                 } else if (!accountError.message.includes('Insufficient WHISKEY')) {
                     console.warn('Could not check token balance:', accountError);
                     // Continue with minting - let the program handle the error
                 }
             }
             
-            // Prepare accounts object with whiskey token accounts
+            // For the mint function, we need the lending program's global market for dynamic fees
+            const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
+            
+            // Use global market PDA from environment variables or derive from lending program
+            const globalMarketPda = process.env.NEXT_PUBLIC_GLOBAL_MARKET_PDA
+                ? new PublicKey(process.env.NEXT_PUBLIC_GLOBAL_MARKET_PDA)
+                : PublicKey.findProgramAddressSync([Buffer.from("global_market")], LENDING_PROGRAM_ID)[0];
+
+            // Derive wallet NFT counter PDA
+            const [walletNftCounterPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("wallet_nft_counter"), publicKey.toBuffer(), collectionConfigPda.toBuffer()],
+                program.programId
+            );
+
+            // Derive lending pool config PDA correctly
+            const [lendingPoolConfigPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("lending_pool")], 
+                program.programId
+            );
+
+            // Derive the vault PDAs correctly (don't use hardcoded addresses)
+            const [lendingPoolWhiskeyVaultPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("lending_pool"), Buffer.from("whiskey_vault_v2")],
+                program.programId
+            );
+            
+            const [lendingPoolUsdcVaultPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("lending_pool"), Buffer.from("usdc_vault_v2")],
+                program.programId
+            );
+
+            // Log the derived addresses for debugging
+            console.log('🔍 Derived PDA addresses:');
+            console.log('  Lending Pool Config:', lendingPoolConfigPda.toString());
+            console.log('  WHISKEY Vault V2:', lendingPoolWhiskeyVaultPda.toString());
+            console.log('  USDC Vault V2:', lendingPoolUsdcVaultPda.toString());
+
+            // Treasury wallet address (the admin wallet) - from environment variables
+            const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+            
+            // Calculate treasury wallet's Associated Token Account for WHISKEY tokens
+            const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(
+                WHISKEY_TOKEN_MINT_PK,
+                TREASURY_WALLET
+            );
+
+            // Check if treasury WHISKEY token account exists, create if needed
+            const treasuryAccountInfo = await connection.getAccountInfo(treasuryWhiskeyTokenAccount);
+            let createTreasuryAccountIx: any = null;
+            if (!treasuryAccountInfo) {
+                console.log('🏦 Treasury WHISKEY token account does not exist, creating...');
+                createTreasuryAccountIx = createAssociatedTokenAccountInstruction(
+                    walletAdapter.publicKey!, // payer
+                    treasuryWhiskeyTokenAccount,
+                    TREASURY_WALLET, // owner
+                    WHISKEY_TOKEN_MINT_PK // mint
+                );
+            }
+
+            // Jupiter and USDC constants
+            const JUPITER_PROGRAM_ID = new PublicKey("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
+            const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+
+            // Prepare accounts object with Jupiter CPI accounts
             const accounts = {
                 payer: walletAdapter.publicKey,
                 collectionConfig: collectionConfigPda,
+                walletNftCounter: walletNftCounterPda, // Add the wallet NFT counter
                 collectionMintAccount: collectionMintAccountPk,
                 nftMint: nftMintKeypair.publicKey,
                 nftMetadataAccount: metadataPda,
                 nftMasterEditionAccount: masterEditionPda,
                 nftTokenAccount: nftTokenAccountPk,
                 collectionAuthorityReceiver: collectionAuthorityReceiverPk,
+                globalMarket: globalMarketPda,
                 whiskeyTokenMint: WHISKEY_TOKEN_MINT_PK,
                 payerWhiskeyTokenAccount: payerWhiskeyTokenAccount,
-                authorityWhiskeyTokenAccount: authorityWhiskeyTokenAccount,
+                // COMMENTED OUT FOR DEVNET - Jupiter CPI accounts (restore for mainnet)
+                lendingPoolConfig: lendingPoolConfigPda,
+                lendingPoolWhiskeyVault: lendingPoolWhiskeyVaultPda,
+                lendingPoolUsdcVault: lendingPoolUsdcVaultPda,
+                treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
+                treasuryWallet: TREASURY_WALLET,
+                // usdcMint: USDC_MINT, // COMMENTED OUT FOR DEVNET
+                // jupiterProgram: JUPITER_PROGRAM_ID, // COMMENTED OUT FOR DEVNET
+                // System programs
                 tokenProgram: TOKEN_PROGRAM_ID,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
+                rent: SYSVAR_RENT_PUBKEY,
             };
             
-            // Create the transaction with compute budget instructions
+            // Create the transaction with compute budget instructions using NEW Jupiter CPI function
             const transaction = await program.methods
-                .mintNft(
+                .mintNftWithSwap(
                     nftName, // Use the properly formatted name: "Collection Name #1"
                     nftSymbol,
                     nftUri,
+                    new BN(currentWhiskeyPrice), // Pass the current dynamic WHISKEY amount
+                    new BN(whiskeyRate! * 1_000_000), // Pass the current WHISKEY/USD rate in microdollars
                 )
                 .accounts(accounts)
                 .signers([nftMintKeypair])
                 .transaction();
+
+            // Add account creation instructions if needed
+            if (createPayerAccountIx) {
+                console.log('🪙 Adding payer WHISKEY token account creation instruction');
+                transaction.instructions.unshift(createPayerAccountIx);
+            }
+            if (createTreasuryAccountIx) {
+                console.log('🏦 Adding treasury WHISKEY token account creation instruction');
+                transaction.instructions.unshift(createTreasuryAccountIx);
+            }
 
             // Add compute budget instructions to increase computational limit
             const computeUnitLimitIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -528,7 +702,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 microLamports: 1, // Small priority fee
             });
 
-            // Add compute budget instructions at the beginning
+            // Add compute budget instructions at the beginning (after treasury account if needed)
             transaction.instructions.unshift(computeUnitLimitIx, computeUnitPriceIx);
 
             // Get fresh blockhash and fee payer
@@ -663,9 +837,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
                 {/* Image Aspect Ratio Container */}
                 <div className="aspect-w-1 aspect-h-1 w-full h-full">
-                    <ImageWithFallback 
+                    <MediaWithFallback 
                         src={imageUrl || '/placeholder-image.svg'} 
-                        alt={`${initialName} collection image`} 
+                        alt={`${initialName} collection media`} 
                         className="w-full h-full object-cover"
                     />
                 </div>
@@ -681,9 +855,67 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         <span className="font-medium text-gray-400">Symbol:</span> 
                         <span className="font-bold text-amber-200">{initialSymbol}</span>
                     </div>
+                    {/* Price Section - Made More Obvious */}
+                    <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4 space-y-3">
+                        <div className="text-center">
+                            <h4 className="text-sm font-bold text-amber-200 uppercase tracking-wide mb-3">NFT Price</h4>
+                            
+                            {/* USD Price - Primary Display */}
+                            <div className="mb-3">
+                                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in USD</div>
+                                <div className="text-2xl font-black text-white">
+                                    ${mintPriceUsd || 'Not Set'}
+                                </div>
+                            </div>
+                            
+                            {/* WHISKEY Price - Secondary Display */}
+                            <div className="mb-3">
+                                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in WHISKEY</div>
+                                <div className="text-xl font-bold text-amber-300">
+                                    {mintPriceUsd && whiskeyRate ? (
+                                        formatWhiskeyTokens(mintPriceUsd / whiskeyRate)
+                                    ) : (
+                                        'Calculating...'
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Live Price Indicator */}
+                            <div className="flex items-center justify-center space-x-2">
+                                {priceLoading && (
+                                    <span className="text-xs text-green-400 animate-pulse">🔄 Live Price</span>
+                                )}
+                                {priceError && (
+                                    <span className="text-xs text-red-400">❌ Price Error</span>
+                                )}
+                                {whiskeyPriceData && !priceLoading && (
+                                    <span className="text-xs text-green-400">✅ Live Price</span>
+                                )}
+                            </div>
+                            
+                            {/* Helpful Note */}
+                            <div className="text-center pt-2 border-t border-amber-700/30">
+                                <p className="text-xs text-amber-200/80">
+                                    💡 You need WHISKEY tokens to mint this NFT
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* WHISKEY Price Display - Same as admin dashboard */}
                     <div className="flex justify-between items-center">
-                        <span className="font-medium text-gray-400">Price:</span> 
-                        <span className="font-bold text-amber-200">{displayPriceFormatted}</span>
+                        <span className="font-medium text-gray-400">WHISKEY Price:</span> 
+                        <div className="flex items-center space-x-2">
+                            {priceLoading ? (
+                                <span className="text-xs text-gray-400">Loading...</span>
+                            ) : priceError ? (
+                                <span className="text-xs text-red-400">Error</span>
+                            ) : whiskeyPriceData?.usd ? (
+                                <span className="font-bold text-green-400">${whiskeyPriceData.usd.toFixed(6)}</span>
+                            ) : (
+                                <span className="text-xs text-gray-400">No data</span>
+                            )}
+                        </div>
                     </div>
                     {/* Supply Section with Clear Visual */}
                     <div className="bg-slate-800/30 rounded-xl p-4 space-y-3">
@@ -804,16 +1036,20 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             supplyRemaining <= 0 || 
                             !publicKey || 
                             (walletNftCount !== null && walletNftCount >= 5) ||
-                            isCheckingWalletLimit
+                            isCheckingWalletLimit ||
+                            !whiskeyRate || 
+                            priceLoading
                         }
                         className={`w-full font-sans font-black text-lg py-4 px-5 rounded-2xl transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-lg hover:shadow-2xl 
-                            ${isMinting || supplyRemaining <= 0 || !publicKey || (walletNftCount !== null && walletNftCount >= 5) || isCheckingWalletLimit
+                            ${isMinting || supplyRemaining <= 0 || !publicKey || (walletNftCount !== null && walletNftCount >= 5) || isCheckingWalletLimit || !whiskeyRate || priceLoading
                                 ? 'bg-slate-700 text-gray-500 cursor-not-allowed'
                                 : 'text-black bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
                             }`}
                     >
                         {isMinting ? "Processing..." : 
                          isCheckingWalletLimit ? "Checking Limits..." :
+                         priceLoading ? "Loading Price..." :
+                         !whiskeyRate ? "Price Unavailable" :
                          (walletNftCount !== null && walletNftCount >= 5) ? "Wallet Limit Reached (5/5)" :
                          (supplyRemaining <= 0 && displayItemLimit > 0) ? "Collection Sold Out" : 
                          "Mint NFT"}

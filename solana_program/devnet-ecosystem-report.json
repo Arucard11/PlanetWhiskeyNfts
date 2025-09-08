@@ -1,0 +1,66 @@
+{
+  "network": "devnet",
+  "timestamp": "2025-09-08T03:55:56.038Z",
+  "adminWallet": {
+    "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk",
+    "exists": true,
+    "balance": 25.694877584,
+    "data": "No data"
+  },
+  "whiskeyTokenMint": {
+    "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j",
+    "exists": true,
+    "balance": 0.0014616,
+    "data": "82 bytes"
+  },
+  "usdcTokenMint": {
+    "address": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR",
+    "exists": true,
+    "balance": 0.0014616,
+    "data": "82 bytes"
+  },
+  "whiskeyProgram": {
+    "programSuperAdmin": {
+      "address": "4ugq8nFcYein25WrdBHPifY4menfgH4QHTYWw83d1Uzg",
+      "exists": false,
+      "error": "PDA not initialized"
+    },
+    "lendingPoolConfig": {
+      "address": "53fYDhvsfCJYMx6eTbjn92N35YDwTShQy8KM3X2yP2GN",
+      "exists": true,
+      "data": "129 bytes"
+    },
+    "whiskeyVaultV2": {
+      "address": "FBK8xP4xYuEv1JvCkkvhCKkTtu9M2xXnyihuqSDRAhCS",
+      "exists": true,
+      "data": "165 bytes"
+    },
+    "usdcVaultV2": {
+      "address": "GJkRmDnhHPLH24MHEGsZoiTm9xveyememDJA5JA6dsgm",
+      "exists": true,
+      "data": "165 bytes"
+    }
+  },
+  "lendingProgram": {
+    "globalMarket": {
+      "address": "5WYm2YmxdQKHdGTJmvyZ1bmXsyZE2eJGJHPaQP5mopq7",
+      "exists": true,
+      "data": "207 bytes"
+    },
+    "collectionRegistryV2": {
+      "address": "BTsqoh6evqaEq1hYgeetCGUzPVuVsFDCxgLShUidkxGY",
+      "exists": true,
+      "data": "4946 bytes"
+    },
+    "capitalVault": {
+      "address": "He84QophgrA8GCQTGjkLkUi5qjKCF5Qmrb4Q6Nrt3jL9",
+      "exists": true,
+      "data": "165 bytes"
+    }
+  },
+  "crossProgramChecks": {
+    "globalMarketPointsToCorrectVault": true,
+    "treasuryWalletConsistent": true,
+    "tokenMintsConsistent": true
+  }
+}

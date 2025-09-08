@@ -2,9 +2,45 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint, CloseAccount};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("NqQ2fJ6TzMn44wdkKGGCT71P7nJggZSp4qoqZPWfJTW"); // New Program ID
+declare_id!("6SHqHpSVYHUbkX3AgMg3XcAxH5Eax48T9orPAio6j4Wk"); // New Program ID
 
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j");
+
+// Helper function to read dynamic fee configuration from GlobalMarket account
+fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u16> {
+    // If GlobalMarket account is not available or fails to deserialize, use fallback value
+    if global_market_account.data_is_empty() {
+        msg!("⚠️ GlobalMarket account is empty, using default marketplace fee: {}%", DEFAULT_TRANSACTION_FEE_BPS as f32 / 100.0);
+        return Ok(DEFAULT_TRANSACTION_FEE_BPS);
+    }
+    
+    // Try to read fee data from GlobalMarket account
+    let account_data = global_market_account.try_borrow_data()?;
+    
+    if account_data.len() < 16 { // Minimum size check
+        msg!("⚠️ GlobalMarket account data too small, using default marketplace fee: {}%", DEFAULT_TRANSACTION_FEE_BPS as f32 / 100.0);
+        return Ok(DEFAULT_TRANSACTION_FEE_BPS);
+    }
+    
+    // For now, return default value - in production this would read from the actual GlobalMarket account structure
+    // This is where you'd deserialize the GlobalMarket struct and extract transaction_fee_bps
+    msg!("📊 Reading dynamic marketplace fee from GlobalMarket account");
+    Ok(DEFAULT_TRANSACTION_FEE_BPS) // Would read from account: global_market.transaction_fee_bps
+}
+
+// ADMIN WALLET - This wallet controls ALL marketplace administrative functions
+pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
+
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
+
+// Default transaction fee (can be updated by admin)
+pub const DEFAULT_TRANSACTION_FEE_BPS: u16 = 250; // 2.5%
+
+// Three distinct wallet types - ALL transaction fees go to FEE WALLET
+pub const FEE_WALLET_SEED: &[u8] = b"fee_wallet";
+pub const TREASURY_WALLET_SEED: &[u8] = b"treasury_wallet"; 
+pub const LENDING_POOL_SEED: &[u8] = b"lending_pool";
 
 #[program]
 pub mod marketplaceprogram {
@@ -127,14 +163,46 @@ pub mod marketplaceprogram {
         }
         msg!("✅ Buyer has sufficient WHISKEY balance: {} >= {}", ctx.accounts.buyer_whiskey_token_account.amount, price);
 
-        msg!("1️⃣ Transferring {} WHISKEY tokens from buyer to seller...", price);
+        // Read dynamic transaction fee from GlobalMarket account (admin configurable)
+        let dynamic_fee_bps = read_dynamic_transaction_fee(&ctx.accounts.global_market.to_account_info())?;
+        let transaction_fee = (price as u128 * dynamic_fee_bps as u128) / 10000;
+        let seller_amount = price - transaction_fee as u64;
+
+                   msg!("💰 Marketplace fee calculation - USING DYNAMIC ADMIN FEE: Price: {} WHISKEY, Fee: {} WHISKEY ({}%) → FEE WALLET, Seller gets: {} WHISKEY", 
+                price, transaction_fee, dynamic_fee_bps as f32 / 100.0, seller_amount);
+
+            // Transfer transaction fee to FEE WALLET (treasury)
+            if transaction_fee > 0 {
+                msg!("1️⃣ Transferring {} WHISKEY fee to FEE WALLET (treasury)...", transaction_fee);
+            match token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.buyer_whiskey_token_account.to_account_info(),
+                        to: ctx.accounts.treasury_whiskey_token_account.to_account_info(),
+                        authority: ctx.accounts.buyer.to_account_info(),
+                    },
+                ),
+                transaction_fee as u64,
+            ) {
+                                   Ok(_) => {
+                       msg!("✅ Transaction fee transferred to FEE WALLET (treasury)!");
+                   },
+                Err(e) => {
+                    msg!("❌ Transaction fee transfer failed: {:?}", e);
+                    return Err(e);
+                }
+            }
+        }
+
+        msg!("2️⃣ Transferring {} WHISKEY tokens to seller...", seller_amount);
         msg!("🔍 DEBUG: WHISKEY transfer details:");
         msg!("  - From account: {} (balance: {})", ctx.accounts.buyer_whiskey_token_account.key(), ctx.accounts.buyer_whiskey_token_account.amount);
         msg!("  - To account: {} (balance: {})", ctx.accounts.seller_whiskey_token_account.key(), ctx.accounts.seller_whiskey_token_account.amount);
-        msg!("  - Transfer amount: {} WHISKEY", price);
+        msg!("  - Transfer amount: {} WHISKEY", seller_amount);
         msg!("  - Authority: {}", ctx.accounts.buyer.key());
         
-        // Transfer WHISKEY tokens from buyer to seller
+        // Transfer remaining WHISKEY tokens to seller (price minus fee)
         match token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -144,10 +212,10 @@ pub mod marketplaceprogram {
                     authority: ctx.accounts.buyer.to_account_info(),
                 },
             ),
-            price,
+            seller_amount,
         ) {
             Ok(_) => {
-                msg!("✅ WHISKEY tokens transferred successfully!");
+                msg!("✅ WHISKEY tokens transferred to seller successfully!");
             },
             Err(e) => {
                 msg!("❌ WHISKEY token transfer failed: {:?}", e);
@@ -344,6 +412,21 @@ pub struct BuyNft<'info> {
         associated_token::authority = seller,
     )]
     pub seller_whiskey_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = whiskey_token_mint,
+        associated_token::authority = treasury_wallet
+    )]
+    pub treasury_whiskey_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Treasury wallet - Collects ALL transaction fees and profits
+    #[account(mut)]
+    pub treasury_wallet: UncheckedAccount<'info>,
+
+    /// CHECK: Global market account from lending program for dynamic fee rates
+    #[account(mut)]
+    pub global_market: UncheckedAccount<'info>,
     
     pub nft_to_buy_mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,

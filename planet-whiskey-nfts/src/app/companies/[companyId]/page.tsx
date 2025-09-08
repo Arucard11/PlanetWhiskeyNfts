@@ -17,6 +17,7 @@ interface CollectionDataFromApi {
     collectionMintAddress: string; // Still needed for the card to fetch internally
     mintPriceLamports: number;
     mintPriceWhiskeyTokens: number;
+    mintPriceUsd?: number; // NEW: USD price from database
     itemLimit: number;
     itemsMintedOnChain?: number;
     // any other fields from your INftCollection model + augmented data
@@ -179,6 +180,7 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
                                     metadataUri={collection.metadataUri}
                                     mintPriceLamports={collection.mintPriceLamports}
                                     mintPriceWhiskeyTokens={collection.mintPriceWhiskeyTokens}
+                                    mintPriceUsd={collection.mintPriceUsd}
                                     itemLimit={collection.itemLimit}
                                     itemsMintedOnChain={collection.itemsMintedOnChain}
                                     onMintSuccess={handleMintSuccess}

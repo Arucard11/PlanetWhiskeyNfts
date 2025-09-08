@@ -1,5 +1,5 @@
 {
-  "address": "8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L",
+  "address": "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -21,40 +21,10 @@
       ],
       "accounts": [
         {
-          "name": "payer",
+          "name": "admin",
           "writable": true,
-          "signer": true
-        },
-        {
-          "name": "program_admin_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  103,
-                  114,
-                  97,
-                  109,
-                  95,
-                  115,
-                  117,
-                  112,
-                  101,
-                  114,
-                  95,
-                  97,
-                  100,
-                  109,
-                  105,
-                  110
-                ]
-              }
-            ]
-          }
+          "signer": true,
+          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
         },
         {
           "name": "collection_config",
@@ -103,7 +73,7 @@
             "seeds": [
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "admin"
               },
               {
                 "kind": "const",
@@ -229,10 +199,170 @@
           "type": "u64"
         },
         {
+          "name": "mint_price_usd",
+          "type": "u64"
+        },
+        {
           "name": "item_limit",
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "create_v2_vaults",
+      "discriminator": [
+        144,
+        219,
+        251,
+        43,
+        217,
+        172,
+        18,
+        249
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+        },
+        {
+          "name": "lending_pool_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "whiskey_vault_v2",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  104,
+                  105,
+                  115,
+                  107,
+                  101,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_vault_v2",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  100,
+                  99,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "whiskey_token_mint",
+          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+        },
+        {
+          "name": "usdc_mint",
+          "address": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "initialize",
@@ -247,6 +377,162 @@
         237
       ],
       "accounts": [],
+      "args": []
+    },
+    {
+      "name": "initialize_lending_pool",
+      "discriminator": [
+        236,
+        76,
+        136,
+        68,
+        196,
+        14,
+        9,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+        },
+        {
+          "name": "lending_pool_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "whiskey_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  104,
+                  105,
+                  115,
+                  107,
+                  101,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  100,
+                  99,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "whiskey_token_mint",
+          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+        },
+        {
+          "name": "usdc_mint",
+          "address": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
       "args": []
     },
     {
@@ -307,16 +593,16 @@
       "args": []
     },
     {
-      "name": "mint_nft",
+      "name": "mint_nft_with_swap",
       "discriminator": [
-        211,
-        57,
-        6,
-        167,
-        15,
-        219,
-        35,
-        251
+        218,
+        165,
+        34,
+        83,
+        34,
+        24,
+        247,
+        95
       ],
       "accounts": [
         {
@@ -478,8 +764,12 @@
           "writable": true
         },
         {
+          "name": "global_market",
+          "writable": true
+        },
+        {
           "name": "whiskey_token_mint",
-          "address": "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu"
+          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
         },
         {
           "name": "payer_whiskey_token_account",
@@ -572,13 +862,127 @@
           }
         },
         {
-          "name": "authority_whiskey_token_account",
+          "name": "lending_pool_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_pool_whiskey_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  104,
+                  105,
+                  115,
+                  107,
+                  101,
+                  121,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_pool_usdc_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  100,
+                  99,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_whiskey_token_account",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "collection_authority_receiver"
+                "path": "treasury_wallet"
               },
               {
                 "kind": "const",
@@ -662,6 +1066,10 @@
           }
         },
         {
+          "name": "treasury_wallet",
+          "writable": true
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -694,6 +1102,119 @@
         {
           "name": "nft_uri",
           "type": "string"
+        },
+        {
+          "name": "whiskey_amount",
+          "type": "u64"
+        },
+        {
+          "name": "current_whiskey_rate",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "transfer_to_lending_vault",
+      "docs": [
+        "Transfer USDC from whiskey program's vault to lending program's capital vault"
+      ],
+      "discriminator": [
+        53,
+        174,
+        193,
+        213,
+        58,
+        214,
+        62,
+        211
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "lending_pool_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "whiskey_usdc_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  100,
+                  99,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_capital_vault",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
         }
       ]
     }
@@ -710,6 +1231,19 @@
         157,
         106,
         255
+      ]
+    },
+    {
+      "name": "LendingPoolConfig",
+      "discriminator": [
+        123,
+        213,
+        219,
+        71,
+        186,
+        88,
+        225,
+        239
       ]
     },
     {
@@ -767,28 +1301,58 @@
     },
     {
       "code": 6005,
+      "name": "UnauthorizedAdmin",
+      "msg": "Unauthorized: Caller is not the admin wallet."
+    },
+    {
+      "code": 6006,
       "name": "CollectionFull",
       "msg": "Collection is full. No more items can be minted."
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "NftNameTooLong",
       "msg": "NFT Name too long."
     },
     {
-      "code": 6007,
+      "code": 6008,
       "name": "NftSymbolTooLong",
       "msg": "NFT Symbol too long."
     },
     {
-      "code": 6008,
+      "code": 6009,
       "name": "NftUriTooLong",
       "msg": "NFT URI too long."
     },
     {
-      "code": 6009,
+      "code": 6010,
       "name": "WalletNftLimitExceeded",
       "msg": "Wallet has reached the maximum NFT limit of 5 per collection."
+    },
+    {
+      "code": 6011,
+      "name": "InvalidMintPrice",
+      "msg": "Invalid mint price: WHISKEY amount does not match expected USD price."
+    },
+    {
+      "code": 6012,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount specified"
+    },
+    {
+      "code": 6013,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds in vault"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidVault",
+      "msg": "Invalid vault address"
+    },
+    {
+      "code": 6015,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
     }
   ],
   "types": [
@@ -826,12 +1390,52 @@
             "type": "u64"
           },
           {
+            "name": "mint_price_usd",
+            "type": "u64"
+          },
+          {
             "name": "item_limit",
             "type": "u64"
           },
           {
             "name": "items_minted",
             "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LendingPoolConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "whiskey_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_whiskey_received",
+            "type": "u64"
+          },
+          {
+            "name": "total_usdc_swapped",
+            "type": "u64"
+          },
+          {
+            "name": "last_swap_timestamp",
+            "type": "i64"
           },
           {
             "name": "bump",

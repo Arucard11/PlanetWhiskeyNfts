@@ -7,6 +7,7 @@ interface ICollection {
   name: string;
   symbol: string;
   mintPriceWhiskeyTokens: number;
+  mintPriceUsd?: number; // NEW: USD price
   itemLimit: number;
   itemsMintedOnChain?: number;
   companyId: string;
@@ -66,7 +67,7 @@ export default function ManageCollectionsPage() {
   };
 
   const formatWhiskeyTokens = (tokens: number) => {
-    return (tokens / 1e9).toFixed(2);
+    return (tokens / 1e6).toFixed(2);
   };
 
   return (
@@ -94,7 +95,12 @@ export default function ManageCollectionsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="font-medium text-stone-gray-700">Price:</span>
-                        <span className="ml-1 text-whiskey-brown-dark">{formatWhiskeyTokens(collection.mintPriceWhiskeyTokens)} WHISKEY</span>
+                        <span className="ml-1 text-whiskey-brown-dark">
+                          {collection.mintPriceUsd 
+                            ? `$${collection.mintPriceUsd.toFixed(2)} (${formatWhiskeyTokens(collection.mintPriceWhiskeyTokens)} WHISKEY)`
+                            : `${formatWhiskeyTokens(collection.mintPriceWhiskeyTokens)} WHISKEY`
+                          }
+                        </span>
                       </div>
                       <div>
                         <span className="font-medium text-stone-gray-700">Supply:</span>

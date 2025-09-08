@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Tag } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, SendTransactionError } from '@solana/web3.js';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
 
 export interface ListNftModalProps {
   isOpen: boolean;
@@ -265,7 +265,7 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
             <div className="flex items-center space-x-4 mb-6">
               <div className="w-20 h-20 rounded-lg overflow-hidden">
                 {nftImageUrl ? (
-                  <ImageWithFallback 
+                  <MediaWithFallback 
                     src={nftImageUrl} 
                     alt={nftName} 
                     className="w-full h-full object-cover" 

@@ -8,7 +8,7 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction, SYSVAR_RENT
 import { PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata'; // Verify this constant's source and type
 
 import idlJson from './idl/whiskeyprogram.json';
-import { Whiskeyprogram } from './idl/solana_program';
+import { Whiskeyprogram } from './idl/whiskeyprogram';
 import { Marketplaceprogram } from './idl/marketplaceprogram'; // Use consistent naming
 import marketplaceIdl from './idl/marketplaceprogram.json'; // Use consistent naming
 
@@ -19,49 +19,14 @@ if (!process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID) {
 const marketplaceProgramId = new PublicKey(process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID);
 
 
-// TODO: Consider how to securely handle the admin keypair for server-side operations.
-// Loading from env var directly is okay for local dev, but not recommended for production.
-const ADMIN_PRIVATE_KEY_STRING = process.env.ADMIN_WALLET_PRIVATE_KEY;
-const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'; // Fallback to Devnet
-// export const PROGRAM_ID = new PublicKey("FBaH26DJD6evcq2JHx9eR5dVjqYWZ3PPxBUwJuF1fMPQ"); // OLD Original ID
-// export const PROGRAM_ID = new PublicKey("8a6q5zqTSnt931AoVh56zkaCq3ED8J2WVX5PBTLxr8gb"); // OLD New ID
-export const PROGRAM_ID = new PublicKey("8uPZVD859ZxgeptYWM4oKrzjMksBD9h6hYCxQbiQjS5L"); // ACTUAL DEPLOYED ID
+// REMOVED: Server-side admin wallet operations - All admin operations now require client-side wallet signing
+// Admin wallet address is hardcoded in Rust programs: 2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk
 
-const ADMIN_WALLET_PATH = "~/.config/solana/admin-keypair.json";
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'; // Fallback to Devnet
+export const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD"); // Whiskey program ID from env
 
 if (!SOLANA_RPC_URL) {
-  // This check is now somewhat redundant due to the fallback, but good for explicit erroring if needed.
   throw new Error('SOLANA_RPC_URL is not set in .env.local');
-}
-
-export let adminKeypair: Keypair | undefined;
-if (ADMIN_PRIVATE_KEY_STRING) {
-  try {
-    adminKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(ADMIN_PRIVATE_KEY_STRING)));
-  } catch (error) {
-    console.error('Failed to parse ADMIN_WALLET_PRIVATE_KEY:', error);
-  }
-} else {
-  // Fallback to reading from file path
-  try {
-    // Only try to read file in Node.js environment (not in browser)
-    if (typeof window === 'undefined') {
-      const fs = require('fs');
-      const os = require('os');
-      const expandedPath = ADMIN_WALLET_PATH.replace('~', os.homedir());
-      if (fs.existsSync(expandedPath)) {
-        const keypairData = JSON.parse(fs.readFileSync(expandedPath, 'utf8'));
-        adminKeypair = Keypair.fromSecretKey(Uint8Array.from(keypairData));
-        console.log('Admin keypair loaded from file path:', expandedPath);
-      } else {
-        console.warn(`ADMIN_WALLET_PRIVATE_KEY not set and keypair file not found at: ${expandedPath}`);
-      }
-    } else {
-      console.warn('ADMIN_WALLET_PRIVATE_KEY not set. Admin operations will not be possible.');
-    }
-  } catch (error) {
-    console.error('Failed to load admin keypair from file:', error);
-  }
 }
 
 export function getSolanaConnection() {
@@ -70,10 +35,9 @@ export function getSolanaConnection() {
 
 export function getAnchorProvider(walletKeypair?: Keypair) {
   const connection = getSolanaConnection();
-  const keypairToUse = walletKeypair || adminKeypair;
-
-  if (!keypairToUse) {
-    throw new Error('Cannot create AnchorProvider: No keypair provided and admin keypair is not available.');
+  
+  if (!walletKeypair) {
+    throw new Error('Cannot create AnchorProvider: No keypair provided. Admin operations require client-side wallet signing.');
   }
 
   const provider = new AnchorProvider(
@@ -82,22 +46,18 @@ export function getAnchorProvider(walletKeypair?: Keypair) {
     // For server-side operations where you sign with a Keypair, this Wallet implementation is sufficient.
     // For client-side, you'd use the WalletAdapter.
     { 
-      publicKey: keypairToUse.publicKey,
+      publicKey: walletKeypair.publicKey,
       signTransaction: async (tx) => { 
         if (tx instanceof Transaction) {
-          tx.partialSign(keypairToUse);
+          tx.partialSign(walletKeypair);
         }
-        // For VersionedTransaction, signing is usually done differently, often outside this simple wallet structure
-        // or by converting to a legacy transaction if appropriate and supported by the libs in use.
-        // If VersionedTransactions are expected and need signing, this part needs more robust handling.
         return tx; 
       },
       signAllTransactions: async (txs) => {
         txs.forEach(tx => {
           if (tx instanceof Transaction) {
-            tx.partialSign(keypairToUse);
+            tx.partialSign(walletKeypair);
           }
-          // See comment in signTransaction for VersionedTransaction handling
         });
         return txs;
       }
@@ -107,10 +67,7 @@ export function getAnchorProvider(walletKeypair?: Keypair) {
   return provider;
 }
 
-export function getSolanaProgram(provider?: AnchorProvider) {
-  if (!provider) {
-    provider = getAnchorProvider();
-  }
+export function getSolanaProgram(provider: AnchorProvider) {
   setProvider(provider);
   const program = new Program(idlJson as any, provider);
   return program as unknown as Program<Whiskeyprogram>;
@@ -165,9 +122,58 @@ export function getMarketplaceProgram(provider?: AnchorProvider) {
     return program as unknown as Program<Marketplaceprogram>;
 }
 
-export function getAdminSolanaProgram() {
-  const provider = getAnchorProvider(adminKeypair);
-  // The program ID will be derived from the IDL's address field
-  // Ensure idlJson.address is correctly set in your whiskeyprogram.json
-  return new Program<Whiskeyprogram>(idlJson as any, provider);
+// REMOVED: getAdminSolanaProgram - All admin operations now require client-side wallet signing
+
+// New function for getting the lending program
+export function getLendingProgram(provider: AnchorProvider) {
+  setProvider(provider);
+  
+  // Import the lending IDL
+  const lendingIdlRaw = require('./idl/lendingprogram.json');
+  
+  // Create a camelCase version of the IDL to match the TypeScript interface
+  const patchedIdl: any = JSON.parse(JSON.stringify(lendingIdlRaw)); // Deep copy
+  
+  // Convert snake_case instruction names to camelCase
+  if (patchedIdl.instructions) {
+    patchedIdl.instructions = patchedIdl.instructions.map((instruction: any) => {
+      const camelCaseInstruction = { ...instruction };
+      // Convert instruction names
+      if (instruction.name === 'deposit_nft') camelCaseInstruction.name = 'depositNft';
+      
+      // Convert account names to camelCase for TypeScript interface
+      if (camelCaseInstruction.accounts) {
+        camelCaseInstruction.accounts = camelCaseInstruction.accounts.map((account: any) => {
+          const camelCaseAccount = { ...account };
+          // Convert account names from snake_case to camelCase
+          if (account.name === 'global_market') camelCaseAccount.name = 'globalMarket';
+          if (account.name === 'borrower_account') camelCaseAccount.name = 'borrowerAccount';
+          if (account.name === 'nft_mint') camelCaseAccount.name = 'nftMint';
+          if (account.name === 'user_nft_account') camelCaseAccount.name = 'userNftAccount';
+          if (account.name === 'nft_escrow') camelCaseAccount.name = 'nftEscrow';
+          if (account.name === 'nft_metadata') camelCaseAccount.name = 'nftMetadata';
+          if (account.name === 'token_metadata_program') camelCaseAccount.name = 'tokenMetadataProgram';
+          if (account.name === 'token_program') camelCaseAccount.name = 'tokenProgram';
+          if (account.name === 'associated_token_program') camelCaseAccount.name = 'associatedTokenProgram';
+          if (account.name === 'system_program') camelCaseAccount.name = 'systemProgram';
+          return camelCaseAccount;
+        });
+      }
+      
+      return camelCaseInstruction;
+    });
+  }
+  
+  console.log("DEBUG: Initializing lending program...");
+  console.log("DEBUG: IDL Address:", patchedIdl.address);
+  console.log("DEBUG: Instructions:", patchedIdl.instructions?.map((i: any) => i.name));
+
+  // Use the lending program ID from environment variables
+  const programId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || "25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+  // Override the IDL address with the program ID
+  patchedIdl.address = programId.toBase58();
+  
+  const program = new Program(patchedIdl, provider);
+  console.log("DEBUG: Lending program initialized successfully with program ID:", programId.toBase58());
+  return program as unknown as Program<any>;
 } 

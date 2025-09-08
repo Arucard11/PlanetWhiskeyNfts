@@ -46,9 +46,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(200).send(cached.data);
     }
     
-    // Convert IPFS URI to gateway URLs
-    const hash = imageUrl.startsWith('ipfs://') ? imageUrl.substring(7) : imageUrl;
-    console.log(`[image-proxy] IPFS hash: ${hash}`);
+    // Extract IPFS hash from either ipfs:// URI or gateway URL
+    let hash;
+    if (imageUrl.startsWith('ipfs://')) {
+      hash = imageUrl.substring(7);
+    } else if (imageUrl.includes('/ipfs/')) {
+      // Extract hash from gateway URL like https://gateway.pinata.cloud/ipfs/QmHash
+      const match = imageUrl.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+      if (match) {
+        hash = match[1];
+      } else {
+        return res.status(422).json({ message: 'Invalid IPFS URL format' });
+      }
+    } else {
+      return res.status(422).json({ message: 'Not an IPFS URL' });
+    }
+    
+    console.log(`[image-proxy] Extracted IPFS hash: ${hash}`);
     
     // Try multiple gateways
     let response;
@@ -56,13 +70,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let successfulGateway = '';
     
     for (const gateway of ipfsGateways) {
-      const imageUrl = gateway + hash;
-      console.log(`[image-proxy] Trying gateway: ${imageUrl}`);
+      const gatewayUrl = gateway + hash;
+      console.log(`[image-proxy] Trying gateway: ${gatewayUrl}`);
       
-      try {
-        response = await fetch(imageUrl, {
-          signal: AbortSignal.timeout(10000), // 10 second timeout per gateway
-        });
+              try {
+          response = await fetch(gatewayUrl, {
+            signal: AbortSignal.timeout(10000), // 10 second timeout per gateway
+          });
         
         if (response.ok) {
           successfulGateway = gateway;

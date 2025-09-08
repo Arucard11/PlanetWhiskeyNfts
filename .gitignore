@@ -89,3 +89,4 @@ test-ledger/
 *.pem
 *.key
 !.gitkeep 
+.env.example

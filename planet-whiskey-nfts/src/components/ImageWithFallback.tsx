@@ -14,6 +14,12 @@ interface ImageWithFallbackProps {
 const convertIpfsToProxy = (uri: string): string => {
     if (!uri) return '';
     
+    // If it's already a proxy URL, don't convert it again
+    if (uri.startsWith('/api/images/proxy')) {
+        console.log(`[ImageWithFallback] Already a proxy URL, not converting: ${uri}`);
+        return uri;
+    }
+    
     if (uri.startsWith('ipfs://')) {
         const hash = uri.substring(7);
         const proxyUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
@@ -69,6 +75,7 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
 
     // If there's no valid image source or it has errored, show placeholder
     if (!imageSrc || hasErrored) {
+        console.log(`[ImageWithFallback] Showing placeholder - imageSrc: "${imageSrc}", hasErrored: ${hasErrored}`);
         return (
             <div className={`${className} flex items-center justify-center bg-slate-800 text-amber-200`}>
                 <span>No Image Available</span>

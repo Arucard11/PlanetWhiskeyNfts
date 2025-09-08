@@ -59,7 +59,6 @@ interface ListingForCancel {
 export default function MyNftsPage() {
   const { connected, wallet } = useWallet();
   const [ownedCollectionNfts, setOwnedCollectionNfts] = useState<SerializableNft[]>([]);
-  const [unknownCollectionNfts, setUnknownCollectionNfts] = useState<SerializableNft[]>([]);
   const [listedNfts, setListedNfts] = useState<ListedNft[]>([]);
   const [loading, setLoading] = useState(false);
   const [listingsLoading, setListingsLoading] = useState(false);
@@ -88,7 +87,6 @@ export default function MyNftsPage() {
 
         if (result.success) {
           const owned = result.data.filter((nft: SerializableNft) => nft.isOwnedCollection);
-          const unknown = result.data.filter((nft: SerializableNft) => !nft.isOwnedCollection);
           
           // Debug logging to see what image URLs we're getting
           console.log('[my-nfts-page] Owned collection NFTs:', owned.map(nft => ({
@@ -96,14 +94,8 @@ export default function MyNftsPage() {
             imageUrl: nft.json?.image,
             hasImage: !!nft.json?.image
           })));
-          console.log('[my-nfts-page] Unknown collection NFTs:', unknown.map(nft => ({
-            name: nft.name,
-            imageUrl: nft.json?.image,
-            hasImage: !!nft.json?.image
-          })));
           
           setOwnedCollectionNfts(owned);
-          setUnknownCollectionNfts(unknown);
         } else {
           setError(result.message || 'Failed to fetch NFTs.');
         }
@@ -112,10 +104,9 @@ export default function MyNftsPage() {
       } finally {
         setLoading(false);
       }
-    } else {
-      setOwnedCollectionNfts([]);
-      setUnknownCollectionNfts([]);
-    }
+          } else {
+        setOwnedCollectionNfts([]);
+      }
   };
 
   const fetchListings = async () => {
@@ -146,12 +137,12 @@ export default function MyNftsPage() {
   }, [connected, wallet?.adapter.publicKey]);
 
   const handleOpenListModal = (mintAddress: string) => {
-    const nft = [...ownedCollectionNfts, ...unknownCollectionNfts].find(n => n.address === mintAddress);
+    const nft = ownedCollectionNfts.find(n => n.address === mintAddress);
     if (nft) {
       setSelectedNft({
         mintAddress: nft.address,
         name: nft.json?.name || nft.name,
-        imageUrl: nft.json?.image || '',
+        imageUrl: nft.json?.image || '/placeholder-image.svg',
         collectionMintAddress: nft.collectionMintAddress
       });
       setIsListModalOpen(true);
@@ -346,7 +337,7 @@ export default function MyNftsPage() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {ownedCollectionNfts.map((nft) => {
-                    const imageUrl = nft.json?.image || '';
+                    const imageUrl = nft.json?.image || '/placeholder-image.svg';
                     console.log(`[my-nfts-page] Rendering MyNftCard for ${nft.name} with imageUrl:`, imageUrl);
                     return (
                       <MyNftCard
@@ -364,58 +355,9 @@ export default function MyNftsPage() {
               </motion.div>
             )}
 
-            {unknownCollectionNfts.length > 0 && (
-              <motion.div 
-                className="mb-12"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.6 }}
-              >
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  Other NFTs ({unknownCollectionNfts.length})
-                </h2>
-                <p className="text-amber-200 mb-6">
-                  These NFTs are not from Planet Whiskey collections and cannot be listed on our marketplace.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {unknownCollectionNfts.map((nft) => (
-                      <div key={nft.address} className="group relative bg-slate-900/50 backdrop-blur-xl border border-amber-700/30 rounded-3xl shadow-2xl hover:shadow-amber-500/20 transform hover:-translate-y-2 transition-all duration-700 flex flex-col h-full overflow-hidden opacity-60">
-                        <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
-                          {/* Image Aspect Ratio Container - same as NftCollectionCard */}
-                          <div className="aspect-w-1 aspect-h-1 w-full h-full">
-                            <ImageWithFallback
-                              src={nft.json?.image || '/placeholder-image.svg'}
-                              alt={`${nft.json?.name || nft.name} image`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10"></div>
-                          <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
-                            {nft.collectionName}
-                          </div>
-                        </div>
-                        <div className="p-6 flex flex-col flex-grow">
-                          <h3 className="mb-3 text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500 font-serif truncate" title={nft.json?.name || nft.name}>
-                            {nft.json?.name || nft.name}
-                          </h3>
-                          <div className="font-sans text-sm text-gray-300 space-y-2 mb-6 flex-grow">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-gray-400">Collection:</span> 
-                              <span className="font-bold text-amber-200">{nft.collectionName}</span>
-                            </div>
-                            <div className="bg-red-900/20 border border-red-700/40 rounded-xl p-4 text-center">
-                              <p className="font-bold text-red-200 text-sm">Not Listable</p>
-                              <p className="text-xs text-gray-400 mt-2">This NFT is not from a Planet Whiskey collection</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
 
-            {(!loading && ownedCollectionNfts.length === 0 && unknownCollectionNfts.length === 0 && listedNfts.length === 0) && (
+
+            {(!loading && ownedCollectionNfts.length === 0 && listedNfts.length === 0) && (
               <motion.div 
                 className="text-center py-16"
                 initial={{ opacity: 0, y: 30 }}

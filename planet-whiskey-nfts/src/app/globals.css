@@ -61,6 +61,41 @@ body {
   color: #000;
 }
 
+/* Input field text color override */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+textarea,
+select {
+  color: #111827 !important; /* text-gray-900 */
+}
+
+/* Admin page specific input styling */
+.admin-page input[type="text"],
+.admin-page input[type="number"],
+.admin-page input[type="email"],
+.admin-page input[type="password"],
+.admin-page input[type="search"],
+.admin-page input[type="tel"],
+.admin-page input[type="url"],
+.admin-page textarea,
+.admin-page select {
+  color: #111827 !important; /* text-gray-900 */
+  background-color: #ffffff !important; /* white background */
+  border-color: #d1d5db !important; /* border-gray-300 */
+}
+
+.admin-page input:focus,
+.admin-page textarea:focus,
+.admin-page select:focus {
+  border-color: #f59e0b !important; /* border-amber-500 */
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important; /* focus ring */
+}
+
 /* Enhanced Wallet Adapter Button Styles */
 .wallet-adapter-button.wallet-adapter-button-trigger {
   background: transparent !important; /* see-through background */

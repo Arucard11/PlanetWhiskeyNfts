@@ -1,9 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import dbConnect from '@/lib/mongodb';
 import NftCollection, { INftCollection } from '@/models/NftCollection';
-import { getSolanaConnection, getSolanaProgram, adminKeypair } from '@/lib/solanaUtils';
-import { Program } from '@project-serum/anchor';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { getSolanaConnection, getSolanaProgram, getAnchorProvider } from '@/lib/solanaUtils';
+import { Program } from '@coral-xyz/anchor';
+import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 
 // Interface for collection with items minted from on-chain
 interface INftCollectionWithMintedCount {
@@ -16,6 +16,7 @@ interface INftCollectionWithMintedCount {
   nftBaseMetadataUri: string;
   mintPriceLamports: number; // Keep these as numbers from DB
   mintPriceWhiskeyTokens: number; // Price in whiskey tokens
+  mintPriceUsd?: number; // NEW: USD price
   itemLimit: number; // Keep these as numbers from DB
   companyId: string; // Assuming companyId is string representation of ObjectId
   isActive: boolean;
@@ -51,14 +52,11 @@ export default async function handler(
   try {
     await dbConnect();
 
-    // Get Solana program instance. 
-    // No specific signer needed for fetching account data, 
-    // getSolanaProgram from solanaUtils will use a default provider if adminKeypair is not explicitly needed or passed.
-    // Or, if getSolanaProgram requires a signer, ensure solanaUtils handles a read-only scenario.
-    // For simplicity, assuming getSolanaProgram can provide a program instance for reads.
-    const program = getSolanaProgram(); // This uses adminKeypair by default if solanaUtils is set up that way
-                                      // If adminKeypair isn't desired for reads, solanaUtils needs a read-only provider option.
-                                      // For now, proceeding with the existing getSolanaProgram behavior.
+    // Set up Solana program for on-chain data fetching
+    const connection = getSolanaConnection();
+    const tempKeypair = Keypair.generate(); // Temporary keypair for read-only operations
+    const provider = getAnchorProvider(tempKeypair);
+    const program = getSolanaProgram(provider);
 
     const filter: any = {};
     if (companyId && typeof companyId === 'string') {
@@ -102,9 +100,11 @@ export default async function handler(
       })
     );
 
+    console.log(`[COLLECTIONS_API] ✅ Successfully returning ${augmentedCollections.length} collections`);
     res.status(200).json({ success: true, data: augmentedCollections });
   } catch (error: any) {
-    console.error("Error fetching collections:", error);
+    console.error("[COLLECTIONS_API] ❌ Error fetching collections:", error);
+    console.error("[COLLECTIONS_API] ❌ Error stack:", error.stack);
     res.status(500).json({ success: false, message: "Error fetching collections", error: error.message });
   }
 } 

@@ -137,6 +137,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </li>
               <li>
                 <a 
+                  href="/admin/lending" 
+                  className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
+                    pathname === '/admin/lending' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'
+                  }`}
+                >
+                  🏦 Lending Protocol
+                </a>
+              </li>
+              <li>
+                <a 
                   href="/admin/companies" 
                   className={`text-white hover:text-amber-200 font-medium transition-colors duration-200 pb-1 border-b-2 ${
                     pathname === '/admin/companies' ? 'border-amber-200' : 'border-transparent hover:border-amber-300'

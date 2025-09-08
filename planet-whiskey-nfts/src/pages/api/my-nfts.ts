@@ -212,6 +212,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
         console.log(`[my-nfts] Converted Pinata URL to proxy: ${imageUrl}`);
       }
+      
+      // If we still don't have a valid image URL, use a placeholder
+      if (!imageUrl) {
+        imageUrl = '/placeholder-image.svg';
+        console.log(`[my-nfts] No valid image URL found, using placeholder for ${nft.name}`);
+      }
 
       // Create a copy of loadedJson with the converted image URL
       const processedJson = loadedJson ? { ...loadedJson, image: imageUrl } : loadedJson;
@@ -231,6 +237,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       };
 
       console.log(`[my-nfts] Final data for ${nft.name}: Image from json is ${finalNftData.json?.image}`);
+      console.log(`[my-nfts] Full json object for ${nft.name}:`, finalNftData.json);
       return finalNftData;
 
     }))).filter(nft => nft !== null);
@@ -243,6 +250,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.status(200).json({ 
       success: true, 
       data: allNfts,
+      ownedCollectionNfts: ownedCollectionNfts, // Add this for lending page
+      unknownCollectionNfts: unknownCollectionNfts,
       debug: {
         totalAssetsFound: allOwnedNfts.length,
         ownedCollectionCount: ownedCollectionNfts.length,

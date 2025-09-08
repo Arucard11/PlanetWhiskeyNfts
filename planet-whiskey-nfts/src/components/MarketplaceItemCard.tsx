@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Tag, Shield, ShoppingCart } from 'lucide-react';
 import BuyNftModal from './BuyNftModal';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
 
 export interface MarketplaceItemCardProps {
   id: string; // Listing ID from DB
@@ -43,9 +43,9 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
         >
           <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
             {nftImageUrl ? (
-              <ImageWithFallback
+              <MediaWithFallback
                 src={nftImageUrl}
-                alt={`Image of ${nftName}`}
+                alt={`Media of ${nftName}`}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
             ) : (
@@ -81,7 +81,7 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <div className="text-center">
                   <p className="text-amber-400/80 text-sm font-medium">Price</p>
-                  <p className="text-2xl font-bold text-amber-300">{(priceInWhiskey / 1e9).toFixed(0)} <span className="text-sm">WHISKEY</span></p>
+                  <p className="text-2xl font-bold text-amber-300">{(priceInWhiskey / 1e6).toFixed(0)} <span className="text-sm">WHISKEY</span></p>
                 </div>
                 <div className="flex items-center text-amber-200/60 text-sm">
                   <Tag className="h-4 w-4 mr-1" />

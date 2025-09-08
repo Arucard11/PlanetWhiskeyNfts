@@ -1,9 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import dbConnect from '@/lib/mongodb';
 import NftCollection, { INftCollection } from '@/models/NftCollection';
-import { getSolanaProgram } from '@/lib/solanaUtils';
-import { Program } from '@project-serum/anchor';
-import { PublicKey } from '@solana/web3.js';
+import { getSolanaProgram, getAnchorProvider, getSolanaConnection } from '@/lib/solanaUtils';
+import { Program } from '@coral-xyz/anchor';
+import { PublicKey, Keypair } from '@solana/web3.js';
 
 // Interface for the augmented collection data
 interface IAugmentedNftCollection {
@@ -55,8 +55,11 @@ export default async function handler(
   try {
     await dbConnect();
 
-    // Get Solana program instance (using default provider from solanaUtils for reads)
-    const program = getSolanaProgram(); 
+    // Set up Solana program for on-chain data fetching
+    const connection = getSolanaConnection();
+    const tempKeypair = Keypair.generate(); // Temporary keypair for read-only operations
+    const provider = getAnchorProvider(tempKeypair);
+    const program = getSolanaProgram(provider); 
 
     const collectionFromDB = await NftCollection.findOne({ collectionOnChainAddress }).lean<INftCollection>();
 

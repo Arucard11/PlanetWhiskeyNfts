@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# admin keypair (never commit!)
+../solana_program/admin-keypair.json

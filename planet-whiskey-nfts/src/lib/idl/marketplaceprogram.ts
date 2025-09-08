@@ -5,12 +5,12 @@
  * IDL can be found at `target/idl/marketplaceprogram.json`.
  */
 export type Marketplaceprogram = {
-  "address": "NqQ2fJ6TzMn44wdkKGGCT71P7nJggZSp4qoqZPWfJTW",
+  "address": "6SHqHpSVYHUbkX3AgMg3XcAxH5Eax48T9orPAio6j4Wk",
   "metadata": {
     "name": "marketplaceprogram",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "A Solana program for an NFT marketplace"
+    "description": "null"
   },
   "instructions": [
     {
@@ -182,7 +182,7 @@ export type Marketplaceprogram = {
         {
           "name": "whiskeyTokenMint",
           "writable": true,
-          "address": "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu"
+          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
         },
         {
           "name": "buyerWhiskeyTokenAccount",
@@ -363,6 +363,104 @@ export type Marketplaceprogram = {
               ]
             }
           }
+        },
+        {
+          "name": "treasuryWhiskeyTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasuryWallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "whiskeyTokenMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasuryWallet",
+          "writable": true
+        },
+        {
+          "name": "globalMarket",
+          "writable": true
         },
         {
           "name": "nftToBuyMint"

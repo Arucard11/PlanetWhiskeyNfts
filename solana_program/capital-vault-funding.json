@@ -1,0 +1,17 @@
+{
+  "network": "Devnet",
+  "timestamp": "2025-09-07T17:50:18.837Z",
+  "mintTransaction": "2KwoMdYxSHPfcMbumMy8SFfRMBxCxyotzM36CqoTd3tUmBCbX1khY3fyg8pnVQJEa2HJPGk4f4To7gQjVKRbiJok",
+  "testUsdcMint": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR",
+  "capitalVaultPda": "He84QophgrA8GCQTGjkLkUi5qjKCF5Qmrb4Q6Nrt3jL9",
+  "capitalVaultTokenAccount": "GR1a3JcYR7tYWNqcatd9bdBvh4d4YKLFTkpuP2Nd1c5v",
+  "previousBalance": 100000,
+  "newBalance": 200000,
+  "amountAdded": 100000,
+  "notes": [
+    "Capital vault now has USDC for lending operations",
+    "Users can now borrow against their NFT collateral",
+    "Interest payments will go to treasury wallet",
+    "Principal repayments will return to this vault"
+  ]
+}

@@ -3,180 +3,94 @@
 import { useState, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createTransferInstruction } from '@solana/spl-token';
-import { Wallet, TrendingUp, Send, RefreshCw, DollarSign } from 'lucide-react';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { Wallet, TrendingUp, RefreshCw, DollarSign, Send } from 'lucide-react';
+import { useRealTimeWhiskeyPrice, formatWhiskeyTokens, formatUsdAmount, getPriceChangeColor, formatPercentageChange } from '@/lib/coingeckoPricing';
 
-const WHISKEY_TOKEN_MINT = new PublicKey("Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT || "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET || "4fSp8ipFWs5NffyMX2SP6F3zGrUjT7vfwxcfrNdVafSR");
+const LENDING_POOL_WALLET = new PublicKey(process.env.NEXT_PUBLIC_LENDING_POOL_WHISKEY_VAULT || "7YnB5mZMzX6Ft9jtXBxYXrZ6fCnASxkz7cNSMEGCuq4G"); // 80% of mint revenue goes here as WHISKEY (then swapped to USDC)
 
 export default function AdminPage() {
   const { connection } = useConnection();
   const { publicKey, signTransaction, connected } = useWallet();
   
-  const [solBalance, setSolBalance] = useState<number | null>(null);
-  const [whiskeyBalance, setWhiskeyBalance] = useState<number | null>(null);
+  const [treasurySolBalance, setTreasurySolBalance] = useState<number | null>(null);
+  const [treasuryWhiskeyBalance, setTreasuryWhiskeyBalance] = useState<number | null>(null);
+  const [lendingPoolSolBalance, setLendingPoolSolBalance] = useState<number | null>(null);
+  const [treasuryValueUsd, setTreasuryValueUsd] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [withdrawType, setWithdrawType] = useState<'SOL' | 'WHISKEY'>('SOL');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawAddress, setWithdrawAddress] = useState('');
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [withdrawMessage, setWithdrawMessage] = useState<string | null>(null);
 
-  // Fetch wallet balances
+  // Real-time WHISKEY price hook
+  const { priceData: whiskeyPriceData, loading: priceLoading, error: priceError } = useRealTimeWhiskeyPrice(30000);
+
+  // Fetch treasury wallet balances and WHISKEY price
   const fetchBalances = async () => {
-    if (!publicKey || !connected) {
-      setSolBalance(null);
-      setWhiskeyBalance(null);
+    if (!connected) {
+      setTreasurySolBalance(null);
+      setTreasuryWhiskeyBalance(null);
+      setLendingPoolSolBalance(null);
+      setWhiskeyPrice(null);
+      setTreasuryValueUsd(null);
       return;
     }
 
     setIsLoading(true);
     try {
-      // Fetch SOL balance
-      const solBalanceLamports = await connection.getBalance(publicKey);
-      setSolBalance(solBalanceLamports / LAMPORTS_PER_SOL);
+      // Fetch treasury SOL balance
+      const solBalanceLamports = await connection.getBalance(TREASURY_WALLET);
+      setTreasurySolBalance(solBalanceLamports / LAMPORTS_PER_SOL);
 
-      // Fetch WHISKEY token balance
+      // Fetch lending pool SOL balance
+      const lendingPoolSolLamports = await connection.getBalance(LENDING_POOL_WALLET);
+      setLendingPoolSolBalance(lendingPoolSolLamports / LAMPORTS_PER_SOL);
+
+      // Fetch treasury WHISKEY token balance
+      let whiskeyBalance = 0;
       try {
         const whiskeyTokenAccount = await getAssociatedTokenAddress(
           WHISKEY_TOKEN_MINT,
-          publicKey
+          TREASURY_WALLET
         );
         const tokenAccountInfo = await connection.getTokenAccountBalance(whiskeyTokenAccount);
-        setWhiskeyBalance(tokenAccountInfo.value.uiAmount || 0);
+        whiskeyBalance = tokenAccountInfo.value.uiAmount || 0;
+        setTreasuryWhiskeyBalance(whiskeyBalance);
       } catch (error) {
-        console.warn('WHISKEY token account not found or error:', error);
-        setWhiskeyBalance(0);
+        console.warn('Treasury WHISKEY token account not found or error:', error);
+        setTreasuryWhiskeyBalance(0);
+      }
+
+      // Calculate treasury value in USD using real-time price
+      if (whiskeyBalance > 0 && whiskeyPriceData?.usd) {
+        setTreasuryValueUsd(whiskeyBalance * whiskeyPriceData.usd);
+      } else {
+        setTreasuryValueUsd(0);
       }
     } catch (error) {
-      console.error('Error fetching balances:', error);
+      console.error('Error fetching treasury balances:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle withdrawal
-  const handleWithdraw = async () => {
-    if (!publicKey || !signTransaction || !withdrawAddress || !withdrawAmount) {
-      setWithdrawMessage('Please fill in all fields and connect your wallet.');
-      return;
-    }
 
-    const amount = parseFloat(withdrawAmount);
-    if (amount <= 0) {
-      setWithdrawMessage('Please enter a valid amount greater than 0.');
-      return;
-    }
 
-    let destinationPubkey: PublicKey;
-    try {
-      destinationPubkey = new PublicKey(withdrawAddress);
-    } catch (error) {
-      setWithdrawMessage('Invalid destination wallet address.');
-      return;
-    }
-
-    setIsWithdrawing(true);
-    setWithdrawMessage('Preparing withdrawal transaction...');
-
-    try {
-      let transaction: Transaction;
-
-      if (withdrawType === 'SOL') {
-        // Check if we have enough SOL (keeping some for fees)
-        const currentBalance = solBalance || 0;
-        const minKeepAmount = 0.01; // Keep 0.01 SOL for future transactions
-        const maxWithdrawable = Math.max(0, currentBalance - minKeepAmount);
-        
-        if (amount > maxWithdrawable) {
-          throw new Error(`Cannot withdraw ${amount} SOL. Maximum withdrawable: ${maxWithdrawable.toFixed(4)} SOL (keeping 0.01 SOL for transaction fees)`);
-        }
-
-        // Create SOL transfer transaction
-        transaction = new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: destinationPubkey,
-            lamports: Math.floor(amount * LAMPORTS_PER_SOL),
-          })
-        );
-      } else {
-        // WHISKEY token withdrawal
-        const currentBalance = whiskeyBalance || 0;
-        if (amount > currentBalance) {
-          throw new Error(`Cannot withdraw ${amount} WHISKEY. Current balance: ${currentBalance} WHISKEY`);
-        }
-
-        // Get token accounts
-        const sourceTokenAccount = await getAssociatedTokenAddress(
-          WHISKEY_TOKEN_MINT,
-          publicKey
-        );
-
-        const destinationTokenAccount = await getAssociatedTokenAddress(
-          WHISKEY_TOKEN_MINT,
-          destinationPubkey
-        );
-
-        // Check if destination token account exists
-        const destAccountInfo = await connection.getAccountInfo(destinationTokenAccount);
-        if (!destAccountInfo) {
-          throw new Error('Destination wallet does not have a WHISKEY token account. They need to create one first by receiving WHISKEY tokens or using a wallet that supports SPL tokens.');
-        }
-
-        // Create token transfer transaction
-        transaction = new Transaction().add(
-          createTransferInstruction(
-            sourceTokenAccount,
-            destinationTokenAccount,
-            publicKey,
-            Math.floor(amount * 1e9), // Convert to base units (9 decimals for WHISKEY)
-            [],
-            TOKEN_PROGRAM_ID
-          )
-        );
-      }
-
-      // Get recent blockhash and set fee payer
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-
-      setWithdrawMessage('Please sign the transaction in your wallet...');
-
-      // Sign and send transaction
-      const signedTransaction = await signTransaction(transaction);
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-
-      setWithdrawMessage('Transaction sent. Confirming...');
-
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
-
-      setWithdrawMessage(`✅ Successfully withdrew ${amount} ${withdrawType} to ${withdrawAddress.slice(0, 8)}...${withdrawAddress.slice(-8)}`);
-      
-      // Refresh balances
-      setTimeout(() => {
-        fetchBalances();
-        setShowWithdrawModal(false);
-        setWithdrawAmount('');
-        setWithdrawAddress('');
-        setWithdrawMessage(null);
-      }, 3000);
-
-    } catch (error: any) {
-      console.error('Withdrawal error:', error);
-      setWithdrawMessage(`❌ Withdrawal failed: ${error.message}`);
-    } finally {
-      setIsWithdrawing(false);
-    }
-  };
-
-  // Fetch balances on component mount and wallet change
+  // Auto-refresh treasury balances every 30 seconds when connected
   useEffect(() => {
-    fetchBalances();
-  }, [publicKey, connected]);
+    if (connected) {
+      fetchBalances();
+      const interval = setInterval(fetchBalances, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [connected]);
+
+  // Recalculate treasury value when price data changes
+  useEffect(() => {
+    if (treasuryWhiskeyBalance !== null && whiskeyPriceData?.usd) {
+      setTreasuryValueUsd(treasuryWhiskeyBalance * whiskeyPriceData.usd);
+    }
+  }, [whiskeyPriceData, treasuryWhiskeyBalance]);
 
   const formatBalance = (balance: number | null, decimals: number = 4): string => {
     if (balance === null) return '--';
@@ -186,8 +100,8 @@ export default function AdminPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h2>
-        <p className="text-gray-400">Monitor your earnings and manage funds from NFT sales</p>
+        <h2 className="text-3xl font-bold text-white mb-2">Treasury Dashboard</h2>
+        <p className="text-gray-400">Monitor revenue split: 20% WHISKEY to treasury, 80% WHISKEY → USDC to lending pool, plus marketplace fees</p>
       </div>
 
       {/* Wallet Connection */}
@@ -197,7 +111,7 @@ export default function AdminPage() {
             <Wallet className="w-8 h-8 text-amber-400" />
             <div>
               <h3 className="text-xl font-semibold text-white mb-2">Connect Admin Wallet</h3>
-              <p className="text-gray-400 mb-4">Connect your admin wallet to view balances and withdraw funds</p>
+              <p className="text-gray-400 mb-4">Connect your admin wallet to view treasury balances and earnings</p>
               <WalletMultiButton />
             </div>
           </div>
@@ -206,8 +120,59 @@ export default function AdminPage() {
 
       {/* Balance Cards */}
       {connected && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* SOL Balance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* WHISKEY Price Card */}
+          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">WHISKEY Price</h3>
+                  <p className="text-gray-400 text-sm">Current market price</p>
+                </div>
+              </div>
+              <button
+                onClick={fetchBalances}
+                disabled={isLoading}
+                className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 text-gray-300 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="text-3xl font-bold text-green-400">
+                {priceLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                    <span>Loading...</span>
+                  </div>
+                ) : whiskeyPriceData?.usd ? (
+                  <div>
+                    <div>${whiskeyPriceData.usd.toFixed(6)}</div>
+                    {whiskeyPriceData.usd_24h_change !== 0 && (
+                      <div className={`text-sm ${getPriceChangeColor(whiskeyPriceData.usd_24h_change)}`}>
+                        {formatPercentageChange(whiskeyPriceData.usd_24h_change)}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  '--'
+                )}
+              </div>
+              <div className="text-sm text-gray-400">
+                Per WHISKEY token
+                {whiskeyPriceData?.last_updated_at && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Updated: {new Date(whiskeyPriceData.last_updated_at * 1000).toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Treasury SOL Balance */}
           <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -215,8 +180,8 @@ export default function AdminPage() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">SOL Balance</h3>
-                  <p className="text-gray-400 text-sm">Transaction fees & SOL earnings</p>
+                  <h3 className="text-lg font-semibold text-white">Treasury SOL</h3>
+                  <p className="text-gray-400 text-sm">Network fees & SOL earnings</p>
                 </div>
               </div>
               <button
@@ -229,18 +194,18 @@ export default function AdminPage() {
             </div>
             <div className="space-y-3">
               <div className="text-3xl font-bold text-white">
-                {formatBalance(solBalance)} SOL
+                {formatBalance(treasurySolBalance)} SOL
               </div>
               <button
                 onClick={() => {
                   setWithdrawType('SOL');
                   setShowWithdrawModal(true);
                 }}
-                disabled={!solBalance || solBalance <= 0.01}
+                disabled={true}
                 className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <Send className="w-4 h-4" />
-                <span>Withdraw SOL</span>
+                <span>Treasury Funds</span>
               </button>
             </div>
           </div>
@@ -250,30 +215,106 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-white" />
+                  <Wallet className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">WHISKEY Balance</h3>
-                  <p className="text-gray-400 text-sm">NFT sales earnings</p>
+                  <h3 className="text-lg font-semibold text-white">Treasury WHISKEY</h3>
+                  <p className="text-gray-400 text-sm">Earned from NFT sales & fees</p>
                 </div>
               </div>
             </div>
             <div className="space-y-3">
               <div className="text-3xl font-bold text-amber-400">
-                {formatBalance(whiskeyBalance, 2)} WHISKEY
+                {formatBalance(treasuryWhiskeyBalance, 2)} WHISKEY
+              </div>
+              <div className="text-sm text-gray-400">
+                ~${formatBalance(treasuryValueUsd, 2)} USD
               </div>
               <button
                 onClick={() => {
                   setWithdrawType('WHISKEY');
                   setShowWithdrawModal(true);
                 }}
-                disabled={!whiskeyBalance || whiskeyBalance <= 0}
+                disabled={true}
                 className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-600 disabled:to-gray-700 text-black py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <Send className="w-4 h-4" />
-                <span>Withdraw WHISKEY</span>
+                <span>Treasury Earnings</span>
               </button>
             </div>
+          </div>
+
+          {/* Lending Pool SOL Balance */}
+          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Lending Pool SOL</h3>
+                  <p className="text-gray-400 text-sm">80% of mint revenue (as USDC)</p>
+                </div>
+              </div>
+              <button
+                onClick={fetchBalances}
+                disabled={isLoading}
+                className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 text-gray-300 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="text-3xl font-bold text-blue-400">
+                {formatBalance(lendingPoolSolBalance)} SOL
+              </div>
+              <div className="text-sm text-gray-400">
+                WHISKEY → USDC via Jupiter
+              </div>
+              <button
+                disabled={true}
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>Lending Pool</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Market Stats */}
+      {connected && whiskeyPriceData && (
+        <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
+          <h3 className="text-xl font-semibold text-white mb-4">Market Statistics</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-2xl font-bold text-green-400">
+                ${whiskeyPriceData.usd.toFixed(6)}
+              </div>
+              <div className="text-gray-400 text-sm">Current Price</div>
+            </div>
+            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+              <div className={`text-2xl font-bold ${getPriceChangeColor(whiskeyPriceData.usd_24h_change)}`}>
+                {formatPercentageChange(whiskeyPriceData.usd_24h_change)}
+              </div>
+              <div className="text-gray-400 text-sm">24h Change</div>
+            </div>
+            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-2xl font-bold text-blue-400">
+                ${(whiskeyPriceData.usd_24h_vol / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-gray-400 text-sm">24h Volume</div>
+            </div>
+            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-2xl font-bold text-purple-400">
+                ${(whiskeyPriceData.usd_market_cap / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-gray-400 text-sm">Market Cap</div>
+            </div>
+          </div>
+          <div className="mt-4 text-center text-sm text-gray-400">
+            Last updated: {new Date(whiskeyPriceData.last_updated_at * 1000).toLocaleString()}
           </div>
         </div>
       )}
@@ -284,114 +325,24 @@ export default function AdminPage() {
           <h3 className="text-xl font-semibold text-white mb-4">Earnings Summary</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-400">{formatBalance(solBalance)} SOL</div>
-              <div className="text-gray-400 text-sm">SOL Balance</div>
+              <div className="text-2xl font-bold text-purple-400">{formatBalance(treasurySolBalance)} SOL</div>
+              <div className="text-gray-400 text-sm">Treasury SOL Balance</div>
             </div>
             <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-2xl font-bold text-amber-400">{formatBalance(whiskeyBalance, 0)} WHISKEY</div>
-              <div className="text-gray-400 text-sm">WHISKEY Earned</div>
+              <div className="text-2xl font-bold text-amber-400">{formatBalance(treasuryWhiskeyBalance, 0)} WHISKEY</div>
+              <div className="text-gray-400 text-sm">Treasury WHISKEY</div>
             </div>
             <div className="text-center p-4 bg-slate-800/50 rounded-lg">
               <div className="text-2xl font-bold text-green-400">
-                ${((whiskeyBalance || 0) * 0.01).toFixed(2)}
+                {treasuryValueUsd ? `$${treasuryValueUsd.toFixed(2)}` : '$0.00'}
               </div>
-              <div className="text-gray-400 text-sm">Est. USD Value</div>
+              <div className="text-gray-400 text-sm">USD Value</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Withdrawal Modal */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Withdraw {withdrawType}
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Amount to Withdraw
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder={`Enter amount in ${withdrawType}`}
-                    step="0.0001"
-                    min="0"
-                    max={withdrawType === 'SOL' ? (solBalance || 0) - 0.01 : whiskeyBalance || 0}
-                    className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={() => {
-                      const maxAmount = withdrawType === 'SOL' 
-                        ? Math.max(0, (solBalance || 0) - 0.01) 
-                        : whiskeyBalance || 0;
-                      setWithdrawAmount(maxAmount.toString());
-                    }}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-amber-400 text-sm hover:text-amber-300"
-                  >
-                    Max
-                  </button>
-                </div>
-                <p className="text-gray-400 text-xs mt-1">
-                  Available: {withdrawType === 'SOL' 
-                    ? `${formatBalance((solBalance || 0) - 0.01)} SOL (keeping 0.01 for fees)` 
-                    : `${formatBalance(whiskeyBalance, 2)} WHISKEY`}
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Destination Wallet Address
-                </label>
-                <input
-                  type="text"
-                  value={withdrawAddress}
-                  onChange={(e) => setWithdrawAddress(e.target.value)}
-                  placeholder="Enter wallet address"
-                  className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono text-sm"
-                />
-              </div>
-
-              {withdrawMessage && (
-                <div className={`p-3 rounded-lg text-sm ${
-                  withdrawMessage.includes('❌') ? 'bg-red-900/20 border border-red-700/40 text-red-300' :
-                  withdrawMessage.includes('✅') ? 'bg-green-900/20 border border-green-700/40 text-green-300' :
-                  'bg-blue-900/20 border border-blue-700/40 text-blue-300'
-                }`}>
-                  {withdrawMessage}
-                </div>
-              )}
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowWithdrawModal(false);
-                    setWithdrawAmount('');
-                    setWithdrawAddress('');
-                    setWithdrawMessage(null);
-                  }}
-                  disabled={isWithdrawing}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleWithdraw}
-                  disabled={isWithdrawing || !withdrawAmount || !withdrawAddress}
-                  className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-600 disabled:to-gray-700 text-black py-2 px-4 rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
-                >
-                  {isWithdrawing ? 'Processing...' : `Withdraw ${withdrawType}`}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Additional Management Links */}
       <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">

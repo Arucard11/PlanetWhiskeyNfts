@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Tag, Layers, ArrowRight } from 'lucide-react';
-import ImageWithFallback from './ImageWithFallback';
+import MediaWithFallback from './MediaWithFallback';
+
+
 
 // Use a simplified props interface; fetching logic is now centralized on the page.
 export interface MyNftCardProps {
   mintAddress: string;
   name: string;
-  imageUrl: string;
+  imageUrl: string; // Use imageUrl prop like other components
   collectionName: string; // Keep this simple for display
   collectionMintAddress: string;
   onList: (mintAddress: string) => void;
@@ -27,6 +29,9 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
 
   // Debug logging to see what image URL we're receiving
   console.log(`[MyNftCard] Received imageUrl for ${name}:`, imageUrl);
+  console.log(`[MyNftCard] ImageUrl type:`, typeof imageUrl);
+  console.log(`[MyNftCard] ImageUrl length:`, imageUrl?.length);
+  console.log(`[MyNftCard] ImageUrl is empty:`, !imageUrl);
 
   const handleImageLoad = () => {
     console.log(`[MyNftCard] Image loaded successfully for ${name}:`, imageUrl);
@@ -46,9 +51,9 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
       <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
         {/* Image Aspect Ratio Container - same as NftCollectionCard */}
         <div className="aspect-w-1 aspect-h-1 w-full h-full">
-          <ImageWithFallback
+          <MediaWithFallback
             src={imageUrl || '/placeholder-image.svg'}
-            alt={`${name} image`}
+            alt={`${name} media`}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             onLoad={handleImageLoad}
             onError={handleImageError}
