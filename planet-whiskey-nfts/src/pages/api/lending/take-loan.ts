@@ -6,8 +6,8 @@ import { Lendingprogram } from '../../../lib/idl/lendingprogram';
 import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
 // Program IDs
-const LENDING_PROGRAM_ID = new PublicKey("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
-const WHISKEY_PROGRAM_ID = new PublicKey("68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD");
+const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const durationSeconds = duration * 30 * 24 * 60 * 60; // Approximate months to seconds
     
     // Determine asset mint
-    const assetMint = new PublicKey('5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR'); // USDC devnet
+    const assetMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_TOKEN_MINT!); // USDC devnet
 
     // Derive PDAs
     const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
@@ -156,6 +156,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build take loan transaction
     console.log('🏗️ Building take loan instruction...');
+    console.log('📋 Instruction parameters:', {
+      loanAmountLamports,
+      durationSeconds,
+      duration: `${duration} months`
+    });
+    
     let takeLoanInstruction;
     try {
       takeLoanInstruction = await (program.methods as any)
@@ -179,11 +185,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .instruction();
         
       console.log('✅ Take loan instruction created successfully');
+      console.log('📋 Instruction accounts used:', {
+        globalMarket: globalMarketPda.toString(),
+        borrowerAccount: borrowerAccountPda.toString(),
+        loan: loanPda.toString(),
+        assetMint: assetMint.toString(),
+        capitalVault: capitalVault.toString(),
+        treasuryTokenAccount: treasuryTokenAccount.toString(),
+        treasuryWallet: treasuryWallet.toString(),
+        borrowerTokenAccount: borrowerTokenAccount.toString(),
+        borrower: userWallet.toString()
+      });
     } catch (error) {
       console.error('❌ Error creating take loan instruction:', error);
+      console.error('Error details:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack
+      });
       return res.status(500).json({
         message: 'Failed to create loan instruction',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error?.toString()
       });
     }
 
@@ -213,6 +236,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = userWallet;
+
+    // Simulate the transaction first to catch any errors
+    try {
+      console.log('🧪 Simulating transaction before sending to frontend...');
+      const simulationResult = await connection.simulateTransaction(transaction);
+      
+      if (simulationResult.value.err) {
+        console.error('❌ Transaction simulation failed:', simulationResult.value.err);
+        console.error('📝 Simulation logs:', simulationResult.value.logs);
+        return res.status(400).json({
+          message: 'Transaction would fail on-chain',
+          error: simulationResult.value.err,
+          logs: simulationResult.value.logs
+        });
+      }
+      
+      console.log('✅ Transaction simulation successful');
+      console.log('📝 Simulation logs:', simulationResult.value.logs);
+    } catch (simError) {
+      console.error('❌ Error during simulation:', simError);
+      return res.status(500).json({
+        message: 'Failed to simulate transaction',
+        error: simError instanceof Error ? simError.message : 'Unknown simulation error'
+      });
+    }
 
     // Serialize transaction for frontend
     const serializedTransaction = transaction.serialize({

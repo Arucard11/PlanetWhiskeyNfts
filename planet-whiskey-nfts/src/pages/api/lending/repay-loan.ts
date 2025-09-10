@@ -7,8 +7,8 @@ import { getCurrentWhiskeyRate } from '../../../lib/coingeckoPricing';
 import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
 // Program IDs
-const LENDING_PROGRAM_ID = new PublicKey("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
-const WHISKEY_TOKEN_MINT = new PublicKey("FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j");
+const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
+const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -53,23 +53,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     anchor.setProvider(provider);
     
     // Create program instance using IDL
-    const program = new anchor.Program(lendingIdl as anchor.Idl, LENDING_PROGRAM_ID, provider) as anchor.Program<Lendingprogram>;
+    const program = new anchor.Program(lendingIdl as anchor.Idl, provider) as anchor.Program<Lendingprogram>;
     
     // Setup accounts
     const userWallet = new PublicKey(walletAddress);
     const loanPda = new PublicKey(loanId);
     
+    console.log('🔍 Repay Loan Debug:');
+    console.log('  Connected wallet:', walletAddress);
+    console.log('  Loan ID:', loanId);
+    
+    // Fetch loan and ensure it belongs to this wallet's borrowerAccount PDA
+    let borrowerAccountFromLoan: PublicKey;
+    try {
+      const loanAccount: any = await (program.account as any).loan.fetch(loanPda);
+      borrowerAccountFromLoan = new PublicKey(loanAccount.borrowerAccount);
+    } catch (e) {
+      return res.status(400).json({
+        message: 'Invalid loan account',
+        details: e instanceof Error ? e.message : String(e)
+      });
+    }
+
     // Derive global market PDA
     const [globalMarketPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("global_market")],
       LENDING_PROGRAM_ID
     );
     
-    // Derive borrower account PDA
-    const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+    // Derive borrower account PDA per program seeds using the borrower signer
+    const [borrowerAccountPda, derivedBump] = PublicKey.findProgramAddressSync(
       [Buffer.from("borrower_account"), userWallet.toBuffer()],
       LENDING_PROGRAM_ID
     );
+    
+    console.log('  Derived borrower PDA:', borrowerAccountPda.toString());
+    console.log('  Derived bump:', derivedBump);
+    console.log('  Loan borrower account:', borrowerAccountFromLoan.toString());
+
+    if (!borrowerAccountFromLoan.equals(borrowerAccountPda)) {
+      return res.status(400).json({
+        message: 'This loan does not belong to the connected wallet.',
+        expectedBorrowerAccount: borrowerAccountFromLoan.toBase58(),
+        connectedWalletBorrowerAccount: borrowerAccountPda.toBase58(),
+      });
+    }
+
+    // Borrower account validation - program now handles bump automatically
+
+    const borrowerAccountToUse = borrowerAccountPda;
     
     // WHISKEY token mint
     const whiskeyTokenMint = WHISKEY_TOKEN_MINT;
@@ -92,7 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       )
       .accounts({
         loan: loanPda,
-        borrowerAccount: borrowerAccountPda,
+        borrowerAccount: borrowerAccountToUse,
         globalMarket: globalMarketPda,
         borrowerWhiskeyTokenAccount: borrowerWhiskeyTokenAccount,
         treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,

@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD",
+  "address": "2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -349,11 +349,11 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
         },
         {
           "name": "usdcMint",
-          "address": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR"
+          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
         },
         {
           "name": "tokenProgram",
@@ -520,11 +520,11 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
         },
         {
           "name": "usdcMint",
-          "address": "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR"
+          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
         },
         {
           "name": "tokenProgram",
@@ -775,7 +775,7 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
         },
         {
           "name": "payerWhiskeyTokenAccount",

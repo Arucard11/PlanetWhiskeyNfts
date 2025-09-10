@@ -5,7 +5,7 @@ import { Lendingprogram } from '../../../lib/idl/lendingprogram';
 import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
 // Program IDs
-const LENDING_PROGRAM_ID = new PublicKey("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
 
 interface LoanPreview {
   loanAmount: number;

@@ -6,7 +6,7 @@ import { Lendingprogram } from '../../../lib/idl/lendingprogram';
 import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
 // Program IDs
-const LENDING_PROGRAM_ID = new PublicKey("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     anchor.setProvider(provider);
     
     // Create program instance using IDL
-    const program = new anchor.Program(lendingIdl as anchor.Idl, LENDING_PROGRAM_ID, provider) as anchor.Program<Lendingprogram>;
+    const program = new anchor.Program(lendingIdl as anchor.Idl, provider) as anchor.Program<Lendingprogram>;
     
     // Setup accounts
     const userWallet = new PublicKey(walletAddress);
@@ -41,10 +41,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     
     const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("collection_registry")],
+      [Buffer.from("collection_registry_v2")],
       LENDING_PROGRAM_ID
     );
     
+    // Derive borrower account PDA
     const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("borrower_account"), userWallet.toBuffer()],
       LENDING_PROGRAM_ID

@@ -7,9 +7,9 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-lendingprogram = "25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ"
-marketplaceprogram = "6SHqHpSVYHUbkX3AgMg3XcAxH5Eax48T9orPAio6j4Wk"
-whiskeyprogram = "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD"
+lendingprogram = "DDy97mgfJ6pkGzF4KdaVVXpKkVFFBgn4EGdZ7EbrH5rB"
+marketplaceprogram = "24Te6BFE7StHQLh3eXNUxohcfiTi5EaFa7mdLf9UQn5x"
+whiskeyprogram = "2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb"
 
 [registry]
 url = "https://api.apr.dev"
@@ -24,6 +24,9 @@ members = ["programs/solana_program", "programs/marketplaceprogram", "programs/l
 [scripts]
 initializeAdmin = "pnpm exec ts-node ./scripts/initializeAdmin.ts"
 initializeSuperAdmin = "pnpm exec ts-node ./scripts/initializeSuperAdmin.ts"
+initializeDevnet = "node ./scripts/complete-devnet-initialization.js"
+initializeDevnetFull = "node ./scripts/complete-devnet-initialization-full.js"
+fundDevnet = "node ./scripts/fund-devnet-accounts.js"
 test = "pnpm exec ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]

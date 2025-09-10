@@ -2,9 +2,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint, CloseAccount};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("6SHqHpSVYHUbkX3AgMg3XcAxH5Eax48T9orPAio6j4Wk"); // New Program ID
+declare_id!("24Te6BFE7StHQLh3eXNUxohcfiTi5EaFa7mdLf9UQn5x"); // New Program ID
 
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j");
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu");
 
 // Helper function to read dynamic fee configuration from GlobalMarket account
 fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u16> {

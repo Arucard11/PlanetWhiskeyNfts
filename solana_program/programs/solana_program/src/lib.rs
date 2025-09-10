@@ -123,7 +123,7 @@ fn validate_mint_price(
     Ok(())
 }
 
-declare_id!("68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD");
+declare_id!("2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb");
 
 // Constants
 pub const MAX_NAME_LENGTH: usize = 32;
@@ -131,7 +131,7 @@ pub const MAX_SYMBOL_LENGTH: usize = 10;
 pub const MAX_URI_LENGTH: usize = 200;
 
 // Token addresses
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"); // New WHISKEY token
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"); // New WHISKEY token
 
 // Admin wallet (hardcoded for security)
 pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
@@ -147,7 +147,7 @@ pub const TREASURY_WALLET_SEED: &[u8] = b"treasury_wallet";
 pub const LENDING_POOL_SEED: &[u8] = b"lending_pool";
 
 // Test USDC mint for devnet (no Jupiter swaps)
-pub const USDC_MINT: Pubkey = pubkey!("5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR");
+pub const USDC_MINT: Pubkey = pubkey!("4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP");
 
 // Jupiter program ID (same for devnet and mainnet)
 pub const JUPITER_PROGRAM_ID: Pubkey = pubkey!("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");

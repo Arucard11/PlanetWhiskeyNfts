@@ -159,6 +159,7 @@ export default function MyLoansPage() {
       return;
     }
 
+    let toastId: string | undefined;
     try {
       console.log('🔄 Creating NFT withdrawal transaction...', { nftMintAddress });
       
@@ -184,15 +185,43 @@ export default function MyLoansPage() {
       // Deserialize and send transaction
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      
+      // Simulate transaction first to get better error details
+      console.log('🧪 Simulating NFT withdrawal transaction...');
+      try {
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          console.error('❌ Transaction simulation failed:', simulation.value.err);
+          console.error('📋 Simulation logs:', simulation.value.logs);
+          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+        }
+        console.log('✅ Transaction simulation successful');
+      } catch (simError) {
+        console.error('❌ Simulation error:', simError);
+        throw new Error(`Transaction simulation failed: ${simError.message}`);
+      }
+      
+      console.log('🚀 Sending NFT withdrawal transaction...');
       const signature = await sendTransaction(transaction, connection);
-
-      console.log('🚀 Withdrawal transaction sent:', signature);
-      toast.success(`NFT withdrawn successfully! Transaction: ${signature.slice(0, 8)}...`);
+      console.log('📡 Transaction sent:', signature);
+      
+      // Wait for confirmation
+      toastId = toast.loading('⏳ Confirming NFT withdrawal...');
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      
+      if (confirmation.value.err) {
+        toast.dismiss(toastId);
+        throw new Error(`Transaction failed: ${confirmation.value.err.toString()}`);
+      }
+      
+      console.log('✅ Withdrawal transaction confirmed:', signature);
+      toast.success(`🎨 NFT withdrawn successfully! Transaction: ${signature.slice(0, 8)}...`, { id: toastId });
       
       // Refresh data
       await fetchUserLendingData();
     } catch (error) {
       console.error('Error withdrawing NFT:', error);
+      if (toastId) toast.dismiss(toastId);
       toast.error(error instanceof Error ? error.message : 'Failed to withdraw NFT');
     }
   };
@@ -203,6 +232,7 @@ export default function MyLoansPage() {
       return;
     }
 
+    let toastId: string | undefined;
     try {
       console.log('🔄 Creating repayment transaction...', { loanId, amount });
       
@@ -229,15 +259,43 @@ export default function MyLoansPage() {
       // Deserialize and send transaction
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      
+      // Simulate transaction first to get better error details
+      console.log('🧪 Simulating repayment transaction...');
+      try {
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          console.error('❌ Transaction simulation failed:', simulation.value.err);
+          console.error('📋 Simulation logs:', simulation.value.logs);
+          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+        }
+        console.log('✅ Transaction simulation successful');
+      } catch (simError) {
+        console.error('❌ Simulation error:', simError);
+        throw new Error(`Transaction simulation failed: ${simError.message}`);
+      }
+      
+      console.log('🚀 Sending repayment transaction...');
       const signature = await sendTransaction(transaction, connection);
-
-      console.log('🚀 Repayment transaction sent:', signature);
-      toast.success(`Loan repayment successful! Transaction: ${signature.slice(0, 8)}...`);
+      console.log('📡 Transaction sent:', signature);
+      
+      // Wait for confirmation
+      toastId = toast.loading('⏳ Confirming loan repayment...');
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      
+      if (confirmation.value.err) {
+        toast.dismiss(toastId);
+        throw new Error(`Transaction failed: ${confirmation.value.err.toString()}`);
+      }
+      
+      console.log('✅ Repayment transaction confirmed:', signature);
+      toast.success(`💰 Loan repayment successful! Transaction: ${signature.slice(0, 8)}...`, { id: toastId });
       
       // Refresh data
       await fetchUserLendingData();
     } catch (error) {
       console.error('Error repaying loan:', error);
+      if (toastId) toast.dismiss(toastId);
       toast.error(error instanceof Error ? error.message : 'Failed to repay loan');
     }
   };

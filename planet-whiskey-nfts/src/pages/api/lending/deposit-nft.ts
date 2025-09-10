@@ -36,15 +36,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { nftMintAddress, walletAddress } = req.body;
+  const { nftMintAddress, walletAddress, collectionMintAddress } = req.body;
 
   console.log('🔍 API Debug - Received addresses:');
   console.log('🔍 nftMintAddress:', nftMintAddress);
   console.log('🔍 walletAddress:', walletAddress);
+  console.log('🔍 collectionMintAddress:', collectionMintAddress);
 
-  if (!nftMintAddress || !walletAddress) {
+  if (!nftMintAddress || !walletAddress || !collectionMintAddress) {
     return res.status(400).json({ 
-      message: 'NFT mint address and wallet address are required' 
+      message: 'NFT mint address, wallet address, and collection mint address are required' 
     });
   }
 
@@ -192,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let depositInstruction;
     try {
       depositInstruction = await (program.methods as any)
-        .depositNft()
+        .depositNft(new PublicKey(collectionMintAddress))
         .accounts({
           globalMarket: globalMarketPda,
           collectionRegistry: collectionRegistryPda,

@@ -3,18 +3,18 @@ use anchor_spl::{
     token::{self, Mint, Token, TokenAccount, Transfer},
     associated_token::AssociatedToken,
 };
-// Manual metadata parsing - no external dependency needed
+use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+declare_id!("DDy97mgfJ6pkGzF4KdaVVXpKkVFFBgn4EGdZ7EbrH5rB");
 
 // Reference to the whiskey program for cross-program vault access
 pub mod whiskeyprogram {
     use anchor_lang::prelude::*;
-    declare_id!("68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD");
+    declare_id!("2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb");
 }
 
 // Constants
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j");
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu");
 
 // ADMIN WALLET - This wallet controls ALL lending administrative functions
 pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
@@ -28,7 +28,7 @@ pub const NFT_AUCTION_SEED: &[u8] = b"nft_auction";
 pub const CAPITAL_VAULT_SEED: &[u8] = b"capital_vault_usdc";
 
 // Token mint addresses (Devnet)
-pub const USDC_MINT: &str = "5J93GBjngJnZtJoTbdTuSFjqEciQpVVLxMwHmjF1UvAR"; // Test USDC mint for devnet
+pub const USDC_MINT: &str = "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"; // Test USDC mint for devnet
 
 // Loan duration constants (in seconds)
 pub const ONE_MONTH_SECS: u32 = 2592000;   // 30 days
@@ -169,169 +169,117 @@ impl GlobalMarket {
     }
     
     /// Parse collection mint from Metaplex metadata account data
+    /// Uses a more robust approach that searches for collection data in the account
     pub fn parse_collection_from_metadata(metadata_data: &[u8]) -> Result<Pubkey> {
-        if metadata_data.len() < 73 {
+        if metadata_data.len() < 100 {
+            msg!("❌ Metadata account too small: {} bytes", metadata_data.len());
             return Err(ErrorCode::InvalidNftMetadata.into());
         }
         
-        let mut offset = 8; // Skip discriminator
-        offset += 1; // Skip key
-        offset += 32; // Skip update authority
-        offset += 32; // Skip mint
-        
-        // Parse data field (name, symbol, uri, seller_fee_basis_points, creators)
-        // Name
-        if offset + 4 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
+        // Log the first few bytes for debugging
+        if metadata_data.len() >= 16 {
+            msg!("🔍 First 16 bytes: {:?}", &metadata_data[0..16]);
         }
-        let name_len = u32::from_le_bytes([
-            metadata_data[offset],
-            metadata_data[offset + 1],
-            metadata_data[offset + 2],
-            metadata_data[offset + 3],
-        ]) as usize;
-        offset += 4;
         
-        // Validate name length
-        if name_len > 200 || offset + name_len > metadata_data.len() {
-            msg!("❌ Invalid name length: {} at offset: {}", name_len, offset);
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += name_len;
+        // The metadata account structure (simplified approach):
+        // We'll search for a 32-byte pubkey that looks like a collection mint
+        // by scanning through the account data for valid pubkey patterns
         
-        // Symbol
-        if offset + 4 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let symbol_len = u32::from_le_bytes([
-            metadata_data[offset],
-            metadata_data[offset + 1],
-            metadata_data[offset + 2],
-            metadata_data[offset + 3],
-        ]) as usize;
-        offset += 4;
+        // Start after the basic header (discriminator + key + update_authority + mint)
+        let mut search_start = 73; // 8 + 1 + 32 + 32
         
-        // Validate symbol length
-        if symbol_len > 50 || offset + symbol_len > metadata_data.len() {
-            msg!("❌ Invalid symbol length: {} at offset: {}", symbol_len, offset);
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += symbol_len;
-        
-        // URI
-        if offset + 4 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let uri_len = u32::from_le_bytes([
-            metadata_data[offset],
-            metadata_data[offset + 1],
-            metadata_data[offset + 2],
-            metadata_data[offset + 3],
-        ]) as usize;
-        offset += 4;
-        
-        // Validate URI length
-        if uri_len > 500 || offset + uri_len > metadata_data.len() {
-            msg!("❌ Invalid URI length: {} at offset: {}", uri_len, offset);
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += uri_len;
-        
-        // Skip seller_fee_basis_points (2 bytes)
-        if offset + 2 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += 2;
-        
-        // Skip creators (Option<Vec<Creator>>)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let has_creators = metadata_data[offset] != 0;
-        offset += 1;
-        
-        if has_creators {
-            if offset + 4 > metadata_data.len() {
-                return Err(ErrorCode::InvalidNftMetadata.into());
+        // Search through the account data for collection information
+        // Collection data typically appears near the end of the metadata
+        while search_start + 33 <= metadata_data.len() {
+            // Look for the collection option byte (1) followed by a pubkey (32 bytes)
+            if metadata_data[search_start] == 1 {
+                // Found potential collection marker
+                let potential_collection_start = search_start + 1;
+                
+                if potential_collection_start + 32 <= metadata_data.len() {
+                    let collection_bytes = &metadata_data[potential_collection_start..potential_collection_start + 32];
+                    
+                    // Basic validation - check if it's not all zeros
+                    let is_valid_pubkey = !collection_bytes.iter().all(|&b| b == 0);
+                    
+                    if is_valid_pubkey {
+                        match collection_bytes.try_into() {
+                            Ok(bytes_array) => {
+                                let collection_mint = Pubkey::new_from_array(bytes_array);
+                                msg!("✅ Found collection mint at offset {}: {}", potential_collection_start, collection_mint);
+                                return Ok(collection_mint);
+                            }
+                            Err(_) => {
+                                msg!("❌ Failed to convert bytes to pubkey at offset {}", potential_collection_start);
+                            }
+                        }
+                    }
+                }
             }
-            let creators_len = u32::from_le_bytes([
-                metadata_data[offset],
-                metadata_data[offset + 1],
-                metadata_data[offset + 2],
-                metadata_data[offset + 3],
-            ]) as usize;
-            offset += 4;
+            search_start += 1;
+        }
+        
+        // If we can't find a collection in the metadata, try a different approach
+        // Look for collection data in the last part of the account
+        if metadata_data.len() >= 100 {
+            let end_section_start = metadata_data.len().saturating_sub(100);
             
-            // Each creator is 32 (address) + 1 (verified) + 1 (share) = 34 bytes
-            if creators_len > 5 || offset + (creators_len * 34) > metadata_data.len() {
-                msg!("❌ Invalid creators length: {} at offset: {}", creators_len, offset);
+            for i in end_section_start..metadata_data.len().saturating_sub(32) {
+                if metadata_data[i] == 1 && i + 33 <= metadata_data.len() {
+                    let potential_collection_bytes = &metadata_data[i + 1..i + 33];
+                    
+                    if !potential_collection_bytes.iter().all(|&b| b == 0) {
+                        if let Ok(bytes_array) = potential_collection_bytes.try_into() {
+                            let collection_mint = Pubkey::new_from_array(bytes_array);
+                            msg!("✅ Found collection mint in end section at offset {}: {}", i + 1, collection_mint);
+                            return Ok(collection_mint);
+                        }
+                    }
+                }
+            }
+        }
+        
+        msg!("❌ No valid collection found in metadata account");
+        Err(ErrorCode::InvalidNftCollection.into())
+    }
+
+    /// Parse collection from metadata using proper Metaplex deserialization
+    pub fn parse_collection_from_metadata_proper(metadata_data: &[u8]) -> Result<Pubkey> {
+        msg!("🔍 Parsing metadata with proper Metaplex deserialization - size: {}", metadata_data.len());
+        
+        // Deserialize the metadata account using Metaplex 5.x API
+        let metadata = match Metadata::safe_deserialize(metadata_data) {
+            Ok(meta) => meta,
+            Err(e) => {
+                msg!("❌ Failed to deserialize metadata: {:?}", e);
                 return Err(ErrorCode::InvalidNftMetadata.into());
             }
-            offset += creators_len * 34;
-        }
+        };
         
-        // Skip primary_sale_happened (1 byte)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += 1;
+        msg!("✅ Successfully deserialized metadata");
+        msg!("🔍 NFT Name: {}", metadata.name);
+        msg!("🔍 NFT Symbol: {}", metadata.symbol);
+        msg!("🔍 NFT Mint: {}", metadata.mint);
         
-        // Skip is_mutable (1 byte)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        offset += 1;
-        
-        // Skip edition_nonce (Option<u8>)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let has_edition_nonce = metadata_data[offset] != 0;
-        offset += 1;
-        if has_edition_nonce {
-            if offset + 1 > metadata_data.len() {
-                return Err(ErrorCode::InvalidNftMetadata.into());
+        // Check if the NFT has a collection
+        match &metadata.collection {
+            Some(collection) => {
+                msg!("🔍 Collection found: {} (verified: {})", collection.key, collection.verified);
+                
+                // For security, prefer verified collections but allow unverified for testing
+                if collection.verified {
+                    msg!("✅ Returning verified collection: {}", collection.key);
+                } else {
+                    msg!("⚠️ Returning unverified collection: {}", collection.key);
+                }
+                
+                Ok(collection.key)
             }
-            offset += 1;
-        }
-        
-        // Skip token_standard (Option<TokenStandard>)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let has_token_standard = metadata_data[offset] != 0;
-        offset += 1;
-        if has_token_standard {
-            if offset + 1 > metadata_data.len() {
-                return Err(ErrorCode::InvalidNftMetadata.into());
+            None => {
+                msg!("❌ No collection found in metadata");
+                Err(ErrorCode::InvalidNftCollection.into())
             }
-            offset += 1;
         }
-        
-        // Parse collection (Option<Collection>)
-        if offset + 1 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        let has_collection = metadata_data[offset] != 0;
-        offset += 1;
-        
-        if !has_collection {
-            msg!("❌ NFT has no collection field in metadata");
-            return Err(ErrorCode::InvalidNftCollection.into());
-        }
-        
-        // Parse collection key (32 bytes)
-        if offset + 32 > metadata_data.len() {
-            return Err(ErrorCode::InvalidNftMetadata.into());
-        }
-        
-        let collection_key_bytes = &metadata_data[offset..offset + 32];
-        let collection_mint = Pubkey::new_from_array(
-            collection_key_bytes.try_into().map_err(|_| ErrorCode::InvalidNftMetadata)?
-        );
-        
-        msg!("✅ Successfully parsed collection mint: {}", collection_mint);
-        Ok(collection_mint)
     }
 }
 
@@ -778,7 +726,7 @@ pub mod lendingprogram {
 
 
     /// Deposit NFT to increase borrowing power
-    pub fn deposit_nft(ctx: Context<DepositNft>) -> Result<()> {
+    pub fn deposit_nft(ctx: Context<DepositNft>, collection_mint: Pubkey) -> Result<()> {
         let global_market = &mut ctx.accounts.global_market;
         let borrower_account = &mut ctx.accounts.borrower_account;
 
@@ -820,21 +768,28 @@ pub mod lendingprogram {
             ErrorCode::InvalidNftMetadata
         );
 
-        // Parse NFT metadata to dynamically extract collection mint
+        // SECURITY: Verify that the NFT actually belongs to the claimed collection
+        // Use enhanced manual parsing for better reliability
         let metadata_account = &ctx.accounts.nft_metadata;
         let metadata_data = metadata_account.try_borrow_data()?;
         
         msg!("🔍 NFT Mint: {}", nft_mint.key());
         msg!("🔍 NFT Token Account: {}", ctx.accounts.user_nft_account.key());
+        msg!("🔍 Collection Mint (claimed): {}", collection_mint);
         msg!("🔍 Metadata account size: {}", metadata_data.len());
         
-        // Parse Metaplex metadata using a more robust approach
-        // The structure is: discriminator(8) + key(1) + update_authority(32) + mint(32) + data + collection
-        // Data structure: name_len(4) + name + symbol_len(4) + symbol + uri_len(4) + uri + seller_fee_basis_points(2) + creators + primary_sale_happened(1) + is_mutable(1) + edition_nonce(Option) + token_standard(Option) + collection(Option)
+        // Parse the actual collection from metadata using proper Metaplex deserialization
+        let actual_collection_mint = GlobalMarket::parse_collection_from_metadata_proper(&metadata_data)?;
         
-        let collection_mint = GlobalMarket::parse_collection_from_metadata(&metadata_data)?;
+        msg!("🔍 Collection Mint (from metadata): {}", actual_collection_mint);
         
-        msg!("🔍 Dynamically parsed collection mint: {}", collection_mint);
+        // CRITICAL SECURITY CHECK: Ensure the claimed collection matches the actual collection
+        require!(
+            actual_collection_mint == collection_mint,
+            ErrorCode::InvalidNftCollection
+        );
+        
+        msg!("✅ Collection verification passed: NFT belongs to claimed collection");
         
         // Now check if this collection is in the registry
         let mut collection_value = None;
@@ -846,7 +801,7 @@ pub mod lendingprogram {
         }
         
         for entry in &registry.collections {
-            if entry.mint == collection_mint {
+            if entry.mint == actual_collection_mint {
                 collection_value = Some(entry.value_usd);
                 is_approved = entry.is_approved;
                 msg!("🔍 Found collection in registry: {} (approved: {})", entry.mint, entry.is_approved);
@@ -855,12 +810,12 @@ pub mod lendingprogram {
         }
         
         if collection_value.is_none() {
-            msg!("❌ Collection {} not found in approved collections registry", collection_mint);
+            msg!("❌ Collection {} not found in approved collections registry", actual_collection_mint);
             msg!("💡 Please add the collection to the lending registry first");
             return Err(ErrorCode::InvalidNftCollection.into());
         }
         
-        msg!("🔍 NFT Collection Mint: {}", collection_mint);
+        msg!("🔍 NFT Collection Mint: {}", actual_collection_mint);
         
         // We already have the collection value and approval status from above
         require!(is_approved, ErrorCode::InvalidNftCollection);
@@ -885,23 +840,24 @@ pub mod lendingprogram {
 
         // Calculate per-NFT borrowing power using collection-specific value
         // NOTE: nft_value is stored in micro-dollars (1 USD = 1,000,000 micro-dollars)
-        let per_nft_value_usd = (nft_value as u128) / 1_000_000; // Convert from micro-dollars to dollars
+        // Keep all calculations in micro-dollars to maintain precision
+        let per_nft_value_micro_usd = nft_value as u128; // Already in micro-dollars
         
         // Apply configurable Loan-to-Value ratio (80% of NFT value can be borrowed by default)
         let ltv_ratio_bps = global_market.loan_to_value_ratio_bps;
-        let per_nft_borrowing_power = (per_nft_value_usd * ltv_ratio_bps as u128) / 10000;
+        let per_nft_borrowing_power_micro = (per_nft_value_micro_usd * ltv_ratio_bps as u128) / 10000;
         
         // Total borrowing power = Per-NFT power × Number of NFTs (max 5)
         let nft_count = borrower_account.deposited_nfts.len() as u128;
-        borrower_account.total_borrowing_power_usd = per_nft_borrowing_power * nft_count;
+        borrower_account.total_borrowing_power_usd = per_nft_borrowing_power_micro * nft_count;
 
         msg!("💎 NFT Collateral Calculation:");
-        msg!("  Per-NFT value: ${}", per_nft_value_usd);
+        msg!("  Per-NFT value: ${}", per_nft_value_micro_usd / 1_000_000);
         msg!("  LTV ratio: {}%", ltv_ratio_bps / 100);
-        msg!("  Per-NFT borrowing power: ${}", per_nft_borrowing_power);
+        msg!("  Per-NFT borrowing power: ${}", per_nft_borrowing_power_micro / 1_000_000);
         msg!("  NFTs deposited: {}/5", nft_count);
         msg!("  Total borrowing power: ${} (${} × {})", 
-             borrower_account.total_borrowing_power_usd, per_nft_borrowing_power, nft_count);
+             borrower_account.total_borrowing_power_usd / 1_000_000, per_nft_borrowing_power_micro / 1_000_000, nft_count);
         Ok(())
     }
 
@@ -1240,31 +1196,36 @@ pub mod lendingprogram {
         borrower_account.deposited_nfts.remove(nft_index);
         
         // Update borrowing power (remove this NFT's contribution)
-        let collection_value = global_market.get_collection_value_usd(&nft_mint)?;
+        let collection_value_micro = global_market.get_collection_value_usd(&nft_mint)? as u128; // Already in micro-dollars
         let ltv_ratio = global_market.loan_to_value_ratio_bps as u128;
-        let nft_borrowing_power = (collection_value as u128 * ltv_ratio) / 10000;
+        let nft_borrowing_power_micro = (collection_value_micro * ltv_ratio) / 10000;
         
         borrower_account.total_borrowing_power_usd = borrower_account
             .total_borrowing_power_usd
-            .saturating_sub(nft_borrowing_power);
+            .saturating_sub(nft_borrowing_power_micro);
         
-        // Create signer seeds for borrower account authority
-        let borrower_account_bump = [borrower_account.bump];
+        // The escrow token account has borrower_account as its authority (see DepositNft struct line 1418)
+        // So we need to use borrower_account as the authority with its PDA seeds
         let user_key = ctx.accounts.user.key();
-        let borrower_seeds = [
+        let borrower_account_bump = ctx.bumps.borrower_account;
+        let borrower_account_bump_bytes = [borrower_account_bump];
+        
+        // Create signer seeds for the borrower_account PDA (which is the authority of the escrow)
+        let borrower_account_seeds = [
             BORROWER_ACCOUNT_SEED,
             user_key.as_ref(),
-            &borrower_account_bump
+            &borrower_account_bump_bytes
         ];
-        let signer_seeds = [&borrower_seeds[..]];
+        let signer_seeds = [&borrower_account_seeds[..]];
         
         // Transfer NFT from escrow back to user
+        // The authority is the borrower_account PDA (as defined in DepositNft struct)
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.nft_escrow.to_account_info(),
                 to: ctx.accounts.user_nft_account.to_account_info(),
-                authority: borrower_account.to_account_info(),
+                authority: ctx.accounts.borrower_account.to_account_info(),
             },
             &signer_seeds
         );
@@ -1523,7 +1484,7 @@ pub struct MakeInterestPayment<'info> {
     #[account(
         mut,
         seeds = [BORROWER_ACCOUNT_SEED, borrower.key().as_ref()],
-        bump = borrower_account.bump
+        bump
     )]
     pub borrower_account: Account<'info, BorrowerAccount>,
 
@@ -1796,7 +1757,7 @@ pub struct WithdrawNft<'info> {
     pub global_market: Account<'info, GlobalMarket>,
 
     #[account(
-        seeds = [b"collection_registry"],
+        seeds = [b"collection_registry_v2"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1804,7 +1765,7 @@ pub struct WithdrawNft<'info> {
     #[account(
         mut,
         seeds = [BORROWER_ACCOUNT_SEED, user.key().as_ref()],
-        bump = borrower_account.bump
+        bump
     )]
     pub borrower_account: Account<'info, BorrowerAccount>,
 

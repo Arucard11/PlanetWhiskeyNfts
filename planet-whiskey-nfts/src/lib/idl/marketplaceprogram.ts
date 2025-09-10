@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/marketplaceprogram.json`.
  */
 export type Marketplaceprogram = {
-  "address": "6SHqHpSVYHUbkX3AgMg3XcAxH5Eax48T9orPAio6j4Wk",
+  "address": "24Te6BFE7StHQLh3eXNUxohcfiTi5EaFa7mdLf9UQn5x",
   "metadata": {
     "name": "marketplaceprogram",
     "version": "0.1.0",
@@ -182,7 +182,7 @@ export type Marketplaceprogram = {
         {
           "name": "whiskeyTokenMint",
           "writable": true,
-          "address": "FuXejqzRAWWkoAcNrDU8L2i6cXXmB5NwqAVp2daN456j"
+          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
         },
         {
           "name": "buyerWhiskeyTokenAccount",

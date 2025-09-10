@@ -169,8 +169,31 @@ export default function BorrowPage() {
       // Deserialize and send transaction
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
-      const signature = await sendTransaction(transaction, connection);
+      
+      console.log('🔍 Transaction details:', {
+        instructions: transaction.instructions.length,
+        feePayer: transaction.feePayer?.toString(),
+        recentBlockhash: transaction.recentBlockhash
+      });
 
+      // Simulate transaction first to check for errors
+      try {
+        console.log('🧪 Simulating transaction first...');
+        const simulationResult = await connection.simulateTransaction(transaction);
+        console.log('📊 Simulation result:', simulationResult);
+        
+        if (simulationResult.value.err) {
+          console.error('❌ Transaction simulation failed:', simulationResult.value.err);
+          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulationResult.value.err)}`);
+        }
+        
+        console.log('✅ Transaction simulation successful');
+      } catch (simError) {
+        console.error('❌ Simulation error:', simError);
+        throw new Error(`Simulation failed: ${simError instanceof Error ? simError.message : 'Unknown simulation error'}`);
+      }
+
+      const signature = await sendTransaction(transaction, connection);
       console.log('🚀 Loan transaction sent:', signature);
       toast.success(`Loan taken successfully! Transaction: ${signature.slice(0, 8)}...`);
 
@@ -180,7 +203,24 @@ export default function BorrowPage() {
 
     } catch (error) {
       console.error('Error taking loan:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to take loan');
+      
+      // Enhanced error logging
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
+      // Check for specific wallet errors
+      if (error?.toString().includes('WalletSendTransactionError')) {
+        console.error('❌ Wallet transaction error detected');
+        toast.error('Wallet transaction failed. Please check your wallet connection and try again.');
+      } else if (error?.toString().includes('simulation failed')) {
+        console.error('❌ Transaction simulation failed');
+        toast.error('Transaction would fail on-chain. Please check account balances and permissions.');
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to take loan');
+      }
     } finally {
       setBorrowing(false);
     }
@@ -205,6 +245,12 @@ export default function BorrowPage() {
       
       for (const mintAddress of selectedNfts) {
         try {
+          // Find the NFT data to get the collection mint address
+          const nftData = userNfts.find(nft => nft.mintAddress === mintAddress);
+          if (!nftData) {
+            throw new Error('NFT data not found');
+          }
+
           // Get transaction from API
           const response = await fetch('/api/lending/deposit-nft', {
             method: 'POST',
@@ -214,6 +260,7 @@ export default function BorrowPage() {
             body: JSON.stringify({
               nftMintAddress: mintAddress,
               walletAddress: publicKey?.toString(),
+              collectionMintAddress: nftData.collectionMintAddress,
             }),
           });
 
@@ -490,12 +537,14 @@ export default function BorrowPage() {
         </motion.div>
 
         {/* Borrowing Section */}
-        {borrowingStats && borrowingStats.availableToBorrow > 0 && (
+        {borrowingStats && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-slate-800 rounded-2xl p-8 border border-slate-700 mt-8"
+            className={`bg-slate-800 rounded-2xl p-8 border border-slate-700 mt-8 ${
+              borrowingStats.availableToBorrow <= 0 ? 'opacity-60' : ''
+            }`}
           >
             <h2 className="text-2xl font-bold text-white mb-6">
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-green-600">
@@ -540,9 +589,18 @@ export default function BorrowPage() {
                   </select>
                 </div>
 
+                {borrowingStats.availableToBorrow <= 0 && (
+                  <div className="mb-4 p-4 bg-amber-900/50 border border-amber-700 rounded-xl">
+                    <p className="text-amber-300 text-sm">
+                      💡 <strong>Deposit NFT collateral first</strong> to unlock borrowing functionality. 
+                      Use the "Deposit NFT" section above to get started.
+                    </p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleTakeLoan}
-                  disabled={borrowing || !loanAmount || parseFloat(loanAmount) <= 0}
+                  disabled={borrowing || !loanAmount || parseFloat(loanAmount) <= 0 || borrowingStats.availableToBorrow <= 0}
                   className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   {borrowing ? (

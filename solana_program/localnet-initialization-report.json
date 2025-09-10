@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-09-09T07:58:55.336Z",
+  "network": "localnet",
+  "rpcUrl": "http://localhost:8899",
+  "programs": {
+    "whiskey": "36Qu2wjDDeHw2YqCTJ6w9htevuYF89yyDYFndSBE3DpC",
+    "lending": "BhTfkygM1bVVFrZmTeKktd2wrvUCAbBQSvFaaCF7dYZt",
+    "marketplace": "9QQ1DB6ZoLp4K2tanJamaCZ28N8kEfemaKZuuf1FzWnE"
+  },
+  "tokens": {
+    "whiskey": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu",
+    "usdc": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
+  },
+  "pdas": {
+    "globalMarket": "784fEDKN47nCJ2NbkY8y9READVtWQddbMCUCnA9z4b31",
+    "collectionRegistryV2": "FuM3Mack3CGmunyqCufBzjmiiXajcs3hoXGeryWbCmqY",
+    "capitalVault": "CLPTRTpgNJpiaDBX3aiQ9FLrZF9QqKH6ZQNez3n9QyEY",
+    "whiskeyVaultV2": "9hzmTk27Hfynbb8awHFgT4S7U6CBhZc5fQJWk51BgNUB",
+    "usdcVaultV2": "DjdtA5TLdzjThWDDKUKLCdsYFBt3USu1LmCTakdCg6wb",
+    "lendingPoolConfig": "ANuTSFzSw5rwj2KH3FqYF7JST7Yc2wEqVeM1Nv2iGmiU",
+    "programAdminConfig": "Ac4vDqM5ajs7VPSwJdjXCKVwzivKAb4vomG511yPNBxz"
+  },
+  "wallets": {
+    "admin": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk",
+    "treasury": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+  }
+}
