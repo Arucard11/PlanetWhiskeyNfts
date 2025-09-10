@@ -117,7 +117,25 @@ export function getMarketplaceProgram(provider?: AnchorProvider) {
     const programId = new PublicKey(process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID!);
     // Override the IDL address with the environment variable
     patchedIdl.address = programId.toBase58();
-    const program = new Program(patchedIdl, provider || getAnchorProvider());
+    
+    // If no provider is given, create a read-only provider without requiring a wallet
+    let finalProvider = provider;
+    if (!provider) {
+        const connection = getSolanaConnection();
+        // Create a dummy wallet for the provider that won't be used for signing
+        const dummyKeypair = Keypair.generate();
+        finalProvider = new AnchorProvider(
+            connection,
+            {
+                publicKey: dummyKeypair.publicKey,
+                signTransaction: async (tx) => { throw new Error('This provider is read-only'); },
+                signAllTransactions: async (txs) => { throw new Error('This provider is read-only'); }
+            },
+            AnchorProvider.defaultOptions()
+        );
+    }
+    
+    const program = new Program(patchedIdl, finalProvider);
     console.log("DEBUG: Marketplace program initialized successfully with program ID:", programId.toBase58());
     return program as unknown as Program<Marketplaceprogram>;
 }

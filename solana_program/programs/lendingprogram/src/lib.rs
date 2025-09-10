@@ -1400,7 +1400,7 @@ pub struct DepositNft<'info> {
     pub user_nft_account: Account<'info, TokenAccount>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = user,
         token::mint = nft_mint,
         token::authority = borrower_account,
