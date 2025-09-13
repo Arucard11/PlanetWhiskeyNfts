@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/lendingprogram.json`.
  */
 export type Lendingprogram = {
-  "address": "DDy97mgfJ6pkGzF4KdaVVXpKkVFFBgn4EGdZ7EbrH5rB",
+  "address": "4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6",
   "metadata": {
     "name": "lendingprogram",
     "version": "0.1.0",
@@ -736,6 +736,10 @@ export type Lendingprogram = {
         {
           "name": "perNftValueUsd",
           "type": "u64"
+        },
+        {
+          "name": "liquidationAuthority",
+          "type": "pubkey"
         }
       ]
     },
@@ -1237,6 +1241,491 @@ export type Lendingprogram = {
       ]
     },
     {
+      "name": "repayLoanDualPayment",
+      "docs": [
+        "Repay loan with dual payment: USDC for principal, WHISKEY for interest"
+      ],
+      "discriminator": [
+        209,
+        246,
+        53,
+        120,
+        53,
+        238,
+        121,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "borrowerAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "borrower"
+              }
+            ]
+          }
+        },
+        {
+          "name": "globalMarket",
+          "writable": true
+        },
+        {
+          "name": "capitalVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  112,
+                  105,
+                  116,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  117,
+                  115,
+                  100,
+                  99
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "borrowerUsdcTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  47,
+                  144,
+                  105,
+                  136,
+                  35,
+                  42,
+                  110,
+                  45,
+                  192,
+                  9,
+                  180,
+                  214,
+                  100,
+                  173,
+                  66,
+                  117,
+                  194,
+                  207,
+                  32,
+                  98,
+                  43,
+                  231,
+                  71,
+                  54,
+                  176,
+                  54,
+                  163,
+                  75,
+                  189,
+                  120,
+                  13,
+                  154
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "borrowerWhiskeyTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  83,
+                  235,
+                  167,
+                  178,
+                  139,
+                  209,
+                  2,
+                  119,
+                  85,
+                  199,
+                  159,
+                  50,
+                  48,
+                  155,
+                  131,
+                  44,
+                  241,
+                  202,
+                  228,
+                  224,
+                  215,
+                  76,
+                  78,
+                  22,
+                  226,
+                  220,
+                  156,
+                  124,
+                  62,
+                  15,
+                  77,
+                  108
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasuryWhiskeyTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasuryWallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  83,
+                  235,
+                  167,
+                  178,
+                  139,
+                  209,
+                  2,
+                  119,
+                  85,
+                  199,
+                  159,
+                  50,
+                  48,
+                  155,
+                  131,
+                  44,
+                  241,
+                  202,
+                  228,
+                  224,
+                  215,
+                  76,
+                  78,
+                  22,
+                  226,
+                  220,
+                  156,
+                  124,
+                  62,
+                  15,
+                  77,
+                  108
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasuryWallet",
+          "writable": true
+        },
+        {
+          "name": "borrower",
+          "signer": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "usdcPrincipalAmount",
+          "type": "u64"
+        },
+        {
+          "name": "whiskeyInterestAmount",
+          "type": "u64"
+        },
+        {
+          "name": "currentWhiskeyPriceUsd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "takeLoan",
       "docs": [
         "Take a loan against deposited NFTs"
@@ -1594,19 +2083,19 @@ export type Lendingprogram = {
       ]
     },
     {
-      "name": "triggerLiquidationAuction",
+      "name": "liquidateExpiredLoan",
       "docs": [
-        "Trigger liquidation (both conditions: expired OR collateral value drop)"
+        "Liquidate expired loan by burning NFT collateral"
       ],
       "discriminator": [
-        181,
-        172,
-        83,
-        88,
-        101,
-        55,
+        223,
+        184,
+        236,
         246,
-        111
+        161,
+        150,
+        32,
+        72
       ],
       "accounts": [
         {
@@ -1614,32 +2103,51 @@ export type Lendingprogram = {
           "writable": true
         },
         {
-          "name": "globalMarket"
+          "name": "globalMarket",
+          "writable": true
         },
         {
-          "name": "nftAuction",
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "nftMint"
+        },
+        {
+          "name": "nftEscrow",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  110,
-                  102,
-                  116,
-                  95,
-                  97,
-                  117,
                   99,
-                  116,
-                  105,
                   111,
-                  110
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
                 ]
               },
               {
                 "kind": "account",
-                "path": "borrowerAccount"
+                "path": "borrowerAccount.owner",
+                "account": "BorrowerAccount"
+              },
+              {
+                "kind": "account",
+                "path": "nftMint"
               }
             ]
           }
@@ -1650,18 +2158,18 @@ export type Lendingprogram = {
           "signer": true
         },
         {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "liquidationReason",
-          "type": {
-            "defined": {
-              "name": "liquidationReason"
-            }
-          }
+          "name": "loanId",
+          "type": "pubkey"
         }
       ]
     },
@@ -2493,6 +3001,10 @@ export type Lendingprogram = {
           },
           {
             "name": "treasuryWallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "liquidationAuthority",
             "type": "pubkey"
           },
           {

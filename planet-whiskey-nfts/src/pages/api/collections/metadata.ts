@@ -54,6 +54,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const uriPath = metadataUri.substring(7);
       // Remove .json extension if present
       hash = uriPath.endsWith('.json') ? uriPath.slice(0, -5) : uriPath;
+    } else if (metadataUri.includes('gateway.pinata.cloud/ipfs/') || metadataUri.includes('ipfs.io/ipfs/')) {
+      // Extract hash from existing gateway URL
+      const parts = metadataUri.split('/ipfs/');
+      if (parts.length > 1) {
+        hash = parts[1];
+        // Remove .json extension if present
+        hash = hash.endsWith('.json') ? hash.slice(0, -5) : hash;
+      } else {
+        hash = metadataUri;
+      }
     } else {
       hash = metadataUri;
     }

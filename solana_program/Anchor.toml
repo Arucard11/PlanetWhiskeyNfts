@@ -7,9 +7,9 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-lendingprogram = "DDy97mgfJ6pkGzF4KdaVVXpKkVFFBgn4EGdZ7EbrH5rB"
-marketplaceprogram = "24Te6BFE7StHQLh3eXNUxohcfiTi5EaFa7mdLf9UQn5x"
-whiskeyprogram = "2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb"
+lendingprogram = "4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6"
+marketplaceprogram = "E9rdfVCukatP1LxyMun3mnw28pprwpTJtzkqtw1YVQ7n"
+whiskeyprogram = "Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM"
 
 [registry]
 url = "https://api.apr.dev"

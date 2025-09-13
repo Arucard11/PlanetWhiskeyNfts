@@ -112,8 +112,8 @@ const Navbar = () => {
             <div className="hidden md:flex items-center space-x-8">
               {[
                 { href: "/", label: "Home" },
-                { href: "/#assets", label: "Assets" },
-                { href: "/#how-it-works", label: "Process" },
+        { href: "/#assets", label: "Assets" },
+        { href: "/#how-it-works", label: "Process" },
                 { href: "/marketplace", label: "Marketplace" },
                 { href: "/lending", label: "Lending" },
                 { href: "/my-nfts", label: "My NFTs" }
@@ -196,11 +196,11 @@ const Navbar = () => {
             >
               <div className="px-4 py-6 space-y-4">
                 {[
-                  { href: "/", label: "Home", icon: "🏠" },
-                  { href: "/#assets", label: "Assets", icon: "💎" },
-                  { href: "/marketplace", label: "Marketplace", icon: "🛒" },
-                  { href: "/lending", label: "Lending", icon: "🏦" },
-                  { href: "/my-nfts", label: "My NFTs", icon: "🖼️" }
+        { href: "/", label: "Home", icon: "🏠" },
+        { href: "/#assets", label: "Assets", icon: "💎" },
+        { href: "/marketplace", label: "Marketplace", icon: "🛒" },
+        { href: "/lending", label: "Lending", icon: "🏦" },
+        { href: "/my-nfts", label: "My NFTs", icon: "🖼️" }
                 ].map((item, index) => (
                   <motion.div
                     key={item.href}

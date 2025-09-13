@@ -3,7 +3,7 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Zap, Star, Shield, Trophy, Users } from 'lucide-react';
+import { Zap, Star, Shield, Trophy, Users, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CompanyCard from '@/components/CompanyCard';
 
@@ -366,13 +366,122 @@ export default function Home() {
             </motion.div>
           ) : companies.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+              {/* Special Whiskey Hodler Rewards Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 60 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.8, delay: 0 }}
+              >
+                <Link href="/whiskey-rewards">
+                  <motion.div 
+                    className="relative bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-2 border-amber-500/50 rounded-3xl p-8 shadow-2xl backdrop-blur-sm overflow-hidden group cursor-pointer hover:border-amber-400/70 transition-all duration-500 h-full"
+                    whileHover={{ 
+                      y: -8, 
+                      scale: 1.02,
+                      boxShadow: "0 25px 50px -12px rgba(251, 191, 36, 0.4)"
+                    }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    {/* Special glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
+                    
+                    {/* Premium Badge */}
+                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-black px-3 py-1 rounded-full text-sm font-bold shadow-lg z-10">
+                      <Trophy className="w-4 h-4 inline mr-1" />
+                      EXCLUSIVE
+                    </div>
+                    
+                    {/* Background pattern */}
+                    <div className="absolute inset-0 opacity-5">
+                      <div className="h-full w-full bg-gradient-to-br from-amber-500/20 to-purple-500/20" />
+                    </div>
+                    
+                    <div className="relative z-10">
+                      {/* Icon */}
+                      <motion.div 
+                        className="w-20 h-20 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 shadow-2xl shadow-amber-500/40 mx-auto"
+                        whileHover={{ 
+                          rotate: 5,
+                          scale: 1.1
+                        }}
+                        transition={{ type: "spring", stiffness: 400 }}
+                      >
+                        <Trophy className="w-10 h-10 text-black" />
+                      </motion.div>
+                      
+                      {/* Title */}
+                      <h3 className="text-2xl font-bold text-center mb-4 bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 bg-clip-text text-transparent">
+                        Whiskey Hodler Rewards
+                      </h3>
+                      
+                      {/* Description */}
+                      <p className="text-gray-400 text-center leading-relaxed mb-6">
+                        Exclusive NFT collections for WHISKEY token holders with <span className="text-green-400 font-semibold">FREE mints</span>.
+                      </p>
+                      
+                      {/* Features */}
+                      <div className="space-y-2 mb-6">
+                        <div className="flex items-center text-sm text-gray-300">
+                          <Zap className="w-4 h-4 text-amber-400 mr-2" />
+                          Token Gated Access
+                        </div>
+                        <div className="flex items-center text-sm text-gray-300">
+                          <Star className="w-4 h-4 text-amber-400 mr-2" />
+                          Free Premium Mints
+                        </div>
+                        <div className="flex items-center text-sm text-gray-300">
+                          <Shield className="w-4 h-4 text-amber-400 mr-2" />
+                          Exclusive Access
+                        </div>
+                      </div>
+                      
+                      {/* CTA */}
+                      <div className="text-center">
+                        <motion.div 
+                          className="inline-flex items-center text-amber-400 font-semibold group-hover:text-amber-300 transition-colors duration-300"
+                          whileHover={{ x: 5 }}
+                        >
+                          Explore Collections
+                          <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-300" />
+                        </motion.div>
+                      </div>
+                    </div>
+                    
+                    {/* Floating elements */}
+                    {[...Array(3)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="absolute text-lg opacity-10"
+                        style={{
+                          left: `${20 + i * 30}%`,
+                          top: `${20 + (i % 2) * 50}%`,
+                        }}
+                        animate={{
+                          y: [0, -10, 0],
+                          rotate: [0, 5, 0],
+                        }}
+                        transition={{
+                          duration: 2 + i * 0.5,
+                          repeat: Infinity,
+                          delay: i * 0.3,
+                        }}
+                      >
+                        🏆
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </Link>
+              </motion.div>
+
+              {/* Regular Company Cards */}
               {companies.map((company, index) => (
                 <motion.div
                   key={company._id}
                   initial={{ opacity: 0, y: 60 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.8, delay: index * 0.2 }}
+                  transition={{ duration: 0.8, delay: (index + 1) * 0.2 }}
                 >
                   <CompanyCard
                     id={company._id}
@@ -510,7 +619,7 @@ export default function Home() {
                 { 
                   step: "4", 
                   title: "Own & Trade", 
-                  description: "Trade your NFTs, or hold and showcase them to earn regular $WHISKEY token rewards.",
+                  description: "Trade your NFTs on our marketplace, or hold and showcase them in your collection.",
                   image: "/tradeandhold.jpg",
                   gradient: "from-green-400 to-green-600",
                   bgGradient: "from-green-500/10 to-green-600/10"

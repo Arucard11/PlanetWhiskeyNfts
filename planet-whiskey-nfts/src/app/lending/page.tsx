@@ -1,92 +1,41 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { toast } from 'react-hot-toast';
-
-interface LendingStats {
-  totalLoansActive: number;
-  totalDebtOutstanding: string;
-  totalCollateralValue: string;
-  averageNftValue: string;
-  currentUtilizationRate: number;
-  availableLiquidity: string;
-}
 
 export default function LendingPage() {
   const { connected } = useWallet();
-  const [stats, setStats] = useState<LendingStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLendingStats();
-  }, []);
-
-  const fetchLendingStats = async () => {
-    try {
-      const response = await fetch('/api/admin/lending/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Error fetching lending stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const features = [
     {
       title: "NFT Collateral",
       description: "Use your Planet Whiskey NFTs as collateral to unlock liquidity",
-      icon: "🖼️",
+      image: "/connect.jpg",
       color: "from-blue-500 to-blue-600"
     },
     {
       title: "Fixed NFT Values",
       description: "Each NFT has a fixed USD value set by the protocol",
-      icon: "💰",
+      image: "/company.jpg",
       color: "from-green-500 to-green-600"
     },
     {
       title: "Flexible Terms",
       description: "Choose from 1, 3, or 6-month loan durations",
-      icon: "📅",
+      image: "/browse.jpg",
       color: "from-purple-500 to-purple-600"
     },
     {
       title: "Dynamic Rates",
       description: "Interest rates adjust based on protocol utilization",
-      icon: "📈",
+      image: "/mint.jpg",
       color: "from-amber-500 to-amber-600"
     }
   ];
 
-  const steps = [
-    {
-      step: "1",
-      title: "Connect Wallet",
-      description: "Connect your Solana wallet containing Planet Whiskey NFTs"
-    },
-    {
-      step: "2", 
-      title: "Deposit NFTs",
-      description: "Stake up to 5 NFTs as collateral (each user limit)"
-    },
-    {
-      step: "3",
-      title: "Borrow Funds",
-      description: "Borrow up to 80% of your NFT value in USDC"
-    },
-    {
-      step: "4",
-      title: "Repay & Withdraw",
-      description: "Repay your loan to unlock and withdraw your NFTs"
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -133,34 +82,6 @@ export default function LendingPage() {
         </div>
       </div>
 
-      {/* Stats Section */}
-      {stats && (
-        <div className="container mx-auto px-4 py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Active Loans</h3>
-              <p className="text-3xl font-bold text-blue-400">{stats.totalLoansActive}</p>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Total Borrowed</h3>
-              <p className="text-3xl font-bold text-red-400">${stats.totalDebtOutstanding}</p>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Collateral Value</h3>
-              <p className="text-3xl font-bold text-green-400">${stats.totalCollateralValue}</p>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Available Liquidity</h3>
-              <p className="text-3xl font-bold text-purple-400">${stats.availableLiquidity}</p>
-            </div>
-          </motion.div>
-        </div>
-      )}
 
       {/* Features Section */}
       <div className="container mx-auto px-4 py-16">
@@ -183,8 +104,14 @@ export default function LendingPage() {
               transition={{ duration: 0.8, delay: 0.6 + index * 0.1 }}
               className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-amber-500/50 transition-all duration-300"
             >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${feature.color} flex items-center justify-center text-2xl mb-4`}>
-                {feature.icon}
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${feature.color} flex items-center justify-center mb-4 overflow-hidden`}>
+                <Image
+                  src={feature.image}
+                  alt={feature.title}
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-cover rounded-xl"
+                />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
               <p className="text-gray-300">{feature.description}</p>
@@ -193,36 +120,6 @@ export default function LendingPage() {
         </div>
       </div>
 
-      {/* How It Works Section */}
-      <div className="container mx-auto px-4 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-4xl font-bold text-white mb-4">How It Works</h2>
-          <p className="text-xl text-gray-300">Simple steps to unlock your NFT value</p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {steps.map((step, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1 + index * 0.1 }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-center text-2xl font-bold text-white mb-4 mx-auto">
-                {step.step}
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">{step.title}</h3>
-              <p className="text-gray-300">{step.description}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
 
       {/* CTA Section */}
       <div className="container mx-auto px-4 py-16">

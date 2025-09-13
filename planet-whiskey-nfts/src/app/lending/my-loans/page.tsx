@@ -315,10 +315,66 @@ export default function MyLoansPage() {
     return 'text-red-400';
   };
 
+  const getLoanUrgencyStatus = (daysRemaining: number) => {
+    if (daysRemaining <= 0) {
+      return {
+        status: 'EXPIRED',
+        color: 'text-red-500',
+        bgColor: 'bg-red-900/30 border-red-500',
+        message: '🚨 LOAN EXPIRED - NFT will be burned soon!',
+        urgency: 'critical'
+      };
+    } else if (daysRemaining === 1) {
+      return {
+        status: 'CRITICAL',
+        color: 'text-red-400',
+        bgColor: 'bg-red-900/20 border-red-400',
+        message: '⚠️ FINAL DAY - Repay immediately to save your NFT!',
+        urgency: 'critical'
+      };
+    } else if (daysRemaining <= 3) {
+      return {
+        status: 'URGENT',
+        color: 'text-orange-400',
+        bgColor: 'bg-orange-900/20 border-orange-400',
+        message: '⏰ Only ' + daysRemaining + ' days left - NFT at risk!',
+        urgency: 'high'
+      };
+    } else if (daysRemaining <= 7) {
+      return {
+        status: 'WARNING',
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-900/20 border-yellow-400',
+        message: '📅 ' + daysRemaining + ' days remaining - Consider repaying soon',
+        urgency: 'medium'
+      };
+    } else {
+      return {
+        status: 'SAFE',
+        color: 'text-green-400',
+        bgColor: 'bg-slate-800 border-slate-700',
+        message: daysRemaining + ' days remaining',
+        urgency: 'low'
+      };
+    }
+  };
+
 
   const calculateWhiskeyAmount = (usdAmount: number): number => {
     if (whiskeyPrice === 0) return 0;
     return usdAmount / whiskeyPrice;
+  };
+
+  const calculateDualPaymentBreakdown = (loan: LoanInfo) => {
+    const principal = loan.principalAmount;
+    const totalInterest = loan.totalOwed - loan.principalAmount;
+    const interestInWhiskey = calculateWhiskeyAmount(totalInterest);
+    
+    return {
+      principalUSDC: principal,
+      interestUSD: totalInterest,
+      interestWhiskey: interestInWhiskey
+    };
   };
 
   if (!connected) {
@@ -446,16 +502,30 @@ export default function MyLoansPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {lendingData.activeLoans.map((loan) => (
-                      <div key={loan.loanId} className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-bold text-white">
-                            ${loan.principalAmount} {loan.asset}
-                          </h3>
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${getStatusColor(loan.status)}`}>
-                            {loan.status.toUpperCase()}
-                          </span>
-                        </div>
+                    {lendingData.activeLoans.map((loan) => {
+                      const urgencyStatus = getLoanUrgencyStatus(loan.daysRemaining);
+                      return (
+                        <div key={loan.loanId} className={`p-6 rounded-xl border-2 ${urgencyStatus.bgColor}`}>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-white">
+                              ${loan.principalAmount} {loan.asset}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-3 py-1 rounded-full text-sm font-bold ${urgencyStatus.color} bg-black/20`}>
+                                {urgencyStatus.status}
+                              </span>
+                              <span className={`px-3 py-1 rounded-full text-sm font-bold ${getStatusColor(loan.status)}`}>
+                                {loan.status.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Urgency Warning Message */}
+                          <div className={`mb-4 p-2 rounded-lg border ${urgencyStatus.bgColor}`}>
+                            <p className={`text-sm font-bold ${urgencyStatus.color} text-center`}>
+                              {urgencyStatus.message}
+                            </p>
+                          </div>
                         
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
@@ -476,27 +546,48 @@ export default function MyLoansPage() {
                           </div>
                         </div>
 
-                        {loan.status === 'active' && (
-                          <div className="mt-4 space-y-2">
-                            <div className="text-xs text-amber-400 text-center">
-                              💡 Pay {calculateWhiskeyAmount(loan.totalOwed).toFixed(4)} WHISKEY (≈${loan.totalOwed} USD)
-                              {whiskeyPrice > 0 && (
-                                <div className="text-gray-400 text-xs mt-1">
-                                  WHISKEY Price: ${whiskeyPrice.toFixed(4)}
+                        {loan.status === 'active' && (() => {
+                          const breakdown = calculateDualPaymentBreakdown(loan);
+                          return (
+                            <div className="mt-4 space-y-3">
+                              <div className="bg-slate-700 p-3 rounded-lg">
+                                <div className="text-xs font-bold text-amber-400 mb-2 text-center">
+                                  💰 Dual Payment Required
                                 </div>
-                              )}
+                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                  <div className="text-center">
+                                    <p className="text-gray-400">Principal (USDC)</p>
+                                    <p className="text-blue-400 font-bold">${breakdown.principalUSDC.toFixed(2)}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-gray-400">Interest (WHISKEY)</p>
+                                    <p className="text-amber-400 font-bold">
+                                      {breakdown.interestWhiskey.toFixed(4)} WHISKEY
+                                    </p>
+                                    <p className="text-gray-500 text-xs">≈${breakdown.interestUSD.toFixed(2)}</p>
+                                  </div>
+                                </div>
+                                {whiskeyPrice > 0 && (
+                                  <div className="text-gray-400 text-xs text-center mt-2">
+                                    WHISKEY Price: ${whiskeyPrice.toFixed(4)}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleRepayLoan(loan.loanId, loan.totalOwed)}
+                                className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-all duration-300"
+                                disabled={whiskeyPrice === 0}
+                              >
+                                {whiskeyPrice === 0 ? 'Loading WHISKEY Price...' : 
+                                  `Repay Loan (${breakdown.principalUSDC.toFixed(0)} USDC + ${breakdown.interestWhiskey.toFixed(2)} WHISKEY)`
+                                }
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleRepayLoan(loan.loanId, loan.totalOwed)}
-                              className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-all duration-300"
-                              disabled={whiskeyPrice === 0}
-                            >
-                              {whiskeyPrice === 0 ? 'Loading WHISKEY Price...' : `Repay Full Loan ($${loan.totalOwed})`}
-                            </button>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

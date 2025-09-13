@@ -36,6 +36,17 @@ export default function ManageCollectionsPage() {
   const [calculatedWhiskeyAmount, setCalculatedWhiskeyAmount] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
 
+  // Whiskey-gated collection states
+  const [showWhiskeyGatedForm, setShowWhiskeyGatedForm] = useState(false);
+  const [whiskeyGatedName, setWhiskeyGatedName] = useState('');
+  const [whiskeyGatedSymbol, setWhiskeyGatedSymbol] = useState('');
+  const [whiskeyGatedDescription, setWhiskeyGatedDescription] = useState('');
+  const [requiredWhiskeyAmount, setRequiredWhiskeyAmount] = useState('');
+  const [whiskeyGatedItemLimit, setWhiskeyGatedItemLimit] = useState('');
+  const [whiskeyGatedImage, setWhiskeyGatedImage] = useState<File | null>(null);
+  const [isSubmittingWhiskeyGated, setIsSubmittingWhiskeyGated] = useState(false);
+  const [createdCollectionMint, setCreatedCollectionMint] = useState<string | null>(null);
+
   // Simple price cache status function
   const getPriceCacheStatus = () => {
     return {
@@ -219,6 +230,136 @@ export default function ManageCollectionsPage() {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleWhiskeyGatedSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    
+    if (!publicKey) {
+      alert('Please connect your wallet first');
+      return;
+    }
+    
+    if (!signTransaction) {
+      alert('Wallet does not support transaction signing');
+      return;
+    }
+    
+    if (!whiskeyGatedImage) {
+      alert('Please select a collection image');
+      return;
+    }
+
+    setIsSubmittingWhiskeyGated(true);
+    setCreatedCollectionMint(null);
+
+    try {
+      // Create form data for API call
+      const formData = new FormData();
+      formData.append('name', whiskeyGatedName);
+      formData.append('symbol', whiskeyGatedSymbol);
+      formData.append('description', whiskeyGatedDescription);
+      formData.append('requiredWhiskeyAmount', requiredWhiskeyAmount);
+      formData.append('itemLimit', whiskeyGatedItemLimit);
+      formData.append('isWhiskeyGated', 'true');
+      formData.append('image', whiskeyGatedImage);
+
+      console.log('🚀 Creating whiskey-gated collection...');
+      
+      const response = await fetch('/api/admin/collections/whiskey-gated', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const responseData = await response.json();
+      console.log('📡 API Response:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      if (responseData.success && responseData.transactionData) {
+        console.log('✅ Transaction data received, sending to wallet...');
+        
+        // Create transaction from the response
+        const transaction = Transaction.from(Buffer.from(responseData.transactionData, 'base64'));
+        
+        // Sign and send transaction
+        const signedTransaction = await signTransaction(transaction);
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+        
+        console.log('📡 Transaction sent:', signature);
+        
+        // Wait for confirmation
+        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+        
+        if (confirmation.value.err) {
+          throw new Error(`Transaction failed: ${confirmation.value.err.toString()}`);
+        }
+        
+        console.log('✅ Whiskey-gated collection created successfully!');
+        
+        // Show collection mint address
+        if (responseData.collectionMint) {
+          setCreatedCollectionMint(responseData.collectionMint);
+        }
+        
+        // Automatically save to database
+        try {
+          console.log('💾 Saving collection to database...');
+          const dbResponse = await fetch('/api/admin/collections/whiskey-gated-confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: whiskeyGatedName,
+              symbol: whiskeyGatedSymbol,
+              metadataUri: responseData.metadataUri,
+              collectionMint: responseData.collectionMint,
+              collectionConfig: responseData.collectionConfig,
+              requiredWhiskeyAmount: parseInt(requiredWhiskeyAmount),
+              itemLimit: parseInt(whiskeyGatedItemLimit),
+            }),
+          });
+
+          const dbResponseData = await dbResponse.json();
+          
+          if (dbResponse.ok && dbResponseData.success) {
+            console.log('✅ Collection saved to database successfully!');
+            alert(`🎉 Whiskey-gated collection created and saved successfully!\n\nCollection Mint: ${responseData.collectionMint}\n\nTransaction: ${signature}\n\n✨ Collection is now visible in the Whiskey Rewards section!`);
+          } else {
+            console.warn('⚠️ Collection created on-chain but failed to save to database:', dbResponseData.message);
+            alert(`🎉 Whiskey-gated collection created successfully!\n\nCollection Mint: ${responseData.collectionMint}\n\nTransaction: ${signature}\n\n⚠️ Note: Collection created on-chain but may not appear in frontend yet.`);
+          }
+        } catch (dbError) {
+          console.error('Error saving to database:', dbError);
+          alert(`🎉 Whiskey-gated collection created successfully!\n\nCollection Mint: ${responseData.collectionMint}\n\nTransaction: ${signature}\n\n⚠️ Note: Collection created on-chain but may not appear in frontend yet.`);
+        }
+        
+        // Reset form
+        setWhiskeyGatedName('');
+        setWhiskeyGatedSymbol('');
+        setWhiskeyGatedDescription('');
+        setRequiredWhiskeyAmount('');
+        setWhiskeyGatedItemLimit('');
+        setWhiskeyGatedImage(null);
+        
+      } else {
+        throw new Error(responseData.message || 'Failed to create whiskey-gated collection');
+      }
+      
+    } catch (error: any) {
+      console.error('Error in whiskey-gated collection creation:', error);
+      if (error.message?.includes('User rejected')) {
+        alert('Transaction was cancelled by user');
+      } else {
+        alert('An error occurred while creating the whiskey-gated collection: ' + error.message);
+      }
+    } finally {
+      setIsSubmittingWhiskeyGated(false);
     }
   };
 
@@ -485,6 +626,187 @@ export default function ManageCollectionsPage() {
             {isSubmitting ? 'Creating Collection...' : 'Create Collection'}
           </button>
         </form>
+      </div>
+
+      {/* Whiskey-Gated Collections Section */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-amber-800">🥃 Whiskey-Gated Collections</h3>
+            <p className="text-sm text-amber-700 mt-1">
+              Create exclusive collections that require WHISKEY token holdings to mint. These NFTs are free to mint for qualified users and cannot be used for lending.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowWhiskeyGatedForm(!showWhiskeyGatedForm)}
+            className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 transition-colors"
+          >
+            {showWhiskeyGatedForm ? 'Hide Form' : 'Create Gated Collection'}
+          </button>
+        </div>
+
+        {showWhiskeyGatedForm && (
+          <form onSubmit={handleWhiskeyGatedSubmit} className="space-y-6">
+            {/* Collection Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="whiskeyGatedName" className={formLabelClass}>Collection Name</label>
+                <input
+                  type="text"
+                  id="whiskeyGatedName"
+                  value={whiskeyGatedName}
+                  onChange={(e) => setWhiskeyGatedName(e.target.value)}
+                  required
+                  className={formInputBaseClass}
+                  placeholder="e.g., Platinum Holders Club"
+                />
+                <p className={helperTextClass}>Name of the exclusive collection</p>
+              </div>
+              
+              <div>
+                <label htmlFor="whiskeyGatedSymbol" className={formLabelClass}>Collection Symbol</label>
+                <input
+                  type="text"
+                  id="whiskeyGatedSymbol"
+                  value={whiskeyGatedSymbol}
+                  onChange={(e) => setWhiskeyGatedSymbol(e.target.value)}
+                  required
+                  maxLength={10}
+                  className={formInputBaseClass}
+                  placeholder="e.g., PHC"
+                />
+                <p className={helperTextClass}>Short symbol for the collection (max 10 characters)</p>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="whiskeyGatedDescription" className={formLabelClass}>Collection Description</label>
+              <textarea
+                id="whiskeyGatedDescription"
+                value={whiskeyGatedDescription}
+                onChange={(e) => setWhiskeyGatedDescription(e.target.value)}
+                required
+                rows={3}
+                className={formInputBaseClass}
+                placeholder="e.g., Exclusive NFTs for WHISKEY token holders with 10,000+ tokens..."
+              />
+              <p className={helperTextClass}>Description of the exclusive collection and its benefits</p>
+            </div>
+
+            {/* Gating Requirements */}
+            <div className="bg-amber-100 border border-amber-300 rounded-lg p-4">
+              <h4 className="font-medium text-amber-800 mb-3">🔒 Gating Requirements</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="requiredWhiskeyAmount" className={formLabelClass}>Required WHISKEY Tokens</label>
+                  <input
+                    type="number"
+                    id="requiredWhiskeyAmount"
+                    value={requiredWhiskeyAmount}
+                    onChange={(e) => setRequiredWhiskeyAmount(e.target.value)}
+                    required
+                    min="1"
+                    className={formInputBaseClass}
+                    placeholder="e.g., 10000"
+                  />
+                  <p className={helperTextClass}>Minimum WHISKEY tokens required in wallet to mint (full tokens, not lamports)</p>
+                </div>
+                
+                <div>
+                  <label htmlFor="whiskeyGatedItemLimit" className={formLabelClass}>Maximum NFTs in Collection</label>
+                  <input
+                    type="number"
+                    id="whiskeyGatedItemLimit"
+                    value={whiskeyGatedItemLimit}
+                    onChange={(e) => setWhiskeyGatedItemLimit(e.target.value)}
+                    required
+                    min="1"
+                    max="10000"
+                    className={formInputBaseClass}
+                    placeholder="e.g., 500"
+                  />
+                  <p className={helperTextClass}>Maximum number of NFTs in this exclusive collection</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Collection Image */}
+            <div>
+              <label htmlFor="whiskeyGatedImage" className={formLabelClass}>Collection Image/Media</label>
+              <input
+                type="file"
+                id="whiskeyGatedImage"
+                onChange={(e) => setWhiskeyGatedImage(e.target.files?.[0] || null)}
+                accept="image/*,video/*,.gif,.mp4,.webm,.mov,.avi"
+                required
+                className="w-full px-3 py-2 border border-amber-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+              <p className={helperTextClass}>Upload an image, GIF, or video for this exclusive collection</p>
+            </div>
+
+            {/* Important Notice */}
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h4 className="font-medium text-red-800 mb-2">⚠️ Important Notes</h4>
+              <ul className="text-sm text-red-700 space-y-1">
+                <li>• These NFTs are <strong>FREE TO MINT</strong> for qualified users</li>
+                <li>• Users must hold the required WHISKEY tokens in their wallet</li>
+                <li>• These NFTs <strong>CANNOT be used for lending</strong></li>
+                <li>• After creation, copy the collection mint address and remove it from the lending approval list</li>
+              </ul>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmittingWhiskeyGated}
+              className="w-full bg-amber-600 text-white py-3 px-6 rounded-md hover:bg-amber-700 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmittingWhiskeyGated ? 'Creating Gated Collection...' : 'Create Whiskey-Gated Collection'}
+            </button>
+          </form>
+        )}
+
+        {/* Collection Mint Display Modal */}
+        {createdCollectionMint && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-green-800 mb-4">🎉 Collection Created Successfully!</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Collection Mint Address:</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={createdCollectionMint}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
+                    />
+                    <button
+                      onClick={() => navigator.clipboard.writeText(createdCollectionMint)}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Next Steps:</strong>
+                    <br />1. Copy the collection mint address above
+                    <br />2. Go to Lending Admin → Sync Collections
+                    <br />3. Remove this collection from the approved lending list
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCreatedCollectionMint(null)}
+                  className="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

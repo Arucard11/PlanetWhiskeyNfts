@@ -4,16 +4,15 @@ import {
     Connection, 
     PublicKey, 
     Keypair, 
-    Transaction, 
+    Transaction,
+    TransactionInstruction,
     SystemProgram
 } from "@solana/web3.js";
 import { 
-    createMint, 
-    createAccount, 
-    mintTo, 
     getOrCreateAssociatedTokenAccount,
     transfer,
-    getAccount
+    getAccount,
+    createTransferInstruction
 } from "@solana/spl-token";
 import { readFileSync } from "fs";
 
@@ -66,38 +65,67 @@ async function fundCapitalVault() {
         
         // Check current USDC balance
         const adminUsdcBalance = await getAccount(connection, adminUsdcAccount.address);
-        console.log(`Current admin USDC balance: ${adminUsdcBalance.amount.toString()} (${adminUsdcBalance.amount / 1e6} USDC)`);
+        console.log(`Current admin USDC balance: ${adminUsdcBalance.amount.toString()} (${Number(adminUsdcBalance.amount) / 1e6} USDC)`);
         
-        // Check if we need to mint USDC (for devnet testing)
-        if (adminUsdcBalance.amount < BigInt(1000000 * 1e6)) { // Less than 1M USDC
-            console.log("\n🪙 Minting 1M USDC for testing...");
-            
-            // Mint 1M USDC to admin account
-            const mintAmount = BigInt(1000000 * 1e6); // 1M USDC with 6 decimals
-            await mintTo(
-                connection,
-                adminKeypair,
-                USDC_MINT,
-                adminUsdcAccount.address,
-                adminKeypair, // Mint authority (admin is mint authority for devnet USDC)
-                mintAmount
-            );
-            
-            console.log(`✅ Minted 1M USDC to admin account`);
+        // For devnet, we'll try to airdrop USDC first
+        if (adminUsdcBalance.amount === 0n) {
+            console.log("\n🪙 Requesting USDC airdrop from devnet...");
+            try {
+                // Try to airdrop USDC (this might not work on all devnet faucets)
+                const airdropResponse = await fetch("https://faucet.solana.com/request", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        address: adminKeypair.publicKey.toString(),
+                        token: USDC_MINT.toString()
+                    })
+                });
+                
+                if (airdropResponse.ok) {
+                    console.log("✅ USDC airdrop requested successfully");
+                    // Wait a bit for the airdrop to process
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                } else {
+                    console.log("⚠️  USDC airdrop failed, trying alternative method...");
+                }
+            } catch (error) {
+                console.log("⚠️  USDC airdrop not available, trying alternative method...");
+            }
+        }
+        
+        // Check balance again after potential airdrop
+        const updatedBalance = await getAccount(connection, adminUsdcAccount.address);
+        console.log(`Updated admin USDC balance: ${updatedBalance.amount.toString()} (${Number(updatedBalance.amount) / 1e6} USDC)`);
+        
+        if (updatedBalance.amount === 0n) {
+            console.log("\n❌ No USDC available. For devnet testing, you may need to:");
+            console.log("1. Get USDC from a devnet faucet");
+            console.log("2. Or use a different USDC mint that you have access to");
+            console.log("3. Or modify the script to mint USDC if you have mint authority");
+            return;
         }
         
         // Check capital vault current balance
         console.log("\n🏦 Checking capital vault balance...");
         try {
             const vaultBalance = await getAccount(connection, CAPITAL_VAULT);
-            console.log(`Current capital vault balance: ${vaultBalance.amount.toString()} (${vaultBalance.amount / 1e6} USDC)`);
+            console.log(`Current capital vault balance: ${vaultBalance.amount.toString()} (${Number(vaultBalance.amount) / 1e6} USDC)`);
         } catch (error) {
             console.log("ℹ️  Capital vault token account doesn't exist yet or is empty");
         }
         
-        // Transfer 1M USDC to capital vault
-        console.log("\n💸 Transferring 1M USDC to capital vault...");
-        const transferAmount = BigInt(1000000 * 1e6); // 1M USDC with 6 decimals
+        // Transfer available USDC to capital vault (or a portion of it)
+        const availableAmount = updatedBalance.amount;
+        const transferAmount = availableAmount > 0n ? availableAmount : 0n;
+        
+        if (transferAmount === 0n) {
+            console.log("❌ No USDC to transfer");
+            return;
+        }
+        
+        console.log(`\n💸 Transferring ${Number(transferAmount) / 1e6} USDC to capital vault...`);
         
         const transferSignature = await transfer(
             connection,
@@ -114,12 +142,12 @@ async function fundCapitalVault() {
         // Verify the transfer
         console.log("\n🔍 Verifying transfer...");
         const vaultBalance = await getAccount(connection, CAPITAL_VAULT);
-        console.log(`New capital vault balance: ${vaultBalance.amount.toString()} (${vaultBalance.amount / 1e6} USDC)`);
+        console.log(`New capital vault balance: ${vaultBalance.amount.toString()} (${Number(vaultBalance.amount) / 1e6} USDC)`);
         
         console.log("\n" + "=" .repeat(60));
         console.log("🎉 CAPITAL VAULT FUNDING SUCCESSFUL!");
         console.log("=" .repeat(60));
-        console.log(`💰 Capital Vault now has: ${vaultBalance.amount / 1e6} USDC`);
+        console.log(`💰 Capital Vault now has: ${Number(vaultBalance.amount) / 1e6} USDC`);
         console.log("✅ Ready for lending operations!");
         
     } catch (error) {

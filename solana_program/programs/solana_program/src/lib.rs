@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token::{Mint, Token, TokenAccount, Transfer, MintTo, mint_to, transfer},
+    token::{self, Mint, Token, TokenAccount, Transfer, MintTo, mint_to, transfer},
     associated_token::AssociatedToken,
     metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3, Metadata,
+        create_master_edition_v3, CreateMasterEditionV3,
+        verify_collection, VerifyCollection,
         mpl_token_metadata::types::{CollectionDetails, DataV2, Creator, Collection},
     },
 };
@@ -123,7 +125,7 @@ fn validate_mint_price(
     Ok(())
 }
 
-declare_id!("2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb");
+declare_id!("Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM");
 
 // Constants
 pub const MAX_NAME_LENGTH: usize = 32;
@@ -165,6 +167,8 @@ pub struct CollectionConfig {
     pub mint_price_usd: u64,    // Price in USD (microdollars) to mint one NFT from this collection
     pub item_limit: u64,   // Maximum number of NFTs in this collection
     pub items_minted: u64, // Counter for how many NFTs have been minted
+    pub is_whiskey_gated: bool, // Whether this collection requires WHISKEY tokens to mint
+    pub required_whiskey_amount: u64, // Required WHISKEY tokens to mint (in tokens, not lamports)
     pub bump: u8,          // PDA bump seed
 }
 
@@ -188,7 +192,7 @@ pub struct LendingPoolConfig {
 }
 
 impl CollectionConfig {
-    pub const SPACE: usize = 8 + 32 + 32 + 36 + 14 + 204 + 8 + 8 + 8 + 8 + 8 + 1; // ~358 bytes (added mint_price_usd)
+    pub const SPACE: usize = 8 + 32 + 32 + 36 + 14 + 204 + 8 + 8 + 8 + 8 + 8 + 1 + 8 + 1; // ~376 bytes (added is_whiskey_gated + required_whiskey_amount)
 }
 
 impl WalletNftCounter {
@@ -199,15 +203,6 @@ impl LendingPoolConfig {
     pub const SPACE: usize = 8 + 32 + 32 + 32 + 8 + 8 + 8 + 1; // ~129 bytes
 }
 
-#[account]
-pub struct ProgramAdminConfig {
-    pub super_admin_key: Pubkey, // The master admin key for the program
-    pub bump: u8,
-}
-
-impl ProgramAdminConfig {
-    pub const SPACE: usize = 8 + 32 + 1; // 41 bytes
-}
 
 #[program]
 pub mod whiskeyprogram {
@@ -217,28 +212,6 @@ pub mod whiskeyprogram {
         Ok(())
     }
 
-    #[derive(Accounts)]
-    pub struct InitializeSuperAdmin<'info> {
-        #[account(mut)]
-        pub payer: Signer<'info>, // The one initially setting the super admin
-        #[account(
-            init,
-            payer = payer,
-            space = ProgramAdminConfig::SPACE,
-            seeds = [b"program_super_admin"], // Unique seed for this PDA
-            bump
-        )]
-        pub program_admin_config: Account<'info, ProgramAdminConfig>,
-        pub system_program: Program<'info, System>,
-    }
-
-    pub fn initialize_super_admin(ctx: Context<InitializeSuperAdmin>) -> Result<()> {
-        let config = &mut ctx.accounts.program_admin_config;
-        config.super_admin_key = ctx.accounts.payer.key(); // Set the payer as the super admin
-        config.bump = ctx.bumps.program_admin_config;
-        msg!("Super admin initialized: {}", config.super_admin_key);
-        Ok(())
-    }
 
     // Initialize lending pool PDA (secure, no private keys needed)
     pub fn initialize_lending_pool(ctx: Context<InitializeLendingPool>) -> Result<()> {
@@ -408,6 +381,8 @@ pub mod whiskeyprogram {
         collection_config.mint_price_usd = mint_price_usd;
         collection_config.item_limit = item_limit;
         collection_config.items_minted = 0;
+        collection_config.is_whiskey_gated = false; // Regular paid collection
+        collection_config.required_whiskey_amount = 0; // Not applicable for paid collections
         collection_config.bump = ctx.bumps.collection_config;
 
         // Prepare metadata for the Collection NFT
@@ -480,6 +455,106 @@ pub mod whiskeyprogram {
         Ok(())
     }
 
+    /// Create a whiskey-gated collection (requires WHISKEY tokens to mint, free to mint if requirements met)
+    pub fn create_whiskey_gated_collection(
+        ctx: Context<CreateCollectionAccounts>,
+        name: String,
+        symbol: String,
+        metadata_uri: String,
+        required_whiskey_amount: u64, // Required WHISKEY tokens (in full tokens, not lamports)
+        item_limit: u64,
+    ) -> Result<()> {
+        // Validate inputs
+        if name.len() > MAX_NAME_LENGTH || name.is_empty() {
+            return Err(ErrorCode::NameTooLong.into());
+        }
+        if symbol.len() > MAX_SYMBOL_LENGTH || symbol.is_empty() {
+            return Err(ErrorCode::SymbolTooLong.into());
+        }
+        if metadata_uri.len() > MAX_URI_LENGTH || metadata_uri.is_empty() {
+            return Err(ErrorCode::UriTooLong.into());
+        }
+        if item_limit == 0 {
+            return Err(ErrorCode::ItemLimitZero.into());
+        }
+        if required_whiskey_amount == 0 {
+            return Err(ErrorCode::InvalidAmount.into());
+        }
+
+        // Initialize the CollectionConfig account
+        let collection_config = &mut ctx.accounts.collection_config;
+        collection_config.authority = ctx.accounts.admin.key();
+        collection_config.collection_mint = ctx.accounts.collection_mint.key();
+        collection_config.name = name.clone();
+        collection_config.symbol = symbol.clone();
+        collection_config.metadata_uri = metadata_uri.clone();
+        collection_config.mint_price_sol = 0; // Free to mint (only requires WHISKEY balance)
+        collection_config.mint_price_whiskey = 0; // Free to mint (only requires WHISKEY balance)
+        collection_config.mint_price_usd = 0; // Free to mint (only requires WHISKEY balance)
+        collection_config.item_limit = item_limit;
+        collection_config.items_minted = 0;
+        collection_config.is_whiskey_gated = true;
+        collection_config.required_whiskey_amount = required_whiskey_amount;
+        collection_config.bump = ctx.bumps.collection_config;
+
+        // Create the Collection NFT metadata
+        let collection_config_bump = ctx.bumps.collection_config;
+        let collection_config_seeds = &[
+            b"collection".as_ref(),
+            name.as_bytes(),
+            &[collection_config_bump],
+        ];
+        let signer_seeds = &[&collection_config_seeds[..]];
+
+        let metadata_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_metadata_program.to_account_info(),
+            CreateMetadataAccountsV3 {
+                metadata: ctx.accounts.metadata_account.to_account_info(),
+                mint: ctx.accounts.collection_mint.to_account_info(),
+                mint_authority: ctx.accounts.collection_config.to_account_info(),
+                payer: ctx.accounts.admin.to_account_info(),
+                update_authority: ctx.accounts.admin.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                rent: ctx.accounts.rent.to_account_info(),
+            },
+            signer_seeds,
+        );
+
+        let creators = vec![Creator {
+            address: ctx.accounts.admin.key(),
+            verified: true,
+            share: 100,
+        }];
+
+        let data = DataV2 {
+            name: name.clone(),
+            symbol: symbol.clone(),
+            uri: metadata_uri.clone(),
+            seller_fee_basis_points: 500, // 5% royalty
+            creators: Some(creators),
+            collection: None,
+            uses: None,
+        };
+
+        create_metadata_accounts_v3(
+            metadata_ctx,
+            data,
+            true, // is_mutable
+            true, // update_authority_is_signer
+            Some(CollectionDetails::V1 { size: 0 }),
+        )?;
+
+        msg!("✅ Whiskey-gated collection created successfully!");
+        msg!("  Collection Mint: {}", ctx.accounts.collection_mint.key());
+        msg!("  Name: {}", name);
+        msg!("  Symbol: {}", symbol);
+        msg!("  Required WHISKEY: {} tokens", required_whiskey_amount);
+        msg!("  Item Limit: {}", item_limit);
+        msg!("  ⚠️ This collection cannot be used for lending!");
+
+        Ok(())
+    }
+
     /// Transfer USDC from whiskey program's vault to lending program's capital vault
     pub fn transfer_to_lending_vault(
         ctx: Context<TransferToLendingVault>, 
@@ -542,12 +617,30 @@ pub mod whiskeyprogram {
         let _collection_config_key = ctx.accounts.collection_config.key(); // Prefixed with _ to suppress warning
         let collection_authority = ctx.accounts.collection_config.authority;
 
-        // 1. Validate mint price - ensure WHISKEY amount matches expected USD price
-        validate_mint_price(
-            &ctx.accounts.collection_config,
-            whiskey_amount,
-            current_whiskey_rate,
-        )?;
+        // 1. Check if this is a whiskey-gated collection
+        if ctx.accounts.collection_config.is_whiskey_gated {
+            // For whiskey-gated collections, check wallet balance instead of payment
+            let user_whiskey_balance = ctx.accounts.payer_whiskey_token_account.amount;
+            let required_balance = ctx.accounts.collection_config.required_whiskey_amount * 1_000_000; // Convert to lamports (6 decimals)
+            
+            if user_whiskey_balance < required_balance {
+                msg!("❌ Insufficient WHISKEY balance for gated collection");
+                msg!("  Required: {} WHISKEY tokens", ctx.accounts.collection_config.required_whiskey_amount);
+                msg!("  Your balance: {} WHISKEY tokens", user_whiskey_balance / 1_000_000);
+                return Err(ErrorCode::InsufficientFunds.into());
+            }
+            
+            msg!("✅ Whiskey balance check passed!");
+            msg!("  Required: {} WHISKEY tokens", ctx.accounts.collection_config.required_whiskey_amount);
+            msg!("  Your balance: {} WHISKEY tokens", user_whiskey_balance / 1_000_000);
+        } else {
+            // For regular paid collections, validate mint price
+            validate_mint_price(
+                &ctx.accounts.collection_config,
+                whiskey_amount,
+                current_whiskey_rate,
+            )?;
+        }
 
         // 2. Validate collection limits
         if ctx.accounts.collection_config.items_minted >= ctx.accounts.collection_config.item_limit {
@@ -578,8 +671,8 @@ pub mod whiskeyprogram {
             return Err(ErrorCode::NftUriTooLong.into());
         }
         
-        // 5. Handle payment with on-chain Jupiter swap
-        if whiskey_amount > 0 {
+        // 5. Handle payment - skip for whiskey-gated collections (they're free to mint)
+        if !ctx.accounts.collection_config.is_whiskey_gated && whiskey_amount > 0 {
             let total_price = whiskey_amount;
             
             // Read dynamic fee configuration from GlobalMarket account
@@ -750,6 +843,7 @@ pub mod whiskeyprogram {
         Ok(())
     }
 
+
     // Initialize lending pool accounts
     #[derive(Accounts)]
     pub struct InitializeLendingPool<'info> {
@@ -820,8 +914,7 @@ pub struct TransferToLendingVault<'info> {
     #[account(
         mut,
         seeds = [b"lending_pool", b"usdc_vault_v2"],
-        bump,
-        constraint = whiskey_usdc_vault.key() == lending_pool_config.usdc_vault @ ErrorCode::InvalidVault
+        bump
     )]
     pub whiskey_usdc_vault: Account<'info, TokenAccount>,
 
@@ -858,7 +951,6 @@ pub struct MintNftWithSwap<'info> {
 
         // The Collection NFT's Mint account (to link the new NFT to this collection)
         /// CHECK: This is the account of the collection mint, used for linking. Already initialized.
-        #[account(address = collection_config.collection_mint)]
         pub collection_mint_account: UncheckedAccount<'info>, // Changed to UncheckedAccount to reduce stack size
 
         #[account(
@@ -889,7 +981,7 @@ pub struct MintNftWithSwap<'info> {
         
         // Authority wallet for receiving mint fees (e.g., collection_config.authority)
         /// CHECK: This is the authority account that will receive the mint price.
-        #[account(mut, address = collection_config.authority)]
+        #[account(mut)]
         pub collection_authority_receiver: UncheckedAccount<'info>,
 
         // Global market account for dynamic fee configuration
@@ -920,48 +1012,40 @@ pub struct MintNftWithSwap<'info> {
     pub lending_pool_config: Account<'info, LendingPoolConfig>,
 
     // Lending pool WHISKEY vault (PDA-controlled)
-        #[account(
+    /// CHECK: Lending pool WHISKEY vault - validated by seeds
+    #[account(
         mut,
         seeds = [LENDING_POOL_SEED, b"whiskey_vault_v2"],
         bump
     )]
-    pub lending_pool_whiskey_vault: Account<'info, TokenAccount>,
+    pub lending_pool_whiskey_vault: UncheckedAccount<'info>,
 
     // Lending pool USDC vault (PDA-controlled)
+    /// CHECK: Lending pool USDC vault - validated by seeds
     #[account(
         mut,
         seeds = [LENDING_POOL_SEED, b"usdc_vault_v2"],
         bump
     )]
-    pub lending_pool_usdc_vault: Account<'info, TokenAccount>,
+    pub lending_pool_usdc_vault: UncheckedAccount<'info>,
 
     // Treasury wallet's WHISKEY token account (where ALL fees go)
-    #[account(
-        mut,
-        associated_token::mint = whiskey_token_mint,
-        associated_token::authority = treasury_wallet
-    )]
-    pub treasury_whiskey_token_account: Account<'info, TokenAccount>,
+    /// CHECK: Treasury WHISKEY token account
+    #[account(mut)]
+    pub treasury_whiskey_token_account: UncheckedAccount<'info>,
 
     /// CHECK: Treasury wallet (admin's actual wallet for profit withdrawal)
     #[account(mut)]
     pub treasury_wallet: UncheckedAccount<'info>,
 
-            /// CHECK: USDC mint for Jupiter swap (COMMENTED OUT FOR DEVNET)
-        // #[account(address = USDC_MINT)]
-        // pub usdc_mint: UncheckedAccount<'info>,
-
-    /// CHECK: Jupiter program for REAL CPI swaps - COMMENTED OUT FOR DEVNET
-    // #[account(address = JUPITER_PROGRAM_ID)]
-    // pub jupiter_program: UncheckedAccount<'info>,
-
-        // System Programs
+    // System Programs
         pub token_program: Program<'info, Token>,
         pub associated_token_program: Program<'info, AssociatedToken>,
         pub token_metadata_program: Program<'info, Metadata>, // Metaplex Token Metadata Program
         pub system_program: Program<'info, System>,
         pub rent: Sysvar<'info, Rent>,
     }
+
 
 #[error_code]
 pub enum ErrorCode {
@@ -973,8 +1057,6 @@ pub enum ErrorCode {
     UriTooLong,
     #[msg("Item limit cannot be zero.")]
     ItemLimitZero,
-    #[msg("Unauthorized: Caller is not the super admin.")]
-    UnauthorizedSuperAdmin,
     #[msg("Unauthorized: Caller is not the admin wallet.")]
     UnauthorizedAdmin,
     #[msg("Collection is full. No more items can be minted.")]

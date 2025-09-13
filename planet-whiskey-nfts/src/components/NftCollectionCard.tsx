@@ -45,6 +45,8 @@ interface IAugmentedNftCollection {
     itemsMintedOnChain?: number; // This is crucial, fetched live
     authority: string; // Public key string of the collection authority (for receiving mint fees)
     bump: number; // Bump for the CollectionConfig PDA
+    isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
+    requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
 }
 
 export interface NftCollectionCardProps {
@@ -58,7 +60,9 @@ export interface NftCollectionCardProps {
     mintPriceUsd?: number;            // NEW: USD price (what admin sets)
     itemLimit: number; 
     itemsMintedOnChain?: number; 
-    onMintSuccess?: () => void; 
+    onMintSuccess?: () => void;
+    isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
+    requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
 }
 
 
@@ -74,7 +78,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     mintPriceUsd,
     itemLimit: initialItemLimit,
     itemsMintedOnChain: initialItemsMintedOnChain = 0,
-    onMintSuccess
+    onMintSuccess,
+    isWhiskeyGated = false,
+    requiredWhiskeyAmount = 0
 }) => {
     // Real-time WHISKEY price hook that updates every 5 seconds
     // Removed duplicate price hook - using the one below
@@ -104,6 +110,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const [isCheckingWalletLimit, setIsCheckingWalletLimit] = useState(false);
     
     const [whiskeyRate, setWhiskeyRate] = useState<number | null>(null);
+    const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number | null>(null);
+    const [isCheckingWhiskeyBalance, setIsCheckingWhiskeyBalance] = useState(false);
 
     // Effect to fetch collection image from metadata using our proxy
     useEffect(() => {
@@ -241,6 +249,44 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
         checkWalletNftCount();
     }, [publicKey, connected, connection, signTransaction, signAllTransactions]);
+
+    // Effect to check user's WHISKEY balance for gated collections
+    useEffect(() => {
+        const checkUserWhiskeyBalance = async () => {
+            if (!publicKey || !connected || !isWhiskeyGated) {
+                setUserWhiskeyBalance(null);
+                return;
+            }
+
+            setIsCheckingWhiskeyBalance(true);
+            try {
+                // Get user's WHISKEY token account
+                const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
+                const userWhiskeyTokenAccount = await getAssociatedTokenAddress(
+                    whiskeyMint,
+                    publicKey
+                );
+
+                // Fetch the token account balance
+                const tokenAccount = await connection.getTokenAccountBalance(userWhiskeyTokenAccount);
+                if (tokenAccount.value) {
+                    // Convert from lamports to full tokens (WHISKEY has 6 decimals)
+                    const balanceInTokens = tokenAccount.value.uiAmount || 0;
+                    setUserWhiskeyBalance(balanceInTokens);
+                    console.log(`[WhiskeyBalance] User has ${balanceInTokens} WHISKEY tokens`);
+                } else {
+                    setUserWhiskeyBalance(0);
+                }
+            } catch (error: any) {
+                console.log(`[WhiskeyBalance] Error checking WHISKEY balance (likely no token account):`, error.message);
+                setUserWhiskeyBalance(0);
+            } finally {
+                setIsCheckingWhiskeyBalance(false);
+            }
+        };
+
+        checkUserWhiskeyBalance();
+    }, [publicKey, connected, isWhiskeyGated, connection]);
 
     // Use real-time WHISKEY rate from the hook - same as admin dashboard
     const { priceData: whiskeyPriceData, loading: priceLoading, error: priceError } = useRealTimeWhiskeyPrice(30000);
@@ -543,8 +589,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Calculate current WHISKEY cost from USD price
             let currentWhiskeyPrice: number;
-            if (liveCollectionData.mintPriceUsd && whiskeyRate) {
-                // Use real-time USD to WHISKEY conversion
+            if (isWhiskeyGated && requiredWhiskeyAmount) {
+                // For whiskey-gated collections, the mint is FREE (0 cost) - we just check qualification
+                currentWhiskeyPrice = 0; // FREE MINT!
+                console.log(`[NftCollectionCard] Whiskey-gated collection: FREE MINT (requires ${requiredWhiskeyAmount} WHISKEY to qualify)`);
+            } else if (liveCollectionData.mintPriceUsd && whiskeyRate) {
+                // Use real-time USD to WHISKEY conversion for regular collections
                 currentWhiskeyPrice = liveCollectionData.mintPriceUsd / whiskeyRate;
                 // Convert to 6 decimal format for the program
                 currentWhiskeyPrice = currentWhiskeyPrice * 1000000;
@@ -558,22 +608,40 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 const payerTokenAccountInfo = await connection.getTokenAccountBalance(payerWhiskeyTokenAccount);
                 console.log(`Payer whiskey token balance: ${payerTokenAccountInfo.value.uiAmount} WHISKEY`);
                 
-                const currentWhiskeyPriceFormatted = currentWhiskeyPrice / 1e6; // Convert from smallest units to display units
-                if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < currentWhiskeyPriceFormatted) {
-                    throw new Error(`Insufficient WHISKEY tokens. You have ${payerTokenAccountInfo.value.uiAmount || 0} but need ${currentWhiskeyPriceFormatted.toFixed(2)}.`);
+                if (isWhiskeyGated && requiredWhiskeyAmount) {
+                    // For whiskey-gated collections, check if user QUALIFIES (has minimum required amount)
+                    if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < requiredWhiskeyAmount) {
+                        throw new Error(`You need ${requiredWhiskeyAmount} WHISKEY tokens to qualify for this gated collection. You have ${payerTokenAccountInfo.value.uiAmount || 0}.`);
+                    }
+                    console.log(`✅ User qualifies for whiskey-gated collection with ${payerTokenAccountInfo.value.uiAmount} WHISKEY tokens`);
+                } else {
+                    // For regular collections, check if user can PAY the mint price
+                    const currentWhiskeyPriceFormatted = currentWhiskeyPrice / 1e6; // Convert from smallest units to display units
+                    if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < currentWhiskeyPriceFormatted) {
+                        throw new Error(`Insufficient WHISKEY tokens. You have ${payerTokenAccountInfo.value.uiAmount || 0} but need ${currentWhiskeyPriceFormatted.toFixed(2)}.`);
+                    }
                 }
             } catch (accountError: any) {
                 if (accountError.message.includes('could not find account')) {
-                    console.log('🪙 Payer WHISKEY token account does not exist, creating...');
-                    createPayerAccountIx = createAssociatedTokenAccountInstruction(
-                        publicKey, // payer
-                        payerWhiskeyTokenAccount,
-                        publicKey, // owner
-                        WHISKEY_TOKEN_MINT_PK // mint
-                    );
-                } else if (!accountError.message.includes('Insufficient WHISKEY')) {
+                    if (isWhiskeyGated && requiredWhiskeyAmount) {
+                        // For whiskey-gated collections, if no account exists, user definitely doesn't qualify
+                        throw new Error(`You need ${requiredWhiskeyAmount} WHISKEY tokens to qualify for this gated collection. You don't have a WHISKEY token account yet.`);
+                    } else {
+                        // For regular collections, create the account so they can pay
+                        console.log('🪙 Payer WHISKEY token account does not exist, creating...');
+                        createPayerAccountIx = createAssociatedTokenAccountInstruction(
+                            publicKey, // payer
+                            payerWhiskeyTokenAccount,
+                            publicKey, // owner
+                            WHISKEY_TOKEN_MINT_PK // mint
+                        );
+                    }
+                } else if (!accountError.message.includes('WHISKEY tokens')) {
                     console.warn('Could not check token balance:', accountError);
                     // Continue with minting - let the program handle the error
+                } else {
+                    // Re-throw qualification/payment errors
+                    throw accountError;
                 }
             }
             
@@ -670,14 +738,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 rent: SYSVAR_RENT_PUBKEY,
             };
             
-            // Create the transaction with compute budget instructions using NEW Jupiter CPI function
+            // Create the transaction - for whiskey-gated collections, pass 0 amounts (free mint)
             const transaction = await program.methods
                 .mintNftWithSwap(
                     nftName, // Use the properly formatted name: "Collection Name #1"
                     nftSymbol,
                     nftUri,
-                    new BN(currentWhiskeyPrice), // Pass the current dynamic WHISKEY amount
-                    new BN(whiskeyRate! * 1_000_000), // Pass the current WHISKEY/USD rate in microdollars
+                    new BN(isWhiskeyGated ? 0 : currentWhiskeyPrice), // Free for gated, paid for regular
+                    new BN(isWhiskeyGated ? 0 : whiskeyRate! * 1_000_000), // Pass rate only for regular collections
                 )
                 .accounts(accounts)
                 .signers([nftMintKeypair])
@@ -860,24 +928,38 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         <div className="text-center">
                             <h4 className="text-sm font-bold text-amber-200 uppercase tracking-wide mb-3">NFT Price</h4>
                             
-                            {/* USD Price - Primary Display */}
-                            <div className="mb-3">
-                                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in USD</div>
-                                <div className="text-2xl font-black text-white">
-                                    ${mintPriceUsd || 'Not Set'}
+                            {/* USD Price - Primary Display (hidden for whiskey-gated collections) */}
+                            {!isWhiskeyGated && (
+                                <div className="mb-3">
+                                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in USD</div>
+                                    <div className="text-2xl font-black text-white">
+                                        ${mintPriceUsd || 'Not Set'}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                             
                             {/* WHISKEY Price - Secondary Display */}
                             <div className="mb-3">
-                                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in WHISKEY</div>
-                                <div className="text-xl font-bold text-amber-300">
-                                    {mintPriceUsd && whiskeyRate ? (
-                                        formatWhiskeyTokens(mintPriceUsd / whiskeyRate)
-                                    ) : (
-                                        'Calculating...'
-                                    )}
-                                </div>
+                                {isWhiskeyGated && requiredWhiskeyAmount ? (
+                                    <>
+                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Qualification Required</div>
+                                        <div className="text-lg font-bold text-green-300 mb-1">FREE MINT</div>
+                                        <div className="text-sm text-amber-300">
+                                            Must hold {requiredWhiskeyAmount.toLocaleString()} WHISKEY
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in WHISKEY</div>
+                                        <div className="text-xl font-bold text-amber-300">
+                                            {mintPriceUsd && whiskeyRate ? (
+                                                formatWhiskeyTokens(mintPriceUsd / whiskeyRate)
+                                            ) : (
+                                                'Calculating...'
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             
                             {/* Live Price Indicator */}
@@ -1012,6 +1094,85 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     </div>
                 )}
 
+                {/* Whiskey-Gated Collection Information */}
+                {isWhiskeyGated && (
+                    <div className="mb-6">
+                        <div className="bg-amber-900/30 border border-amber-600/50 rounded-xl p-4 text-center">
+                            <div className="flex items-center justify-center space-x-2 mb-3">
+                                <svg className="w-5 h-5 text-amber-300" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9Z"/>
+                                </svg>
+                                <p className="font-bold text-amber-200 text-sm">🥃 WHISKEY-GATED COLLECTION</p>
+                            </div>
+                            
+                            <div className="bg-amber-800/40 rounded-lg p-3 mb-3">
+                                <p className="text-amber-100 font-semibold text-sm">FREE TO MINT</p>
+                                <p className="text-amber-200 text-xs">For qualified WHISKEY holders only</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-amber-200">Required WHISKEY:</span>
+                                    <span className="font-bold text-amber-100">
+                                        {requiredWhiskeyAmount.toLocaleString()} tokens
+                                    </span>
+                                </div>
+
+                                {connected && publicKey && (
+                                    <>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-amber-200">Your Balance:</span>
+                                            <span className={`font-bold ${
+                                                isCheckingWhiskeyBalance ? 'text-gray-400' :
+                                                userWhiskeyBalance === null ? 'text-gray-400' :
+                                                userWhiskeyBalance >= requiredWhiskeyAmount ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {isCheckingWhiskeyBalance ? 'Checking...' :
+                                                 userWhiskeyBalance === null ? 'Unable to check' :
+                                                 `${userWhiskeyBalance.toLocaleString()} tokens`
+                                                }
+                                            </span>
+                                        </div>
+
+                                        {userWhiskeyBalance !== null && !isCheckingWhiskeyBalance && (
+                                            <div className="mt-2">
+                                                {userWhiskeyBalance >= requiredWhiskeyAmount ? (
+                                                    <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-2">
+                                                        <div className="flex items-center justify-center space-x-2">
+                                                            <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
+                                                            </svg>
+                                                            <span className="text-green-300 text-sm font-medium">✅ Eligible to mint!</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-2">
+                                                        <div className="flex items-center justify-center space-x-2 mb-1">
+                                                            <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                                                            </svg>
+                                                            <span className="text-red-300 text-sm font-medium">❌ Insufficient WHISKEY</span>
+                                                        </div>
+                                                        <p className="text-red-200 text-xs">
+                                                            Need {(requiredWhiskeyAmount - userWhiskeyBalance).toLocaleString()} more tokens
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {(!connected || !publicKey) && (
+                                    <div className="bg-gray-800/40 rounded-lg p-2">
+                                        <p className="text-gray-300 text-xs">Connect wallet to check eligibility</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Collection Supply Warning */}
                 {supplyRemaining <= 5 && supplyRemaining > 0 && (
                     <div className="mb-6">
@@ -1037,22 +1198,27 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             !publicKey || 
                             (walletNftCount !== null && walletNftCount >= 5) ||
                             isCheckingWalletLimit ||
-                            !whiskeyRate || 
-                            priceLoading
+                            (isWhiskeyGated && isCheckingWhiskeyBalance) ||
+                            (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) ||
+                            (!isWhiskeyGated && (!whiskeyRate || priceLoading))
                         }
                         className={`w-full font-sans font-black text-lg py-4 px-5 rounded-2xl transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-lg hover:shadow-2xl 
-                            ${isMinting || supplyRemaining <= 0 || !publicKey || (walletNftCount !== null && walletNftCount >= 5) || isCheckingWalletLimit || !whiskeyRate || priceLoading
+                            ${isMinting || supplyRemaining <= 0 || !publicKey || (walletNftCount !== null && walletNftCount >= 5) || isCheckingWalletLimit || (isWhiskeyGated && isCheckingWhiskeyBalance) || (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) || (!isWhiskeyGated && (!whiskeyRate || priceLoading))
                                 ? 'bg-slate-700 text-gray-500 cursor-not-allowed'
-                                : 'text-black bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
+                                : isWhiskeyGated 
+                                    ? 'text-black bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
+                                    : 'text-black bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
                             }`}
                     >
                         {isMinting ? "Processing..." : 
                          isCheckingWalletLimit ? "Checking Limits..." :
-                         priceLoading ? "Loading Price..." :
-                         !whiskeyRate ? "Price Unavailable" :
+                         isWhiskeyGated && isCheckingWhiskeyBalance ? "Checking WHISKEY Balance..." :
+                         isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount ? `Need ${(requiredWhiskeyAmount - userWhiskeyBalance).toLocaleString()} More WHISKEY` :
+                         !isWhiskeyGated && priceLoading ? "Loading Price..." :
+                         !isWhiskeyGated && !whiskeyRate ? "Price Unavailable" :
                          (walletNftCount !== null && walletNftCount >= 5) ? "Wallet Limit Reached (5/5)" :
                          (supplyRemaining <= 0 && displayItemLimit > 0) ? "Collection Sold Out" : 
-                         "Mint NFT"}
+                         isWhiskeyGated ? "🎉 Mint FREE NFT" : "Mint NFT"}
                     </button>
                     {mintMessage && (
                         <p className={`mt-3 text-xs font-sans text-center h-4

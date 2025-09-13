@@ -23,6 +23,8 @@ interface INftCollectionWithMintedCount {
   createdAt: Date;
   updatedAt?: Date; // Assuming timestamps: true in schema
   itemsMintedOnChain?: number;
+  isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
+  requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
 }
 
 async function getCollectionItemsMinted(collectionPdaString: string, program: any) {
@@ -34,6 +36,25 @@ async function getCollectionItemsMinted(collectionPdaString: string, program: an
   } catch (error) {
     console.error(`Error fetching on-chain itemsMinted for PDA ${collectionPdaString}:`, error);
     return undefined; 
+  }
+}
+
+async function getCollectionOnChainData(collectionPdaString: string, program: any): Promise<{
+  itemsMinted?: number;
+  isWhiskeyGated?: boolean;
+  requiredWhiskeyAmount?: number;
+}> {
+  try {
+    const pda = new PublicKey(collectionPdaString);
+    const accountInfo = await program.account.collectionConfig.fetch(pda);
+    return {
+      itemsMinted: (accountInfo as any).itemsMinted.toNumber(),
+      isWhiskeyGated: (accountInfo as any).isWhiskeyGated || false,
+      requiredWhiskeyAmount: (accountInfo as any).requiredWhiskeyAmount ? (accountInfo as any).requiredWhiskeyAmount.toNumber() : 0
+    };
+  } catch (error) {
+    console.error(`Error fetching on-chain data for PDA ${collectionPdaString}:`, error);
+    return {};
   }
 }
 
@@ -77,23 +98,28 @@ export default async function handler(
       });
     });
 
-    // Augment with on-chain items_minted count
+    // Augment with on-chain data including whiskey-gated information
     const augmentedCollections: INftCollectionWithMintedCount[] = await Promise.all(
       collectionsFromDB.map(async (collection) => {
-        let itemsMintedOnChain: number | undefined = undefined;
+        let onChainData: { itemsMinted?: number; isWhiskeyGated?: boolean; requiredWhiskeyAmount?: number } = {};
         if (collection.collectionOnChainAddress) {
-          itemsMintedOnChain = await getCollectionItemsMinted(collection.collectionOnChainAddress, program);
+          onChainData = await getCollectionOnChainData(collection.collectionOnChainAddress, program);
         }
         const augmented = {
           ...(collection as any), // Cast to any to avoid Omit issues if INftCollection has more fields
           _id: collection._id.toString(), // ensure _id is string
           companyId: collection.companyId.toString(), // ensure companyId is string
-          itemsMintedOnChain,
+          itemsMintedOnChain: onChainData.itemsMinted,
+          // Prioritize database values for whiskey gating info, fallback to on-chain
+          isWhiskeyGated: collection.isWhiskeyGated ?? onChainData.isWhiskeyGated ?? false,
+          requiredWhiskeyAmount: collection.requiredWhiskeyAmount ?? onChainData.requiredWhiskeyAmount ?? 0,
         };
         
         console.log(`[COLLECTIONS_API] 🔄 Augmented collection "${collection.name}":`, {
           metadataUri: augmented.metadataUri,
-          itemsMintedOnChain: augmented.itemsMintedOnChain
+          itemsMintedOnChain: augmented.itemsMintedOnChain,
+          isWhiskeyGated: augmented.isWhiskeyGated,
+          requiredWhiskeyAmount: augmented.requiredWhiskeyAmount
         });
         
         return augmented;

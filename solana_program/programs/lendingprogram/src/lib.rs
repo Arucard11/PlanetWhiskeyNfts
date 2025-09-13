@@ -5,12 +5,12 @@ use anchor_spl::{
 };
 use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("DDy97mgfJ6pkGzF4KdaVVXpKkVFFBgn4EGdZ7EbrH5rB");
+declare_id!("4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6");
 
 // Reference to the whiskey program for cross-program vault access
 pub mod whiskeyprogram {
     use anchor_lang::prelude::*;
-    declare_id!("2f7Dt8iuqPpkNMDzZ8f1pmQS2A2kNSZuC9ekvGAtcTjb");
+    declare_id!("Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM");
 }
 
 // Constants
@@ -24,7 +24,7 @@ pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
 pub const BORROWER_ACCOUNT_SEED: &[u8] = b"borrower_account";
 pub const LOAN_SEED: &[u8] = b"loan";
 pub const COLLATERAL_ESCROW_SEED: &[u8] = b"collateral_escrow";
-pub const NFT_AUCTION_SEED: &[u8] = b"nft_auction";
+// Removed NFT_AUCTION_SEED - no longer needed
 pub const CAPITAL_VAULT_SEED: &[u8] = b"capital_vault_usdc";
 
 // Token mint addresses (Devnet)
@@ -41,6 +41,7 @@ pub const THREE_MONTHS_SECS: u32 = 7776000; // 90 days
 pub struct GlobalMarket {
     // --- Authorities (MUST be multisig in production) ---
     pub owner: Pubkey,           // Governance authority (treasury wallet)
+    pub liquidation_authority: Pubkey, // Dedicated liquidation authority (separate keypair)
 
     // --- Protocol Capital Vault (Where lending money is stored) ---
     pub capital_vault_usdc: Pubkey,  // Protocol's USDC lending capital
@@ -85,6 +86,7 @@ pub struct GlobalMarket {
 impl GlobalMarket {
     pub const SPACE: usize = 8 + // discriminator
         32 + // owner
+        32 + // liquidation_authority
         32 + // capital_vault_usdc
         32 + // treasury_wallet
         32 + // collection_registry
@@ -386,28 +388,7 @@ impl Loan {
     }
 }
 
-/// NFT Auction Account - For liquidated NFTs
-#[account]
-pub struct NftAuction {
-    pub nft_mint: Pubkey,
-    pub starting_price_usd: u64,
-    pub current_bid_usd: u64,
-    pub highest_bidder: Option<Pubkey>,
-    pub auction_end_ts: i64,
-    pub status: AuctionStatus,
-    pub bump: u8,
-}
-
-impl NftAuction {
-    pub const SPACE: usize = 8 + // discriminator
-        32 + // nft_mint
-        8 +  // starting_price_usd
-        8 +  // current_bid_usd
-        1 + 32 + // highest_bidder (Option<Pubkey>)
-        8 +  // auction_end_ts
-        1 +  // status
-        1;   // bump
-}
+// Removed NFT Auction system - replaced with direct NFT burning
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 pub enum LoanStatus {
@@ -422,18 +403,7 @@ impl Default for LoanStatus {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
-pub enum AuctionStatus {
-    Active,
-    Completed,
-    Cancelled,
-}
-
-impl Default for AuctionStatus {
-    fn default() -> Self {
-        AuctionStatus::Active
-    }
-}
+// Removed AuctionStatus enum - no longer needed
 
 #[program]
 pub mod lendingprogram {
@@ -444,6 +414,7 @@ pub mod lendingprogram {
         ctx: Context<InitializeGlobalMarket>,
         max_staked_nfts: u32,
         per_nft_value_usd: u64,
+        liquidation_authority: Pubkey,
     ) -> Result<()> {
         let global_market = &mut ctx.accounts.global_market;
         
@@ -452,6 +423,7 @@ pub mod lendingprogram {
         require!(per_nft_value_usd > 0, ErrorCode::InvalidNftValue);
 
         global_market.owner = ctx.accounts.owner.key();
+        global_market.liquidation_authority = liquidation_authority;
         global_market.capital_vault_usdc = ctx.accounts.capital_vault_usdc.key();
         global_market.treasury_wallet = ctx.accounts.treasury_wallet.key();
         global_market.collection_registry = ctx.accounts.collection_registry.key();
@@ -1088,57 +1060,179 @@ pub mod lendingprogram {
         Ok(())
     }
 
-    /// Trigger liquidation (both conditions: expired OR collateral value drop)
-    pub fn trigger_liquidation_auction(
-        ctx: Context<TriggerLiquidationAuction>,
-        liquidation_reason: LiquidationReason,
+    /// Repay loan with dual payment: USDC for principal, WHISKEY for interest
+    pub fn repay_loan_dual_payment(
+        ctx: Context<RepayLoanDualPayment>,
+        usdc_principal_amount: u64, // Principal amount in USDC (with 6 decimals)
+        whiskey_interest_amount: u64, // Interest amount in WHISKEY tokens (with 6 decimals)
+        current_whiskey_price_usd: u64, // Current WHISKEY price in USD (with 6 decimals)
+    ) -> Result<()> {
+        let loan = &mut ctx.accounts.loan;
+        let borrower_account = &mut ctx.accounts.borrower_account;
+        let global_market = &mut ctx.accounts.global_market;
+
+        require!(loan.status == LoanStatus::Active, ErrorCode::LoanNotActive);
+        require!(usdc_principal_amount > 0, ErrorCode::InvalidPaymentAmount);
+        require!(whiskey_interest_amount > 0, ErrorCode::InvalidPaymentAmount);
+        require!(current_whiskey_price_usd > 0, ErrorCode::InvalidWhiskeyPrice);
+
+        // Calculate expected amounts
+        let expected_principal = loan.principal_amount_usd;
+        let total_interest_usd = (loan.principal_amount_usd as u128 * loan.interest_rate_at_origination_bps as u128) / 10000;
+        let remaining_interest_usd = total_interest_usd.saturating_sub(loan.interest_paid_usd as u128);
+
+        // Convert WHISKEY payment to USD value
+        let whiskey_payment_usd_value = (whiskey_interest_amount as u128 * current_whiskey_price_usd as u128) / 1_000_000;
+
+        msg!("💰 Dual Payment Validation:");
+        msg!("   Expected principal (USDC): {}", expected_principal);
+        msg!("   Provided principal (USDC): {}", usdc_principal_amount);
+        msg!("   Expected interest (USD): {}", remaining_interest_usd);
+        msg!("   Provided WHISKEY tokens: {}", whiskey_interest_amount);
+        msg!("   WHISKEY USD value: {}", whiskey_payment_usd_value);
+
+        // Validate principal payment (exact match required)
+        require!(
+            usdc_principal_amount == expected_principal,
+            ErrorCode::InvalidPaymentAmount
+        );
+
+        // Validate interest payment (allow 5% buffer for price fluctuations)
+        let min_interest_payment = (remaining_interest_usd * 95) / 100; // 95% of required
+        let max_interest_payment = (remaining_interest_usd * 105) / 100; // 105% of required
+        require!(
+            whiskey_payment_usd_value >= min_interest_payment && whiskey_payment_usd_value <= max_interest_payment,
+            ErrorCode::InvalidPaymentAmount
+        );
+
+        // Create signer seeds for global market authority (for receiving USDC back to capital vault)
+        let global_market_bump = [global_market.bump];
+        let global_market_seeds = [GLOBAL_MARKET_SEED, &global_market_bump];
+        let _signer_seeds = [&global_market_seeds[..]];
+
+        // Transfer USDC principal from borrower back to capital vault
+        msg!("💸 Transferring USDC principal back to capital vault...");
+        let usdc_transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.borrower_usdc_token_account.to_account_info(),
+                to: ctx.accounts.capital_vault.to_account_info(),
+                authority: ctx.accounts.borrower.to_account_info(),
+            },
+        );
+        token::transfer(usdc_transfer_ctx, usdc_principal_amount)?;
+
+        // Transfer WHISKEY interest from borrower to treasury
+        msg!("🥃 Transferring WHISKEY interest to treasury...");
+        let whiskey_transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.borrower_whiskey_token_account.to_account_info(),
+                to: ctx.accounts.treasury_whiskey_token_account.to_account_info(),
+                authority: ctx.accounts.borrower.to_account_info(),
+            },
+        );
+        token::transfer(whiskey_transfer_ctx, whiskey_interest_amount)?;
+
+        // Update loan state - mark as fully repaid
+        loan.interest_paid_usd += whiskey_payment_usd_value as u64;
+        loan.status = LoanStatus::Repaid;
+
+        // Remove loan from active loans list
+        borrower_account.active_loans.retain(|&loan_key| loan_key != loan.key());
+
+        // Update borrower account debt (subtract the principal amount)
+        borrower_account.total_debt_usd = borrower_account
+            .total_debt_usd
+            .saturating_sub(loan.principal_amount_usd as u128);
+
+        // Update global market liquidity tracking (principal returned to capital vault)
+        global_market.update_liquidity_tracking(loan.principal_amount_usd, false);
+
+        msg!("🎉 Dual payment loan repayment completed!");
+        msg!("   Principal repaid: {} USDC", usdc_principal_amount);
+        msg!("   Interest paid: {} WHISKEY tokens (${} USD value)", whiskey_interest_amount, whiskey_payment_usd_value);
+        msg!("   Loan status: Repaid");
+        msg!("   New borrower debt: {}", borrower_account.total_debt_usd);
+
+        Ok(())
+    }
+
+    /// Liquidate expired loan by burning NFT collateral
+    pub fn liquidate_expired_loan(
+        ctx: Context<LiquidateExpiredLoan>,
+        loan_id: Pubkey,
     ) -> Result<()> {
         let borrower_account = &mut ctx.accounts.borrower_account;
-        let global_market = &ctx.accounts.global_market;
+        let global_market = &mut ctx.accounts.global_market;
         let current_ts = Clock::get()?.unix_timestamp;
 
-        match liquidation_reason {
-            LiquidationReason::TermExpired => {
-                // Check if any loan is past grace period
-                // (Implementation would check all active loans)
-                require!(current_ts > 0, ErrorCode::LoanNotDefaultable); // Placeholder
+        msg!("🔥 Starting NFT liquidation by burning...");
+        msg!("  Borrower: {}", borrower_account.owner);
+        msg!("  Loan ID: {}", loan_id);
+
+        // Verify the loan exists and is expired
+        let loan_exists = borrower_account.active_loans.contains(&loan_id);
+        require!(loan_exists, ErrorCode::LoanNotActive);
+
+        // Fetch the loan account to check expiration
+        let loan = &ctx.accounts.loan;
+        require!(loan.status == LoanStatus::Active, ErrorCode::LoanNotActive);
+        require!(loan.is_defaultable(current_ts), ErrorCode::LoanNotDefaultable);
+
+        msg!("✅ Loan is expired and defaultable");
+        msg!("  Grace period ended: {}", loan.grace_period_ends_ts);
+        msg!("  Current time: {}", current_ts);
+
+        // Burn the NFT (transfer to a burn address or close the token account)
+        // For simplicity, we'll transfer the NFT to a burn address (all zeros)
+        let burn_address = Pubkey::default(); // 11111111111111111111111111111111
+        
+        msg!("🔥 Burning NFT: {}", ctx.accounts.nft_mint.key());
+        
+        // Transfer NFT from escrow to burn address (effectively burning it)
+        let global_market_bump = [global_market.bump];
+        let global_market_seeds = [GLOBAL_MARKET_SEED, &global_market_bump];
+        let signer_seeds = [&global_market_seeds[..]];
+
+        // Close the NFT token account (this burns the NFT)
+        let close_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::CloseAccount {
+                account: ctx.accounts.nft_escrow.to_account_info(),
+                destination: ctx.accounts.liquidator.to_account_info(), // Rent goes to liquidator
+                authority: global_market.to_account_info(),
             },
-            LiquidationReason::CollateralValueDrop => {
-                // Recalculate current borrowing power using same logic as deposit_nft
-                let per_nft_value_usd = global_market.per_nft_value_usd as u128;
-                
-                // Apply same configurable LTV ratio as borrowing
-                let ltv_ratio_bps = global_market.loan_to_value_ratio_bps;
-                let per_nft_borrowing_power = (per_nft_value_usd * ltv_ratio_bps as u128) / 10000;
-                let current_borrowing_power = per_nft_borrowing_power * borrower_account.deposited_nfts.len() as u128;
-                
-                msg!("🔍 Liquidation check:");
-                msg!("  Current debt: ${}", borrower_account.total_debt_usd);
-                msg!("  Current borrowing power: ${}", current_borrowing_power);
-                msg!("  Per-NFT value: ${}", per_nft_value_usd);
-                msg!("  Per-NFT borrowing power: ${}", per_nft_borrowing_power);
-                
-                require!(
-                    borrower_account.total_debt_usd > current_borrowing_power,
-                    ErrorCode::CollateralValueSufficient
-                );
-            },
-        }
+            &signer_seeds,
+        );
+        token::close_account(close_ctx)?;
 
-        // Create NFT auction for all deposited NFTs
-        let nft_auction = &mut ctx.accounts.nft_auction;
-        nft_auction.nft_mint = borrower_account.deposited_nfts[0]; // First NFT for simplicity
-        nft_auction.starting_price_usd = borrower_account.total_debt_usd as u64;
-        nft_auction.current_bid_usd = 0;
-        nft_auction.highest_bidder = None;
-        nft_auction.auction_end_ts = current_ts + 604800; // 7 days
-        nft_auction.status = AuctionStatus::Active;
-        nft_auction.bump = ctx.bumps.nft_auction;
+        // Mark loan as defaulted
+        let loan = &mut ctx.accounts.loan;
+        loan.status = LoanStatus::Defaulted;
 
-        // Mark all loans as defaulted
-        // (Implementation would update all active loans)
+        // Remove loan from active loans
+        borrower_account.active_loans.retain(|&l| l != loan_id);
 
-        msg!("Liquidation auction started for borrower: {}", borrower_account.owner);
+        // Remove NFT from deposited NFTs
+        let nft_mint = ctx.accounts.nft_mint.key();
+        borrower_account.deposited_nfts.retain(|&nft| nft != nft_mint);
+
+        // Update borrowing power (subtract the burned NFT's value)
+        // Note: debt remains as a penalty - user lost their collateral
+        borrower_account.total_borrowing_power_usd = borrower_account
+            .total_borrowing_power_usd
+            .saturating_sub(global_market.per_nft_value_usd as u128);
+
+        // Update global market stats
+        global_market.current_staked_nfts = global_market.current_staked_nfts.saturating_sub(1);
+
+        msg!("🔥 NFT BURNED - Liquidation complete!");
+        msg!("  Burned NFT: {}", nft_mint);
+        msg!("  Remaining debt: ${}", borrower_account.total_debt_usd);
+        msg!("  Remaining collateral: {} NFTs", borrower_account.deposited_nfts.len());
+        msg!("  ⚠️  User has lost their NFT as penalty for non-payment");
+
         Ok(())
     }
 
@@ -1284,11 +1378,7 @@ pub mod lendingprogram {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub enum LiquidationReason {
-    TermExpired,
-    CollateralValueDrop,
-}
+// Removed LiquidationReason enum - simplified to just expire-based burning
 
 // Account validation structs
 #[derive(Accounts)]
@@ -1516,24 +1606,83 @@ pub struct MakeInterestPayment<'info> {
 }
 
 #[derive(Accounts)]
-pub struct TriggerLiquidationAuction<'info> {
+pub struct RepayLoanDualPayment<'info> {
     #[account(mut)]
-    pub borrower_account: Account<'info, BorrowerAccount>,
-
-    pub global_market: Account<'info, GlobalMarket>,
+    pub loan: Account<'info, Loan>,
 
     #[account(
-        init,
-        payer = liquidator,
-        space = NftAuction::SPACE,
-        seeds = [NFT_AUCTION_SEED, borrower_account.key().as_ref()],
+        mut,
+        seeds = [BORROWER_ACCOUNT_SEED, borrower.key().as_ref()],
         bump
     )]
-    pub nft_auction: Account<'info, NftAuction>,
+    pub borrower_account: Account<'info, BorrowerAccount>,
 
     #[account(mut)]
-    pub liquidator: Signer<'info>, // Bot or anyone can trigger
+    pub global_market: Account<'info, GlobalMarket>,
 
+    // Capital vault (where USDC principal gets returned)
+    #[account(
+        mut,
+        seeds = [CAPITAL_VAULT_SEED],
+        bump,
+        constraint = capital_vault.mint == USDC_MINT.parse::<Pubkey>().unwrap() @ ErrorCode::InvalidAssetMint,
+        constraint = capital_vault.owner == global_market.key() @ ErrorCode::InvalidVaultAuthority
+    )]
+    pub capital_vault: Account<'info, TokenAccount>,
+
+    // Borrower's USDC token account (for principal repayment)
+    #[account(
+        mut,
+        associated_token::mint = USDC_MINT.parse::<Pubkey>().unwrap(),
+        associated_token::authority = borrower
+    )]
+    pub borrower_usdc_token_account: Account<'info, TokenAccount>,
+
+    // Borrower's WHISKEY token account (for interest payment)
+    #[account(
+        mut,
+        associated_token::mint = WHISKEY_TOKEN_MINT,
+        associated_token::authority = borrower
+    )]
+    pub borrower_whiskey_token_account: Account<'info, TokenAccount>,
+
+    // Treasury wallet's WHISKEY token account (where interest payments go)
+    #[account(
+        mut,
+        associated_token::mint = WHISKEY_TOKEN_MINT,
+        associated_token::authority = treasury_wallet
+    )]
+    pub treasury_whiskey_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Treasury wallet (admin's actual wallet)
+    #[account(mut)]
+    pub treasury_wallet: UncheckedAccount<'info>,
+
+    pub borrower: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct LiquidateExpiredLoan<'info> {
+    #[account(mut)]
+    pub borrower_account: Account<'info, BorrowerAccount>,
+    #[account(mut)]
+    pub global_market: Account<'info, GlobalMarket>,
+    #[account(mut)]
+    pub loan: Account<'info, Loan>,
+    pub nft_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [COLLATERAL_ESCROW_SEED, borrower_account.owner.as_ref(), nft_mint.key().as_ref()],
+        bump
+    )]
+    pub nft_escrow: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = liquidator.key() == global_market.liquidation_authority @ ErrorCode::UnauthorizedLiquidator
+    )]
+    pub liquidator: Signer<'info>, // Only authorized liquidation authority can trigger
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1577,6 +1726,8 @@ pub enum ErrorCode {
 
     #[msg("Unauthorized treasury wallet access")]
     UnauthorizedTreasuryAccess,
+    #[msg("Unauthorized liquidator - only designated liquidation authority can liquidate loans")]
+    UnauthorizedLiquidator,
 
     #[msg("Invalid staked NFTs limit (must be 500-10,000)")]
     InvalidStakedNftsLimit,

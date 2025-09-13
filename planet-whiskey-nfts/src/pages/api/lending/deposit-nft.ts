@@ -236,10 +236,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       if (simulation.value.err) {
         console.error('❌ Transaction simulation failed:', simulation.value.err);
+        
+        // Check for specific error codes and provide user-friendly messages
+        let userMessage = 'Transaction simulation failed';
+        const logs = simulation.value.logs || [];
+        
+        // Check logs for specific error messages
+        const errorLogs = logs.filter(log => 
+          log.includes('InvalidNftCollection') || 
+          log.includes('not from an approved collection') ||
+          log.includes('Error Code: InvalidNftCollection')
+        );
+        
+        if (errorLogs.length > 0) {
+          userMessage = 'This NFT is not from an approved collection. Only NFTs from approved collections can be used as collateral for lending.';
+        } else if (simulation.value.err.InstructionError) {
+          const instructionError = simulation.value.err.InstructionError;
+          if (Array.isArray(instructionError) && instructionError.length >= 2) {
+            const [instructionIndex, customError] = instructionError;
+            if (customError.Custom === 6022) { // InvalidNftCollection error code
+              userMessage = 'This NFT is not from an approved collection. Only NFTs from approved collections can be used as collateral for lending.';
+            }
+          }
+        }
+        
         return res.status(400).json({ 
-          message: 'Transaction simulation failed',
+          message: userMessage,
           error: simulation.value.err,
-          logs: simulation.value.logs
+          logs: simulation.value.logs,
+          errorCode: 'INVALID_NFT_COLLECTION'
         });
       }
       

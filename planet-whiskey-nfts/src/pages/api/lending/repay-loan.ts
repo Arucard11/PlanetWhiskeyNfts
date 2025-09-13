@@ -9,43 +9,49 @@ import lendingIdl from '../../../lib/idl/lendingprogram.json';
 // Program IDs
 const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
 const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
+const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_TOKEN_MINT!);
+const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { walletAddress, loanId, repaymentAmountUsd } = req.body;
+  console.log('📥 Received request body:', req.body);
+  
+  const { walletAddress, loanId } = req.body;
 
-  if (!walletAddress || !loanId || !repaymentAmountUsd) {
+  if (!walletAddress || !loanId) {
+    console.error('❌ Missing required fields:', { walletAddress, loanId });
     return res.status(400).json({ 
-      message: 'All fields are required: walletAddress, loanId, repaymentAmountUsd' 
+      message: 'All fields are required: walletAddress, loanId' 
     });
   }
 
-  if (repaymentAmountUsd <= 0) {
-    return res.status(400).json({ 
-      message: 'Repayment amount must be greater than 0' 
-    });
+  console.log('✅ Request validation passed:', { walletAddress, loanId });
+
+  // Validate environment variables
+  const requiredEnvVars = [
+    'NEXT_PUBLIC_LENDING_PROGRAM_ID',
+    'NEXT_PUBLIC_WHISKEY_TOKEN_MINT',
+    'NEXT_PUBLIC_USDC_TOKEN_MINT',
+    'NEXT_PUBLIC_TREASURY_WALLET',
+    'NEXT_PUBLIC_SOLANA_RPC_URL'
+  ];
+
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      console.error(`❌ Missing environment variable: ${envVar}`);
+      return res.status(500).json({ 
+        message: `Server configuration error: Missing ${envVar}` 
+      });
+    }
   }
 
   try {
     // Get current WHISKEY price
     const currentWhiskeyRate = await getCurrentWhiskeyRate();
     console.log('📊 Current WHISKEY price:', currentWhiskeyRate);
-
-    // Calculate WHISKEY amount needed (with 6 decimals)
-    const whiskeyAmountNeeded = (repaymentAmountUsd / currentWhiskeyRate) * 1_000_000;
-    
-    // Add 1% buffer to account for price fluctuations
-    const whiskeyAmountWithBuffer = Math.ceil(whiskeyAmountNeeded * 1.01);
-
-    console.log('💰 Repayment calculation:', {
-      repaymentAmountUsd,
-      currentWhiskeyRate,
-      whiskeyAmountNeeded: whiskeyAmountNeeded / 1_000_000,
-      whiskeyAmountWithBuffer: whiskeyAmountWithBuffer / 1_000_000
-    });
 
     // Setup Solana connection and program
     const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com', 'confirmed');
@@ -59,121 +65,158 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const userWallet = new PublicKey(walletAddress);
     const loanPda = new PublicKey(loanId);
     
-    console.log('🔍 Repay Loan Debug:');
+    console.log('🔍 Dual Payment Loan Repay Debug:');
     console.log('  Connected wallet:', walletAddress);
     console.log('  Loan ID:', loanId);
     
-    // Fetch loan and ensure it belongs to this wallet's borrowerAccount PDA
-    let borrowerAccountFromLoan: PublicKey;
+    // Fetch loan data
+    let loanAccount: any;
     try {
-      const loanAccount: any = await (program.account as any).loan.fetch(loanPda);
-      borrowerAccountFromLoan = new PublicKey(loanAccount.borrowerAccount);
-    } catch (e) {
-      return res.status(400).json({
-        message: 'Invalid loan account',
-        details: e instanceof Error ? e.message : String(e)
+      loanAccount = await program.account.loan.fetch(loanPda);
+      console.log('📋 Loan account data:', {
+        borrowerAccount: loanAccount.borrowerAccount.toString(),
+        principalAmountUsd: loanAccount.principalAmountUsd.toString(),
+        interestRateAtOriginationBps: loanAccount.interestRateAtOriginationBps.toString(),
+        interestPaidUsd: loanAccount.interestPaidUsd.toString(),
+        status: loanAccount.status,
       });
+    } catch (error) {
+      console.error('❌ Error fetching loan account:', error);
+      return res.status(404).json({ message: 'Loan not found' });
     }
 
-    // Derive global market PDA
+    // Calculate repayment amounts
+    const principalAmountMicro = BigInt(loanAccount.principalAmountUsd); // Already in micro-dollars (6 decimals)
+    const interestRateAtOriginationBps = BigInt(loanAccount.interestRateAtOriginationBps);
+    const interestPaidMicro = BigInt(loanAccount.interestPaidUsd);
+
+    // Calculate total interest due
+    const totalInterestMicro = (principalAmountMicro * interestRateAtOriginationBps) / BigInt(10000);
+    const remainingInterestMicro = totalInterestMicro - interestPaidMicro;
+
+    // Convert to regular units for display and calculations
+    const principalAmountUsd = Number(principalAmountMicro) / 1_000_000;
+    const remainingInterestUsd = Number(remainingInterestMicro) / 1_000_000;
+
+    // Calculate WHISKEY amount needed for interest (with 6 decimals)
+    const whiskeyAmountNeeded = (remainingInterestUsd / currentWhiskeyRate) * 1_000_000;
+    // Add 1% buffer to account for price fluctuations
+    const whiskeyAmountWithBuffer = Math.ceil(whiskeyAmountNeeded * 1.01);
+
+    console.log('💰 Dual Payment Calculations:');
+    console.log('  🔵 Principal (USDC to Capital Vault): $', principalAmountUsd);
+    console.log('  🟡 Interest (WHISKEY to Treasury): $', remainingInterestUsd);
+    console.log('  🥃 WHISKEY tokens needed:', whiskeyAmountWithBuffer / 1_000_000);
+    console.log('  📊 Current WHISKEY rate: $', currentWhiskeyRate);
+    console.log('  ⚡ This is a DUAL PAYMENT: USDC for principal + WHISKEY for interest');
+
+    // Derive PDAs
+    const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("borrower_account"), userWallet.toBuffer()],
+      LENDING_PROGRAM_ID
+    );
+
     const [globalMarketPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("global_market")],
       LENDING_PROGRAM_ID
     );
-    
-    // Derive borrower account PDA per program seeds using the borrower signer
-    const [borrowerAccountPda, derivedBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("borrower_account"), userWallet.toBuffer()],
+
+    const [capitalVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("capital_vault_usdc")],
       LENDING_PROGRAM_ID
     );
-    
-    console.log('  Derived borrower PDA:', borrowerAccountPda.toString());
-    console.log('  Derived bump:', derivedBump);
-    console.log('  Loan borrower account:', borrowerAccountFromLoan.toString());
 
-    if (!borrowerAccountFromLoan.equals(borrowerAccountPda)) {
-      return res.status(400).json({
-        message: 'This loan does not belong to the connected wallet.',
-        expectedBorrowerAccount: borrowerAccountFromLoan.toBase58(),
-        connectedWalletBorrowerAccount: borrowerAccountPda.toBase58(),
-      });
-    }
+    // Get associated token accounts
+    const borrowerUsdcTokenAccount = await getAssociatedTokenAddress(USDC_MINT, userWallet);
+    const borrowerWhiskeyTokenAccount = await getAssociatedTokenAddress(WHISKEY_TOKEN_MINT, userWallet);
+    const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(WHISKEY_TOKEN_MINT, TREASURY_WALLET);
 
-    // Borrower account validation - program now handles bump automatically
+    console.log('🏦 Account Addresses:');
+    console.log('  Borrower Account PDA:', borrowerAccountPda.toString());
+    console.log('  Global Market PDA:', globalMarketPda.toString());
+    console.log('  Capital Vault PDA:', capitalVaultPda.toString());
+    console.log('  Borrower USDC Account:', borrowerUsdcTokenAccount.toString());
+    console.log('  Borrower WHISKEY Account:', borrowerWhiskeyTokenAccount.toString());
+    console.log('  Treasury WHISKEY Account:', treasuryWhiskeyTokenAccount.toString());
 
-    const borrowerAccountToUse = borrowerAccountPda;
-    
-    // WHISKEY token mint
-    const whiskeyTokenMint = WHISKEY_TOKEN_MINT;
-    
-    // Get borrower's WHISKEY token account
-    const borrowerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyTokenMint, userWallet);
-    
-    // Treasury wallet and its WHISKEY token account
-    const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
-    const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyTokenMint, treasuryWallet);
+    // Convert current WHISKEY price to program format (6 decimals)
+    const currentWhiskeyPriceProgram = Math.floor(currentWhiskeyRate * 1_000_000);
 
-    // Convert WHISKEY price to program format (6 decimals)
-    const whiskeyPriceForProgram = Math.floor(currentWhiskeyRate * 1_000_000);
-
-    // Build repayment transaction
-    const repaymentInstruction = await (program.methods as any)
-      .makeInterestPayment(
-        new anchor.BN(whiskeyAmountWithBuffer),
-        new anchor.BN(whiskeyPriceForProgram)
+    // Build the dual payment transaction
+    const instruction = await program.methods
+      .repayLoanDualPayment(
+        new anchor.BN(loanAccount.principalAmountUsd), // USDC principal amount (micro-dollars)
+        new anchor.BN(whiskeyAmountWithBuffer), // WHISKEY interest amount (with 6 decimals)
+        new anchor.BN(currentWhiskeyPriceProgram) // Current WHISKEY price (with 6 decimals)
       )
       .accounts({
         loan: loanPda,
-        borrowerAccount: borrowerAccountToUse,
+        borrowerAccount: borrowerAccountPda,
         globalMarket: globalMarketPda,
+        capitalVault: capitalVaultPda,
+        borrowerUsdcTokenAccount: borrowerUsdcTokenAccount,
         borrowerWhiskeyTokenAccount: borrowerWhiskeyTokenAccount,
         treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
-        treasuryWallet: treasuryWallet,
+        treasuryWallet: TREASURY_WALLET,
         borrower: userWallet,
         tokenProgram: TOKEN_PROGRAM_ID,
-      })
+      } as any)
       .instruction();
 
-    // Create transaction
-    const transaction = new Transaction();
-    transaction.add(repaymentInstruction);
-
+    const transaction = new Transaction().add(instruction);
+    
     // Get recent blockhash
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = userWallet;
 
-    // Serialize transaction for frontend
-    const serializedTransaction = transaction.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false
-    });
+    // Serialize transaction for client
+    const serializedTransaction = transaction.serialize({ requireAllSignatures: false });
+    const transactionBase64 = serializedTransaction.toString('base64');
 
-    console.log(`✅ Created loan repayment transaction for wallet: ${walletAddress}`, {
-      loanId,
-      repaymentAmountUsd,
-      whiskeyAmountNeeded: whiskeyAmountWithBuffer / 1_000_000,
-      currentWhiskeyRate
-    });
+    console.log('✅ Dual payment transaction prepared successfully');
 
-    res.status(200).json({
-      message: 'Loan repayment transaction created successfully',
-      transaction: serializedTransaction.toString('base64'),
-      lastValidBlockHeight,
-      repaymentDetails: {
-        loanId,
-        repaymentAmountUsd,
-        whiskeyAmountNeeded: whiskeyAmountWithBuffer / 1_000_000,
-        whiskeyAmountWithBuffer,
-        currentWhiskeyRate,
-        asset: 'WHISKEY'
+    return res.status(200).json({
+      success: true,
+      transaction: transactionBase64,
+      message: 'Dual payment transaction prepared successfully',
+      paymentDetails: {
+        principalUSDC: principalAmountUsd,
+        interestWhiskey: whiskeyAmountWithBuffer / 1_000_000,
+        interestUSDValue: remainingInterestUsd,
+        whiskeyPrice: currentWhiskeyRate,
+        totalUSDValue: principalAmountUsd + remainingInterestUsd
+      },
+      paymentBreakdown: {
+        type: 'DUAL_PAYMENT',
+        principal: {
+          amount: principalAmountUsd,
+          currency: 'USDC',
+          destination: 'Capital Vault'
+        },
+        interest: {
+          amountUSD: remainingInterestUsd,
+          amountWhiskey: whiskeyAmountWithBuffer / 1_000_000,
+          currency: 'WHISKEY',
+          destination: 'Treasury Wallet',
+          whiskeyPrice: currentWhiskeyRate
+        }
       }
     });
+
   } catch (error) {
-    console.error('Error creating repayment transaction:', error);
-    res.status(500).json({ 
-      message: 'Failed to create repayment transaction',
-      error: error.toString()
+    console.error('❌ Error preparing dual payment transaction:', error);
+    
+    // Log the full error for debugging
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    
+    return res.status(500).json({ 
+      message: 'Failed to prepare dual payment transaction',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      details: error instanceof Error ? error.stack : undefined
     });
   }
 }

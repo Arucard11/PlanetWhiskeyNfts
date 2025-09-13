@@ -36,6 +36,25 @@ async function getCollectionItemsMinted(collectionPdaString: string, program: an
   }
 }
 
+async function getCollectionOnChainData(collectionPdaString: string, program: any): Promise<{
+  itemsMinted?: number;
+  isWhiskeyGated?: boolean;
+  requiredWhiskeyAmount?: number;
+}> {
+  try {
+    const pda = new PublicKey(collectionPdaString);
+    const accountInfo = await program.account.collectionConfig.fetch(pda);
+    return {
+      itemsMinted: (accountInfo as any).itemsMinted.toNumber(),
+      isWhiskeyGated: (accountInfo as any).isWhiskeyGated || false,
+      requiredWhiskeyAmount: (accountInfo as any).requiredWhiskeyAmount ? (accountInfo as any).requiredWhiskeyAmount.toNumber() : 0
+    };
+  } catch (error) {
+    console.error(`Error fetching on-chain data for PDA ${collectionPdaString}:`, error);
+    return {};
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -67,9 +86,10 @@ export default async function handler(
       return res.status(404).json({ success: false, message: 'Collection not found in database.' });
     }
 
-    let itemsMintedOnChain: number | undefined = undefined;
+    // Fetch on-chain data including whiskey-gated information
+    let onChainData: { itemsMinted?: number; isWhiskeyGated?: boolean; requiredWhiskeyAmount?: number } = {};
     if (collectionFromDB.collectionOnChainAddress) { // Should always be true if found by this field
-        itemsMintedOnChain = await getCollectionItemsMinted(collectionFromDB.collectionOnChainAddress, program);
+        onChainData = await getCollectionOnChainData(collectionFromDB.collectionOnChainAddress, program);
     }
     
     // Ensure _id and companyId are strings
@@ -77,7 +97,9 @@ export default async function handler(
       ...(collectionFromDB as any),
       _id: collectionFromDB._id.toString(),
       companyId: collectionFromDB.companyId.toString(),
-      itemsMintedOnChain,
+      itemsMintedOnChain: onChainData.itemsMinted,
+      isWhiskeyGated: onChainData.isWhiskeyGated,
+      requiredWhiskeyAmount: onChainData.requiredWhiskeyAmount,
     };
 
     res.status(200).json({ success: true, data: augmentedCollection });

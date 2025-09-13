@@ -46,17 +46,63 @@ export default function BorrowPage() {
         const data = await response.json();
         console.log('✅ User NFTs fetched:', data);
         
-        const eligibleNfts = data.ownedCollectionNfts?.map((nft: any) => ({
+        const nfts = data.ownedCollectionNfts?.map((nft: any) => ({
           mintAddress: nft.address,
           name: nft.name,
           imageUrl: nft.json?.image || '/placeholder-image.svg',
           collectionName: nft.collectionName,
           collectionMintAddress: nft.collectionMintAddress,
-          isEligible: true
+          isEligible: true // Will be updated after checking collection approval
         })) || [];
         
-        console.log('✅ Eligible NFTs processed:', eligibleNfts);
-        setUserNfts(eligibleNfts);
+        // Check collection approval status for all unique collections
+        if (nfts.length > 0) {
+          const uniqueCollections = [...new Set(nfts.map(nft => nft.collectionMintAddress))];
+          console.log('🔍 Checking approval status for collections:', uniqueCollections);
+          
+          try {
+            const approvalResponse = await fetch('/api/lending/check-collection-approval', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                collectionMintAddresses: uniqueCollections
+              }),
+            });
+            
+            if (approvalResponse.ok) {
+              const approvalData = await approvalResponse.json();
+              console.log('✅ Collection approval status:', approvalData.results);
+              
+              // Create a map of collection approval status
+              const approvalMap = new Map();
+              approvalData.results.forEach((result: any) => {
+                approvalMap.set(result.collectionMint, result.isApproved);
+              });
+              
+              // Update NFT eligibility based on collection approval
+              const eligibleNfts = nfts.map(nft => ({
+                ...nft,
+                isEligible: approvalMap.get(nft.collectionMintAddress) || false
+              }));
+              
+              console.log('✅ NFTs with eligibility status:', eligibleNfts);
+              setUserNfts(eligibleNfts);
+            } else {
+              console.log('⚠️ Failed to check collection approval, marking all as ineligible');
+              const ineligibleNfts = nfts.map(nft => ({ ...nft, isEligible: false }));
+              setUserNfts(ineligibleNfts);
+            }
+          } catch (approvalError) {
+            console.error('❌ Error checking collection approval:', approvalError);
+            // Mark all as ineligible if we can't check approval
+            const ineligibleNfts = nfts.map(nft => ({ ...nft, isEligible: false }));
+            setUserNfts(ineligibleNfts);
+          }
+        } else {
+          setUserNfts([]);
+        }
       } else {
         // If the request fails, clear the NFTs
         setUserNfts([]);
@@ -113,6 +159,22 @@ export default function BorrowPage() {
   }, [connected, publicKey, fetchUserNfts, fetchBorrowingStats]);
   
   const handleNftSelection = (mintAddress: string) => {
+    const nft = userNfts.find(n => n.mintAddress === mintAddress);
+    
+    // Check if NFT is eligible for lending
+    if (!nft?.isEligible) {
+      toast.error('This NFT is not from an approved collection and cannot be used as collateral.', {
+        duration: 5000,
+        style: {
+          background: '#dc2626',
+          color: 'white',
+          fontSize: '14px',
+          fontWeight: '500',
+        }
+      });
+      return;
+    }
+    
     const newSelected = new Set(selectedNfts);
     if (newSelected.has(mintAddress)) {
       newSelected.delete(mintAddress);
@@ -266,6 +328,12 @@ export default function BorrowPage() {
 
           if (!response.ok) {
             const error = await response.json();
+            
+            // Handle specific error codes from API
+            if (error.errorCode === 'INVALID_NFT_COLLECTION') {
+              throw new Error(`❌ ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'This NFT'} is not from an approved collection. Only NFTs from approved collections can be used as collateral.`);
+            }
+            
             throw new Error(error.message || 'Failed to create deposit transaction');
           }
 
@@ -302,7 +370,40 @@ export default function BorrowPage() {
 
         } catch (innerError) {
           console.error(`Failed to deposit NFT ${mintAddress}:`, innerError);
-          toast.error(`Failed to deposit ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please try again.`);
+          
+          // Check for specific error types
+          let errorMessage = `Failed to deposit ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please try again.`;
+          
+          if (innerError instanceof Error) {
+            const errorString = innerError.message.toLowerCase();
+            
+            // Check for collection approval error
+            if (errorString.includes('invalidnftcollection') || 
+                errorString.includes('not from an approved collection') ||
+                errorString.includes('custom program error: 0x1786')) {
+              errorMessage = `❌ ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'This NFT'} is not from an approved collection. Only NFTs from approved collections can be used as collateral.`;
+            }
+            // Check for other specific errors
+            else if (errorString.includes('insufficient')) {
+              errorMessage = `❌ Insufficient balance for ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please check your wallet.`;
+            }
+            else if (errorString.includes('unauthorized')) {
+              errorMessage = `❌ Unauthorized access for ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please check your permissions.`;
+            }
+            else if (errorString.includes('simulation failed')) {
+              errorMessage = `❌ Transaction would fail for ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. This NFT may not be eligible for lending.`;
+            }
+          }
+          
+          toast.error(errorMessage, {
+            duration: 6000, // Show for 6 seconds
+            style: {
+              background: '#dc2626',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '500',
+            }
+          });
           // Stop on first failure
           break;
         }
@@ -413,12 +514,8 @@ export default function BorrowPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
           >
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Per-NFT Value</h3>
-              <p className="text-3xl font-bold text-green-400">${borrowingStats.perNftValue}</p>
-            </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h3 className="text-lg font-semibold text-gray-300 mb-2">LTV Ratio</h3>
               <p className="text-3xl font-bold text-blue-400">{borrowingStats.ltvRatio / 100}%</p>
@@ -502,13 +599,15 @@ export default function BorrowPage() {
               {userNfts.map((nft) => (
                 <motion.div
                   key={nft.mintAddress}
-                  whileHover={{ scale: 1.05 }}
-                  className={`bg-slate-800 rounded-xl p-4 border-2 cursor-pointer transition-all duration-300 ${
-                    selectedNfts.has(nft.mintAddress)
-                      ? 'border-amber-500 bg-amber-500/10'
-                      : 'border-slate-700 hover:border-slate-600'
+                  whileHover={{ scale: nft.isEligible ? 1.05 : 1.02 }}
+                  className={`bg-slate-800 rounded-xl p-4 border-2 transition-all duration-300 ${
+                    !nft.isEligible
+                      ? 'border-red-500/50 bg-red-500/5 cursor-not-allowed opacity-60'
+                      : selectedNfts.has(nft.mintAddress)
+                      ? 'border-amber-500 bg-amber-500/10 cursor-pointer'
+                      : 'border-slate-700 hover:border-slate-600 cursor-pointer'
                   }`}
-                  onClick={() => handleNftSelection(nft.mintAddress)}
+                  onClick={() => nft.isEligible && handleNftSelection(nft.mintAddress)}
                 >
                   <div className="aspect-square rounded-lg overflow-hidden mb-4">
                     <img
@@ -528,6 +627,19 @@ export default function BorrowPage() {
                     </span>
                     {selectedNfts.has(nft.mintAddress) && (
                       <span className="text-amber-400">✓ Selected</span>
+                    )}
+                  </div>
+                  
+                  {/* Eligibility Status */}
+                  <div className="mt-2 flex items-center justify-between">
+                    {nft.isEligible ? (
+                      <span className="text-xs text-green-400 flex items-center">
+                        ✓ Approved for lending
+                      </span>
+                    ) : (
+                      <span className="text-xs text-red-400 flex items-center">
+                        ❌ Not approved for lending
+                      </span>
                     )}
                   </div>
                 </motion.div>

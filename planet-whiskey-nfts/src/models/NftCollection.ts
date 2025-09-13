@@ -17,6 +17,8 @@ export interface INftCollection extends Document {
   isActive: boolean;
   createdAt: Date;
   authority?: string; // Public key string of the collection authority (for mint fees)
+  isWhiskeyGated?: boolean;         // NEW: Whether this collection requires WHISKEY tokens to mint
+  requiredWhiskeyAmount?: number;   // NEW: Required WHISKEY tokens (in full tokens, not lamports)
 }
 
 const NftCollectionSchema: Schema = new Schema({
@@ -36,6 +38,8 @@ const NftCollectionSchema: Schema = new Schema({
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   authority: { type: String, required: false }, // Store as string, ensure this is populated on creation
+  isWhiskeyGated: { type: Boolean, default: false }, // NEW: Whether this collection requires WHISKEY tokens to mint
+  requiredWhiskeyAmount: { type: Number, required: false }, // NEW: Required WHISKEY tokens (in full tokens, not lamports)
 });
 
 export default mongoose.models.NftCollection || mongoose.model<INftCollection>('NftCollection', NftCollectionSchema); 

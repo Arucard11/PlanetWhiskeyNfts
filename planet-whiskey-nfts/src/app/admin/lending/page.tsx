@@ -30,8 +30,6 @@ interface LendingConfig {
   // Loan-to-Value ratio (40% - 90%)
   loanToValueRatioBps: number;
   
-  // NFT valuation
-  perNftValueUsd: number;
   
   // Revenue split (configurable)
   lendingWalletShareBps: number;
@@ -83,7 +81,6 @@ export default function LendingAdminPage() {
     loanToValueRatio: '',
     transactionFee: '',
     maxStakedNfts: '',
-    perNftValueUsd: '',
     lendingWalletShare: '',
     treasuryWalletShare: '',
   });
@@ -143,7 +140,6 @@ export default function LendingAdminPage() {
             loanToValueRatio: (result.loanToValueRatioBps / 100).toString(),
             transactionFee: (result.transactionFeeBps / 100).toString(),
             maxStakedNfts: result.maxStakedNfts.toString(),
-            perNftValueUsd: result.perNftValueUsd.toString(),
             lendingWalletShare: (result.lendingWalletShareBps / 100).toString(),
             treasuryWalletShare: (result.treasuryWalletShareBps / 100).toString(),
           });
@@ -226,7 +222,6 @@ export default function LendingAdminPage() {
       const loanToValueRatio = parseFloat(formData.loanToValueRatio);
       const transactionFee = parseFloat(formData.transactionFee);
       const maxStakedNfts = parseInt(formData.maxStakedNfts);
-      const perNftValueUsd = parseFloat(formData.perNftValueUsd);
       const lendingWalletShare = parseFloat(formData.lendingWalletShare);
       const treasuryWalletShare = parseFloat(formData.treasuryWalletShare);
 
@@ -275,10 +270,6 @@ export default function LendingAdminPage() {
         toast.error('Max staked NFTs cannot be lower than currently staked NFTs');
         return;
       }
-      if (perNftValueUsd <= 0) {
-        toast.error('Per-NFT value must be greater than 0');
-        return;
-      }
       if (Math.abs(lendingWalletShare + treasuryWalletShare - 100) > 0.01) {
         toast.error('Revenue split percentages must add up to 100%');
         return;
@@ -302,7 +293,6 @@ export default function LendingAdminPage() {
           lendingWalletShareBps: Math.round(lendingWalletShare * 100),
           treasuryWalletShareBps: Math.round(treasuryWalletShare * 100),
           maxStakedNfts,
-          perNftValueUsd,
         }),
       });
 
@@ -1031,23 +1021,6 @@ export default function LendingAdminPage() {
                         Current: {config.currentStakedNfts} NFTs staked
                       </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Legacy Per-NFT Value (USD)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={formData.perNftValueUsd}
-                        onChange={(e) => updateFormData('perNftValueUsd', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Deprecated: Use collection-specific values instead
-                      </p>
-                    </div>
                   </div>
                 </div>
 
@@ -1295,7 +1268,6 @@ export default function LendingAdminPage() {
                     <h4 className="font-semibold text-gray-800">NFT Configuration</h4>
                     <div className="text-sm text-gray-600 space-y-1">
                       <p>Per-Collection Values: Set by collection USD prices</p>
-                      <p>Legacy Per-NFT Value: ${config.perNftValueUsd.toFixed(2)} (deprecated)</p>
                       <p>Max Staked: {config.maxStakedNfts.toLocaleString()}</p>
                       <p>Currently Staked: {config.currentStakedNfts.toLocaleString()}</p>
                       <p>Available: {(config.maxStakedNfts - config.currentStakedNfts).toLocaleString()}</p>
