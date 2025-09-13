@@ -316,8 +316,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         }
 
         // Check wallet NFT limit before proceeding
-        if (walletNftCount !== null && walletNftCount >= 5) {
-            setMintMessage("❌ Wallet limit reached! You can only mint 5 NFTs total per wallet across all collections.");
+        const maxAllowed = isWhiskeyGated ? 1 : 5;
+        if (walletNftCount !== null && walletNftCount >= maxAllowed) {
+            if (isWhiskeyGated) {
+                setMintMessage("❌ Wallet limit reached! You can only mint 1 NFT per wallet from whiskey-gated collections.");
+            } else {
+                setMintMessage("❌ Wallet limit reached! You can only mint 5 NFTs total per wallet across all collections.");
+            }
             return;
         }
 
@@ -855,10 +860,17 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 
                 // Check for specific error types
                 const walletLimitLog = error.logs.find((log: string) => log.includes("WalletNftLimitExceeded"));
+                const whiskeyGatedLimitLog = error.logs.find((log: string) => log.includes("WhiskeyGatedCollectionLimitExceeded"));
                 const collectionFullLog = error.logs.find((log: string) => log.includes("CollectionFull"));
                 const anchorErrorLog = error.logs.find((log: string) => log.startsWith("Program log: AnchorError"));
                 
-                if (walletLimitLog) {
+                if (whiskeyGatedLimitLog) {
+                    errorMsg = "❌ Wallet limit exceeded! You can only mint 1 NFT per wallet from whiskey-gated collections.";
+                    // Refresh wallet count to ensure UI is in sync
+                    if (walletNftCount !== null) {
+                        setWalletNftCount(1);
+                    }
+                } else if (walletLimitLog) {
                     errorMsg = "❌ Wallet limit exceeded! You can only mint 5 NFTs total per wallet.";
                     // Refresh wallet count to ensure UI is in sync
                     if (walletNftCount !== null) {
@@ -1236,7 +1248,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     {!connected && (
                         <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
                             <p className="text-xs text-gray-400 text-center">
-                                💡 <strong>Connect your wallet</strong> to see your minting limits (5 NFTs max per wallet) and purchase NFTs with WHISKEY tokens
+                                💡 <strong>Connect your wallet</strong> to see your minting limits {isWhiskeyGated ? '(1 NFT max per wallet for gated collections)' : '(5 NFTs max per wallet)'} and {isWhiskeyGated ? 'qualify with WHISKEY tokens' : 'purchase NFTs with WHISKEY tokens'}
                             </p>
                         </div>
                     )}

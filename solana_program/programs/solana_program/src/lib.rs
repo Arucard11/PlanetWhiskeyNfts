@@ -647,9 +647,21 @@ pub mod whiskeyprogram {
             return Err(ErrorCode::CollectionFull.into());
         }
 
-        // 2. Check wallet NFT limit per collection (max 5 per wallet per collection)
-        if ctx.accounts.wallet_nft_counter.nft_count >= 5 {
-            return Err(ErrorCode::WalletNftLimitExceeded.into());
+        // 2. Check wallet NFT limit per collection
+        let max_allowed = if ctx.accounts.collection_config.is_whiskey_gated {
+            1 // Whiskey-gated collections: 1 NFT per wallet (exclusive)
+        } else {
+            5 // Regular collections: 5 NFTs per wallet
+        };
+        
+        if ctx.accounts.wallet_nft_counter.nft_count >= max_allowed {
+            if ctx.accounts.collection_config.is_whiskey_gated {
+                msg!("❌ Wallet has already minted from this whiskey-gated collection");
+                msg!("  Whiskey-gated collections allow only 1 NFT per wallet");
+                return Err(ErrorCode::WhiskeyGatedCollectionLimitExceeded.into());
+            } else {
+                return Err(ErrorCode::WalletNftLimitExceeded.into());
+            }
         }
 
         // 3. Update counters
@@ -1069,6 +1081,8 @@ pub enum ErrorCode {
     NftUriTooLong,
     #[msg("Wallet has reached the maximum NFT limit of 5 per collection.")]
     WalletNftLimitExceeded,
+    #[msg("Wallet has already minted from this whiskey-gated collection. Only 1 NFT per wallet allowed.")]
+    WhiskeyGatedCollectionLimitExceeded,
     #[msg("Invalid mint price: WHISKEY amount does not match expected USD price.")]
     InvalidMintPrice,
     #[msg("Invalid amount specified")]
