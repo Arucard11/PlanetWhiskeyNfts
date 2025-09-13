@@ -147,14 +147,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create Solana transaction for whiskey-gated collection
     const connection = new Connection(process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com');
     
-    // Load admin keypair
-    const adminKeypairPath = path.join(process.env.HOME || '~', '.config/solana/admin-keypair.json');
-    const adminSecretKey = JSON.parse(fs.readFileSync(adminKeypairPath, 'utf8'));
-    const adminKeypair = Keypair.fromSecretKey(new Uint8Array(adminSecretKey));
+    // Get admin wallet address from environment (no private key needed)
+    const adminWallet = new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk');
 
     // Load Whiskey Program
     const whiskeyProgramId = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
-    const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(adminKeypair), {});
+    
+    // Create a temporary provider for transaction building (no signing)
+    const tempKeypair = Keypair.generate();
+    const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(tempKeypair), {});
     
     // Load IDL
     const idlPath = path.join(process.cwd(), 'src/lib/idl/whiskeyprogram.json');
@@ -196,7 +197,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Derive token account
     const [tokenAccount] = PublicKey.findProgramAddressSync(
       [
-        adminKeypair.publicKey.toBuffer(),
+        adminWallet.toBuffer(),
         new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA').toBuffer(),
         collectionMint.toBuffer(),
       ],
@@ -217,7 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         new anchor.BN(itemLimit)
       )
       .accounts({
-        admin: adminKeypair.publicKey,
+        admin: adminWallet,
         collectionConfig: collectionConfigPda,
         collectionMint: collectionMint,
         metadataAccount: metadataAccount,
@@ -235,12 +236,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Set recent blockhash
     const { blockhash } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
-    transaction.feePayer = adminKeypair.publicKey;
+    transaction.feePayer = adminWallet;
 
-    // Partial sign with admin keypair and collection mint
-    transaction.partialSign(adminKeypair, collectionMintKeypair);
+    // Only sign with the collection mint keypair (server-generated)
+    // The admin signature will be added client-side
+    transaction.partialSign(collectionMintKeypair);
 
-    // Serialize transaction
+    // Serialize transaction for client-side signing
     const serializedTransaction = transaction.serialize({
       requireAllSignatures: false,
       verifySignatures: false,
