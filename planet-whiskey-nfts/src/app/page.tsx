@@ -474,8 +474,8 @@ export default function Home() {
                 </Link>
               </motion.div>
 
-              {/* Regular Company Cards */}
-              {companies.map((company, index) => (
+              {/* Regular Company Cards - Filter out Whiskey Hodler Rewards since it has a special card */}
+              {companies.filter(company => company.name !== 'Whiskey Hodler Rewards').map((company, index) => (
                 <motion.div
                   key={company._id}
                   initial={{ opacity: 0, y: 60 }}
