@@ -1195,9 +1195,19 @@ export default function LendingAdminPage() {
                                 }`}>
                                   {collection.isApproved ? 'Approved' : 'Disapproved'}
                                 </span>
+                                {collection.isWhiskeyGated && (
+                                  <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                    🥃 Whiskey Gated
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm text-gray-500 mt-1">
                                 Value: ${collection.valueUsd.toFixed(2)} USD
+                                {collection.isWhiskeyGated && collection.requiredWhiskeyAmount > 0 && (
+                                  <span className="ml-2 text-amber-600">
+                                    • Requires {collection.requiredWhiskeyAmount} WHISKEY
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <button

@@ -3,9 +3,13 @@ import { withAdminAuth } from '@/lib/adminAuth';
 import { Connection, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import lendingprogramIdl from '@/lib/idl/lendingprogram.json';
+import whiskeyProgramIdl from '@/lib/idl/whiskeyprogram.json';
+import dbConnect from '@/lib/mongodb';
+import NftCollection from '@/models/NftCollection';
 
-// Program ID from environment variables
+// Program IDs from environment variables
 const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ');
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || 'Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM');
 
 // Collection Registry PDA seed (V2 - new registry with correct authority)
 const COLLECTION_REGISTRY_SEED = 'collection_registry_v2';
@@ -15,6 +19,8 @@ interface CollectionEntry {
   valueUsd: number;
   isApproved: boolean;
   addedAt: number;
+  isWhiskeyGated?: boolean;
+  requiredWhiskeyAmount?: number;
 }
 
 interface CollectionRegistry {
@@ -22,6 +28,33 @@ interface CollectionRegistry {
   collections: CollectionEntry[];
   nextRegistry: string | null;
   bump: number;
+}
+
+// Function to check if a collection is whiskey-gated by looking in the database
+async function checkWhiskeyGatedStatus(collectionMint: string): Promise<{isWhiskeyGated: boolean, requiredWhiskeyAmount: number}> {
+  try {
+    await dbConnect();
+    
+    // Look for a collection in the database that has this mint as its collection mint address
+    const collection = await NftCollection.findOne({ 
+      $or: [
+        { collectionMintAddress: collectionMint },
+        { collectionOnChainAddress: collectionMint }
+      ]
+    });
+
+    if (collection && collection.isWhiskeyGated) {
+      return { 
+        isWhiskeyGated: true, 
+        requiredWhiskeyAmount: collection.requiredWhiskeyAmount || 0 
+      };
+    }
+    
+    return { isWhiskeyGated: false, requiredWhiskeyAmount: 0 };
+  } catch (error) {
+    console.log(`Could not check whiskey-gated status for ${collectionMint}:`, error);
+    return { isWhiskeyGated: false, requiredWhiskeyAmount: 0 };
+  }
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -122,14 +155,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         console.log('✅ Successfully parsed Collection Registry:', registry);
 
+        // Augment collections with whiskey-gated information
+        const augmentedCollections = await Promise.all(
+          registry.collections.map(async (collection) => {
+            const whiskeyGatedInfo = await checkWhiskeyGatedStatus(collection.mint);
+            return {
+              ...collection,
+              isWhiskeyGated: whiskeyGatedInfo.isWhiskeyGated,
+              requiredWhiskeyAmount: whiskeyGatedInfo.requiredWhiskeyAmount
+            };
+          })
+        );
+
         res.status(200).json({
           success: true,
           message: 'Collection registry loaded successfully',
-          collections: registry.collections,
+          collections: augmentedCollections,
           registryPda: collectionRegistryPda.toString(),
           isInitialized: true,
-          totalCollections: registry.collections.length,
-          approvedCollections: registry.collections.filter(c => c.isApproved).length
+          totalCollections: augmentedCollections.length,
+          approvedCollections: augmentedCollections.filter(c => c.isApproved).length
         });
 
       } catch (error) {
