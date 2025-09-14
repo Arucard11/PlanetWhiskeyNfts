@@ -37,7 +37,6 @@ interface UserLendingData {
   availableToBorrow: number;
   depositedNfts: CollateralNft[];
   activeLoans: LoanInfo[];
-  healthRatio: number; // Collateral value / debt ratio
 }
 
 export default function MyLoansPage() {
@@ -310,11 +309,6 @@ export default function MyLoansPage() {
     }
   };
 
-  const getHealthColor = (ratio: number) => {
-    if (ratio > 1.5) return 'text-green-400';
-    if (ratio > 1.2) return 'text-yellow-400';
-    return 'text-red-400';
-  };
 
   const getLoanUrgencyStatus = (daysRemaining: number) => {
     if (daysRemaining <= 0) {
@@ -454,12 +448,6 @@ export default function MyLoansPage() {
               <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <h3 className="text-lg font-semibold text-gray-300 mb-2">Available to Borrow</h3>
                 <p className="text-3xl font-bold text-purple-400">${lendingData.availableToBorrow}</p>
-              </div>
-              <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <h3 className="text-lg font-semibold text-gray-300 mb-2">Health Ratio</h3>
-                <p className={`text-3xl font-bold ${getHealthColor(lendingData.healthRatio)}`}>
-                  {lendingData.healthRatio.toFixed(2)}x
-                </p>
               </div>
             </motion.div>
 

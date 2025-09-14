@@ -1366,26 +1366,31 @@
     },
     {
       "code": 6010,
+      "name": "WhiskeyGatedCollectionLimitExceeded",
+      "msg": "Wallet has already minted from this whiskey-gated collection. Only 1 NFT per wallet allowed."
+    },
+    {
+      "code": 6011,
       "name": "InvalidMintPrice",
       "msg": "Invalid mint price: WHISKEY amount does not match expected USD price."
     },
     {
-      "code": 6011,
+      "code": 6012,
       "name": "InvalidAmount",
       "msg": "Invalid amount specified"
     },
     {
-      "code": 6012,
+      "code": 6013,
       "name": "InsufficientFunds",
       "msg": "Insufficient funds in vault"
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "InvalidVault",
       "msg": "Invalid vault address"
     },
     {
-      "code": 6014,
+      "code": 6015,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     }

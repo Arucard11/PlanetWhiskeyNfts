@@ -738,63 +738,6 @@ export type Whiskeyprogram = {
       "args": []
     },
     {
-      "name": "initializeSuperAdmin",
-      "discriminator": [
-        104,
-        242,
-        235,
-        74,
-        225,
-        193,
-        166,
-        116
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "programAdminConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  103,
-                  114,
-                  97,
-                  109,
-                  95,
-                  115,
-                  117,
-                  112,
-                  101,
-                  114,
-                  95,
-                  97,
-                  100,
-                  109,
-                  105,
-                  110
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "mintNftWithSwap",
       "discriminator": [
         218,
@@ -1179,93 +1122,7 @@ export type Whiskeyprogram = {
         },
         {
           "name": "treasuryWhiskeyTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "treasuryWallet"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "whiskeyTokenMint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "treasuryWallet",
@@ -1449,19 +1306,6 @@ export type Whiskeyprogram = {
       ]
     },
     {
-      "name": "programAdminConfig",
-      "discriminator": [
-        140,
-        32,
-        187,
-        50,
-        249,
-        70,
-        153,
-        65
-      ]
-    },
-    {
       "name": "walletNftCounter",
       "discriminator": [
         43,
@@ -1498,38 +1342,38 @@ export type Whiskeyprogram = {
     },
     {
       "code": 6004,
-      "name": "unauthorizedSuperAdmin",
-      "msg": "Unauthorized: Caller is not the super admin."
-    },
-    {
-      "code": 6005,
       "name": "unauthorizedAdmin",
       "msg": "Unauthorized: Caller is not the admin wallet."
     },
     {
-      "code": 6006,
+      "code": 6005,
       "name": "collectionFull",
       "msg": "Collection is full. No more items can be minted."
     },
     {
-      "code": 6007,
+      "code": 6006,
       "name": "nftNameTooLong",
       "msg": "NFT Name too long."
     },
     {
-      "code": 6008,
+      "code": 6007,
       "name": "nftSymbolTooLong",
       "msg": "NFT Symbol too long."
     },
     {
-      "code": 6009,
+      "code": 6008,
       "name": "nftUriTooLong",
       "msg": "NFT URI too long."
     },
     {
-      "code": 6010,
+      "code": 6009,
       "name": "walletNftLimitExceeded",
       "msg": "Wallet has reached the maximum NFT limit of 5 per collection."
+    },
+    {
+      "code": 6010,
+      "name": "whiskeyGatedCollectionLimitExceeded",
+      "msg": "Wallet has already minted from this whiskey-gated collection. Only 1 NFT per wallet allowed."
     },
     {
       "code": 6011,
@@ -1604,6 +1448,14 @@ export type Whiskeyprogram = {
             "type": "u64"
           },
           {
+            "name": "isWhiskeyGated",
+            "type": "bool"
+          },
+          {
+            "name": "requiredWhiskeyAmount",
+            "type": "u64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -1638,22 +1490,6 @@ export type Whiskeyprogram = {
           {
             "name": "lastSwapTimestamp",
             "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "programAdminConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "superAdminKey",
-            "type": "pubkey"
           },
           {
             "name": "bump",

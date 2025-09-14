@@ -35,7 +35,6 @@ interface UserLendingData {
   availableToBorrow: number;
   depositedNfts: CollateralNft[];
   activeLoans: LoanInfo[];
-  healthRatio: number; // Collateral value / debt ratio
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -226,15 +225,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const totalDebt = totalDebtRaw / 1_000_000; // Convert from micro-dollars
       
       const availableToBorrow = Math.max(0, totalBorrowingPower - totalDebt);
-      const healthRatio = totalDebt > 0 ? totalBorrowingPower / totalDebt : 999; // High ratio if no debt
 
       userLendingData = {
         totalBorrowingPower,
         totalDebt,
         availableToBorrow,
         depositedNfts,
-        activeLoans,
-        healthRatio
+        activeLoans
       };
 
       console.log(`✅ Fetched real lending data for wallet: ${walletAddress}`, {
@@ -253,8 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         totalDebt: 0,
         availableToBorrow: 0,
         depositedNfts: [],
-        activeLoans: [],
-        healthRatio: 0
+        activeLoans: []
       };
     }
     
