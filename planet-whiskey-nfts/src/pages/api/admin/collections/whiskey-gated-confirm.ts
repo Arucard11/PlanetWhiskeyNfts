@@ -22,15 +22,28 @@ export default withAdminAuth(async function handler(req: NextApiRequest, res: Ne
       itemLimit
     } = req.body;
 
-    // Create or find the Whiskey Hodler Rewards company
-    let whiskeyCompany = await Company.findOne({ name: 'Whiskey Hodler Rewards' });
+    // Get company name from environment or use default
+    const masterDistillerCompanyName = process.env.MASTER_DISTILLER_COMPANY_NAME || 'Master Distiller Rewards';
+    
+    // Find the Master Distiller Rewards company - it MUST exist
+    // First check for old name and update it if found
+    const oldCompany = await Company.findOne({ name: 'Whiskey Hodler Rewards' });
+    if (oldCompany) {
+      oldCompany.name = masterDistillerCompanyName;
+      oldCompany.description = 'NFT collections for WHISKEY token holders with special perks and free mints.';
+      await oldCompany.save();
+      console.log(`✨ Updated old Whiskey Hodler Rewards to ${masterDistillerCompanyName}`);
+    }
+    
+    let whiskeyCompany = await Company.findOne({ name: masterDistillerCompanyName });
     if (!whiskeyCompany) {
-      whiskeyCompany = new Company({
-        name: 'Whiskey Hodler Rewards',
-        description: 'Exclusive NFT collections for WHISKEY token holders with special perks and free mints.'
+      // Company doesn't exist - this should not happen in production
+      // Return an error instead of creating a new one
+      console.error('❌ Master Distiller Rewards company not found in database!');
+      return res.status(500).json({
+        message: `${masterDistillerCompanyName} company not found. Please add it to the database first.`,
+        instruction: `Run: db.companies.insertOne({name: "${masterDistillerCompanyName}", description: "NFT collections for WHISKEY token holders with special perks and free mints.", createdAt: new Date()})`
       });
-      await whiskeyCompany.save();
-      console.log('✨ Created new Whiskey Hodler Rewards company');
     }
     
     const companyId = whiskeyCompany._id.toString();

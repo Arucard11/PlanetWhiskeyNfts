@@ -315,15 +315,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // Check wallet NFT limit before proceeding
-        const maxAllowed = isWhiskeyGated ? 1 : 5;
-        if (walletNftCount !== null && walletNftCount >= maxAllowed) {
-            if (isWhiskeyGated) {
-                setMintMessage("❌ Wallet limit reached! You can only mint 1 NFT per wallet from whiskey-gated collections.");
-            } else {
+        // Check wallet NFT limit before proceeding (only for regular collections)
+        if (!isWhiskeyGated) {
+            const maxAllowed = 5;
+            if (walletNftCount !== null && walletNftCount >= maxAllowed) {
                 setMintMessage("❌ Wallet limit reached! You can only mint 5 NFTs total per wallet across all collections.");
+                return;
             }
-            return;
         }
 
         // Prevent multiple simultaneous minting attempts
@@ -1062,7 +1060,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 </div>
 
                 {/* Wallet Limit Information */}
-                {connected && publicKey && (
+                {connected && publicKey && !isWhiskeyGated && (
                     <div className="mb-6">
                         <div className={`border rounded-xl p-4 text-center ${
                             walletNftCount !== null && walletNftCount >= 5 
@@ -1208,14 +1206,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             isMinting || 
                             supplyRemaining <= 0 || 
                             !publicKey || 
-                            (walletNftCount !== null && walletNftCount >= 5) ||
-                            isCheckingWalletLimit ||
+                            (!isWhiskeyGated && walletNftCount !== null && walletNftCount >= 5) ||
+                            (!isWhiskeyGated && isCheckingWalletLimit) ||
                             (isWhiskeyGated && isCheckingWhiskeyBalance) ||
                             (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) ||
                             (!isWhiskeyGated && (!whiskeyRate || priceLoading))
                         }
                         className={`w-full font-sans font-black text-lg py-4 px-5 rounded-2xl transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-lg hover:shadow-2xl 
-                            ${isMinting || supplyRemaining <= 0 || !publicKey || (walletNftCount !== null && walletNftCount >= 5) || isCheckingWalletLimit || (isWhiskeyGated && isCheckingWhiskeyBalance) || (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) || (!isWhiskeyGated && (!whiskeyRate || priceLoading))
+                            ${isMinting || supplyRemaining <= 0 || !publicKey || (!isWhiskeyGated && walletNftCount !== null && walletNftCount >= 5) || (!isWhiskeyGated && isCheckingWalletLimit) || (isWhiskeyGated && isCheckingWhiskeyBalance) || (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) || (!isWhiskeyGated && (!whiskeyRate || priceLoading))
                                 ? 'bg-slate-700 text-gray-500 cursor-not-allowed'
                                 : isWhiskeyGated 
                                     ? 'text-black bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
@@ -1223,12 +1221,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             }`}
                     >
                         {isMinting ? "Processing..." : 
-                         isCheckingWalletLimit ? "Checking Limits..." :
+                         !isWhiskeyGated && isCheckingWalletLimit ? "Checking Limits..." :
                          isWhiskeyGated && isCheckingWhiskeyBalance ? "Checking WHISKEY Balance..." :
                          isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount ? `Need ${(requiredWhiskeyAmount - userWhiskeyBalance).toLocaleString()} More WHISKEY` :
                          !isWhiskeyGated && priceLoading ? "Loading Price..." :
                          !isWhiskeyGated && !whiskeyRate ? "Price Unavailable" :
-                         (walletNftCount !== null && walletNftCount >= 5) ? "Wallet Limit Reached (5/5)" :
+                         !isWhiskeyGated && (walletNftCount !== null && walletNftCount >= 5) ? "Wallet Limit Reached (5/5)" :
                          (supplyRemaining <= 0 && displayItemLimit > 0) ? "Collection Sold Out" : 
                          isWhiskeyGated ? "🎉 Mint FREE NFT" : "Mint NFT"}
                     </button>
@@ -1248,7 +1246,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     {!connected && (
                         <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
                             <p className="text-xs text-gray-400 text-center">
-                                💡 <strong>Connect your wallet</strong> to see your minting limits {isWhiskeyGated ? '(1 NFT max per wallet for gated collections)' : '(5 NFTs max per wallet)'} and {isWhiskeyGated ? 'qualify with WHISKEY tokens' : 'purchase NFTs with WHISKEY tokens'}
+                                💡 <strong>Connect your wallet</strong> to {isWhiskeyGated ? 'qualify with WHISKEY tokens and mint NFTs (⚠️ 1 NFT max per wallet)' : 'see your minting limits (5 NFTs max per wallet) and purchase NFTs with WHISKEY tokens'}
+                            </p>
+                        </div>
+                    )}
+                    
+                    {/* Warning for connected wallets on whiskey-gated collections */}
+                    {connected && isWhiskeyGated && (
+                        <div className="mt-4 p-3 bg-amber-900/20 rounded-lg border border-amber-700/40">
+                            <p className="text-xs text-amber-400 text-center">
+                                ⚠️ <strong>Master Distiller Collections:</strong> You can only mint 1 NFT per wallet
                             </p>
                         </div>
                     )}

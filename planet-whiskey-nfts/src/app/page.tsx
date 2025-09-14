@@ -386,11 +386,6 @@ export default function Home() {
                     {/* Special glow effect */}
                     <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
                     
-                    {/* Premium Badge */}
-                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-black px-3 py-1 rounded-full text-sm font-bold shadow-lg z-10">
-                      <Trophy className="w-4 h-4 inline mr-1" />
-                      EXCLUSIVE
-                    </div>
                     
                     {/* Background pattern */}
                     <div className="absolute inset-0 opacity-5">
@@ -400,24 +395,30 @@ export default function Home() {
                     <div className="relative z-10">
                       {/* Icon */}
                       <motion.div 
-                        className="w-20 h-20 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 shadow-2xl shadow-amber-500/40 mx-auto"
+                        className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 shadow-2xl mx-auto overflow-hidden"
                         whileHover={{ 
                           rotate: 5,
                           scale: 1.1
                         }}
                         transition={{ type: "spring", stiffness: 400 }}
                       >
-                        <Trophy className="w-10 h-10 text-black" />
+                        <Image
+                          src="/disteller.jpg"
+                          alt="Master Distiller"
+                          width={80}
+                          height={80}
+                          className="rounded-2xl object-cover"
+                        />
                       </motion.div>
                       
                       {/* Title */}
                       <h3 className="text-2xl font-bold text-center mb-4 bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 bg-clip-text text-transparent">
-                        Whiskey Hodler Rewards
+                        Master Distiller Rewards
                       </h3>
                       
                       {/* Description */}
                       <p className="text-gray-400 text-center leading-relaxed mb-6">
-                        Exclusive NFT collections for WHISKEY token holders with <span className="text-green-400 font-semibold">FREE mints</span>.
+                        NFT collections for WHISKEY token holders with <span className="text-green-400 font-semibold">FREE mints</span>.
                       </p>
                       
                       {/* Features */}
@@ -432,7 +433,7 @@ export default function Home() {
                         </div>
                         <div className="flex items-center text-sm text-gray-300">
                           <Shield className="w-4 h-4 text-amber-400 mr-2" />
-                          Exclusive Access
+                          Premium Access
                         </div>
                       </div>
                       
@@ -474,8 +475,11 @@ export default function Home() {
                 </Link>
               </motion.div>
 
-              {/* Regular Company Cards - Filter out Whiskey Hodler Rewards since it has a special card */}
-              {companies.filter(company => company.name !== 'Whiskey Hodler Rewards').map((company, index) => (
+              {/* Regular Company Cards - Filter out Master Distiller Rewards since it has a special card */}
+              {companies.filter(company => 
+                company.name !== 'Master Distiller Rewards' && 
+                company.name !== 'Whiskey Hodler Rewards'
+              ).map((company, index) => (
                 <motion.div
                   key={company._id}
                   initial={{ opacity: 0, y: 60 }}

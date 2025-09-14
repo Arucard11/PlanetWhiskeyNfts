@@ -110,13 +110,13 @@ export default function WhiskeyRewardsPage() {
                     <div className="flex items-center justify-center mb-6">
                         <Trophy className="w-16 h-16 text-amber-400 mr-4" />
                         <h1 className="text-6xl font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-amber-600 bg-clip-text text-transparent">
-                            Whiskey Hodler Rewards
+                            Master Distiller Rewards
                         </h1>
                         <Trophy className="w-16 h-16 text-amber-400 ml-4" />
                     </div>
                     
                     <p className="text-xl text-gray-300 max-w-4xl mx-auto mb-8">
-                        Exclusive NFT collections for true whiskey connoisseurs. Hold WHISKEY tokens to unlock access to premium collections and special rewards.
+                        NFT collections for true whiskey connoisseurs. Hold WHISKEY tokens to unlock access to premium collections and special rewards.
                     </p>
 
                     {/* Features */}

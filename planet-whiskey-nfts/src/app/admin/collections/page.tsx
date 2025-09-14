@@ -31,6 +31,7 @@ export default function ManageCollectionsPage() {
   const [nftBaseDescription, setNftBaseDescription] = useState('');
   
   const [collectionImage, setCollectionImage] = useState<File | null>(null);
+  const [collectionImageConfirmed, setCollectionImageConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [whiskeyRate, setWhiskeyRate] = useState<number | null>(null);
   const [calculatedWhiskeyAmount, setCalculatedWhiskeyAmount] = useState<string>('');
@@ -44,6 +45,7 @@ export default function ManageCollectionsPage() {
   const [requiredWhiskeyAmount, setRequiredWhiskeyAmount] = useState('');
   const [whiskeyGatedItemLimit, setWhiskeyGatedItemLimit] = useState('');
   const [whiskeyGatedImage, setWhiskeyGatedImage] = useState<File | null>(null);
+  const [whiskeyGatedImageConfirmed, setWhiskeyGatedImageConfirmed] = useState(false);
   const [isSubmittingWhiskeyGated, setIsSubmittingWhiskeyGated] = useState(false);
   const [createdCollectionMint, setCreatedCollectionMint] = useState<string | null>(null);
 
@@ -98,6 +100,32 @@ export default function ManageCollectionsPage() {
 
     calculateWhiskeyAmount();
   }, [mintPriceUsd, whiskeyRate]);
+
+  // Handle regular collection image upload
+  const handleCollectionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setCollectionImage(file);
+    if (file) {
+      setCollectionImageConfirmed(true);
+      // Auto-hide confirmation after 3 seconds
+      setTimeout(() => setCollectionImageConfirmed(false), 3000);
+    } else {
+      setCollectionImageConfirmed(false);
+    }
+  };
+
+  // Handle whiskey-gated collection image upload
+  const handleWhiskeyGatedImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setWhiskeyGatedImage(file);
+    if (file) {
+      setWhiskeyGatedImageConfirmed(true);
+      // Auto-hide confirmation after 3 seconds
+      setTimeout(() => setWhiskeyGatedImageConfirmed(false), 3000);
+    } else {
+      setWhiskeyGatedImageConfirmed(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -251,6 +279,20 @@ export default function ManageCollectionsPage() {
       return;
     }
 
+    // Additional wallet connection verification
+    console.log('🔐 Wallet connection status:', {
+      publicKey: publicKey.toString(),
+      hasSignTransaction: !!signTransaction,
+      walletConnected: !!publicKey,
+      signTransactionType: typeof signTransaction
+    });
+
+    // Test if signTransaction is actually callable
+    if (!signTransaction || typeof signTransaction !== 'function') {
+      alert('❌ Wallet signing function is not available. Please disconnect and reconnect your wallet.');
+      return;
+    }
+
     setIsSubmittingWhiskeyGated(true);
     setCreatedCollectionMint(null);
 
@@ -281,12 +323,57 @@ export default function ManageCollectionsPage() {
 
       if (responseData.success && responseData.transactionData) {
         console.log('✅ Transaction data received, sending to wallet...');
+        console.log('📊 Response data:', {
+          hasTransactionData: !!responseData.transactionData,
+          collectionMint: responseData.collectionMint,
+          transactionDataLength: responseData.transactionData.length
+        });
         
         // Create transaction from the response
+        console.log('🔄 Creating transaction from base64 data...');
         const transaction = Transaction.from(Buffer.from(responseData.transactionData, 'base64'));
+        console.log('📋 Transaction created:', {
+          signatures: transaction.signatures.length,
+          instructions: transaction.instructions.length,
+          feePayer: transaction.feePayer?.toString(),
+          recentBlockhash: transaction.recentBlockhash
+        });
+
+        // Ensure the transaction has the correct feePayer (should be the connected wallet)
+        if (!transaction.feePayer || transaction.feePayer.toString() !== publicKey.toString()) {
+          console.log('🔧 Setting feePayer to connected wallet...');
+          transaction.feePayer = publicKey;
+        }
+
+        // Get fresh blockhash if needed
+        if (!transaction.recentBlockhash) {
+          console.log('🔄 Getting fresh blockhash...');
+          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+          const { blockhash } = await connection.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+        }
         
         // Sign and send transaction
-        const signedTransaction = await signTransaction(transaction);
+        console.log('🖊️ Requesting wallet signature...');
+        console.log('🔍 Transaction details before signing:', {
+          feePayer: transaction.feePayer?.toString(),
+          recentBlockhash: transaction.recentBlockhash,
+          instructionCount: transaction.instructions.length,
+          signaturesRequired: transaction.signatures.length
+        });
+        
+        let signedTransaction;
+        try {
+          // Add a small delay to ensure UI is ready
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          signedTransaction = await signTransaction(transaction);
+          console.log('✅ Transaction signed by wallet');
+        } catch (signError) {
+          console.error('❌ Error signing transaction:', signError);
+          console.error('❌ Full error object:', signError);
+          throw new Error(`Failed to sign transaction: ${signError instanceof Error ? signError.message : 'Unknown signing error'}`);
+        }
         const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
@@ -609,11 +696,19 @@ export default function ManageCollectionsPage() {
             <input
               type="file"
               id="collectionImage"
-              onChange={(e) => setCollectionImage(e.target.files?.[0] || null)}
+              onChange={handleCollectionImageChange}
               accept="image/*,video/*,.gif,.mp4,.webm,.mov,.avi"
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-whiskey-brown focus:border-whiskey-brown"
             />
+            {collectionImageConfirmed && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-700 flex items-center">
+                  <span className="mr-2">✅</span>
+                  Image received and ready for collection creation!
+                </p>
+              </div>
+            )}
             <p className={helperTextClass}>Upload an image, GIF, or video to represent this collection (supports JPG, PNG, GIF, MP4, WebM)</p>
           </div>
 
@@ -736,12 +831,20 @@ export default function ManageCollectionsPage() {
               <input
                 type="file"
                 id="whiskeyGatedImage"
-                onChange={(e) => setWhiskeyGatedImage(e.target.files?.[0] || null)}
+                onChange={handleWhiskeyGatedImageChange}
                 accept="image/*,video/*,.gif,.mp4,.webm,.mov,.avi"
                 required
                 className="w-full px-3 py-2 border border-amber-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
-              <p className={helperTextClass}>Upload an image, GIF, or video for this exclusive collection</p>
+              {whiskeyGatedImageConfirmed && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm text-green-700 flex items-center">
+                    <span className="mr-2">✅</span>
+                    Image received and ready for Master Distiller collection creation!
+                  </p>
+                </div>
+              )}
+              <p className={helperTextClass}>Upload an image, GIF, or video for this Master Distiller collection</p>
             </div>
 
             {/* Important Notice */}
