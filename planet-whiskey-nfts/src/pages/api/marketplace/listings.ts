@@ -131,47 +131,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               const onChainExists = await verifyListingExistsOnChain(connection, listing.sellerWalletAddress, listing.nftMintAddress);
               if (!onChainExists) return null;
               
-              const nftMint = new PublicKey(listing.nftMintAddress);
-              const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint });
-              
-              let loadedJson = nft.json;
-              if (!loadedJson) {
-                // Use our server-side proxy to fetch the metadata (same as NftCollectionCard)
-                console.log(`[marketplace-listings] NFT JSON not pre-loaded for ${listing.nftMintAddress}. Fetching from URI: ${nft.uri}`);
-                try {
-                  loadedJson = await fetchMetadataWithProxy(nft.uri);
-                  if (loadedJson) {
-                    console.log(`[marketplace-listings] Successfully fetched metadata for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
-                  } else {
-                    console.warn(`[marketplace-listings] Failed to fetch metadata for ${listing.nftMintAddress} using proxy`);
-                  }
-                } catch (e) {
-                  console.error(`[marketplace-listings] Error fetching metadata for ${listing.nftMintAddress} from ${nft.uri}`, e);
-                }
-              } else {
-                console.log(`[marketplace-listings] NFT JSON was pre-loaded for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
-              }
-
-              // Convert image URL to use our proxy to avoid CORS issues
-              let imageUrl = loadedJson?.image || '/placeholder-image.svg';
-              if (imageUrl && imageUrl.startsWith('ipfs://')) {
-                const hash = imageUrl.substring(7);
-                imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                console.log(`[marketplace-listings] Converted image URL to proxy: ${imageUrl}`);
-              } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
-                imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-                console.log(`[marketplace-listings] Converted Pinata URL to proxy: ${imageUrl}`);
-              }
-
+              // Use stored metadata from database instead of fetching from blockchain
               return {
                 ...listing,
                 _id: listing._id.toString(),
-                nftName: loadedJson?.name || 'Unknown NFT',
-                nftImageUrl: imageUrl,
-                collectionName: collection?.name || loadedJson?.collection?.name || 'Unknown',
+                nftName: listing.nftName || 'Unknown NFT',
+                nftImageUrl: listing.nftImageUrl || '/placeholder-image.svg',
+                collectionName: listing.collectionName || collection?.name || 'Unknown Collection',
               };
             } catch (e) {
-              console.error(`Error loading NFT metadata for ${listing.nftMintAddress}:`, e);
+              console.error(`Error processing listing for ${listing.nftMintAddress}:`, e);
               return null;
             }
           })

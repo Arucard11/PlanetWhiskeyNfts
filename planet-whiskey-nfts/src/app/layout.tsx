@@ -8,6 +8,13 @@ import Footer from "@/components/Footer"; // Corrected Import the Footer
 import Navbar from "@/components/layout/Navbar"; // Added Navbar import
 import { Toaster } from 'react-hot-toast';
 
+// Auto-start liquidation bot (server-side only)
+if (typeof window === 'undefined') {
+  import('@/lib/liquidation-bot-manager').then(({ getLiquidationBotManager }) => {
+    getLiquidationBotManager();
+  }).catch(console.error);
+}
+
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
 //   subsets: ["latin"],

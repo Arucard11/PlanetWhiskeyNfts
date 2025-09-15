@@ -7,6 +7,9 @@ export interface IMarketplaceListing extends Document {
   priceInWhiskey: number;
   listingStatus: 'active' | 'sold' | 'cancelled';
   transactionSignature: string; // Signature of the on-chain listing transaction
+  nftName: string; // Store NFT name to avoid repeated metadata fetching
+  nftImageUrl: string; // Store processed image URL
+  collectionName: string; // Store collection name
   createdAt: Date;
 }
 
@@ -17,6 +20,9 @@ const MarketplaceListingSchema: Schema = new Schema({
   priceInWhiskey: { type: Number, required: true },
   listingStatus: { type: String, enum: ['active', 'sold', 'cancelled'], default: 'active' },
   transactionSignature: { type: String, required: true, unique: true },
+  nftName: { type: String, required: true }, // Store NFT name
+  nftImageUrl: { type: String, required: true }, // Store processed image URL
+  collectionName: { type: String, required: true }, // Store collection name
   createdAt: { type: Date, default: Date.now },
 });
 

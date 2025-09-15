@@ -121,7 +121,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     console.log(`[my-nfts] Loaded ${allOwnedNfts.length} full NFT objects.`);
 
 
-    const allCollectionsInDB = await NftCollection.find({}).lean() as INftCollection[];
+    // Exclude whiskey-gated collections from lending page
+    const allCollectionsInDB = await NftCollection.find({
+      isWhiskeyGated: { $ne: true } // Only show non-whiskey-gated collections for lending
+    }).lean() as INftCollection[];
     console.log(`[my-nfts] Found ${allCollectionsInDB.length} collections in the database.`);
 
     const allNfts = (await Promise.all(allOwnedNfts.map(async (nft) => {

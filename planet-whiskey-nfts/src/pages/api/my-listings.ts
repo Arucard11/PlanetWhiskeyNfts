@@ -158,50 +158,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             return null;
           }
 
-          // Get NFT metadata
-          const nftMint = new PublicKey(listing.nftMintAddress);
-          const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint });
-          
-          let loadedJson = nft.json;
-          if (!loadedJson) {
-            // Use our server-side proxy to fetch the metadata (same as NftCollectionCard)
-            console.log(`[my-listings] NFT JSON not pre-loaded for ${listing.nftMintAddress}. Fetching from URI: ${nft.uri}`);
-            try {
-              loadedJson = await fetchMetadataWithProxy(nft.uri);
-              if (loadedJson) {
-                console.log(`[my-listings] Successfully fetched metadata for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
-              } else {
-                console.warn(`[my-listings] Failed to fetch metadata for ${listing.nftMintAddress} using proxy`);
-              }
-            } catch (e) {
-              console.error(`[my-listings] Error fetching metadata for ${listing.nftMintAddress} from ${nft.uri}`, e);
-            }
-          } else {
-            console.log(`[my-listings] NFT JSON was pre-loaded for ${listing.nftMintAddress}. Image URL: ${loadedJson?.image}`);
-          }
-
-          // Get collection info
-          const collection = await NftCollection.findOne({ 
-            collectionMintAddress: listing.collectionMintAddress 
-          }).lean();
-
-          // Convert image URL to use our proxy to avoid CORS issues
-          let imageUrl = loadedJson?.image || '';
-          if (imageUrl && imageUrl.startsWith('ipfs://')) {
-            const hash = imageUrl.substring(7);
-            imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-            console.log(`[my-listings] Converted image URL to proxy: ${imageUrl}`);
-          } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
-            imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-            console.log(`[my-listings] Converted Pinata URL to proxy: ${imageUrl}`);
-          }
-
+          // Use stored metadata from database instead of fetching from blockchain
           return {
             ...listing,
             _id: listing._id.toString(),
-            nftName: loadedJson?.name || 'Unknown NFT',
-            nftImageUrl: imageUrl,
-            collectionName: collection?.name || 'Unknown Collection',
+            nftName: listing.nftName || 'Unknown NFT',
+            nftImageUrl: listing.nftImageUrl || '/placeholder-image.svg',
+            collectionName: listing.collectionName || 'Unknown Collection',
             priceInWhiskey: listing.priceInWhiskey,
           };
         } catch (error) {

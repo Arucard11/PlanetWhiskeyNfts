@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import dbConnect from '../../../lib/mongodb';
 import MarketplaceListing from '../../../models/MarketplaceListing';
+import NftCollection from '../../../models/NftCollection';
 import { getMarketplaceProgram } from '@/lib/solanaUtils'; // Use the utility
 import { BorshInstructionCoder } from '@coral-xyz/anchor';
+import { Metaplex } from '@metaplex-foundation/js';
 
 async function verifyListTransaction(
     connection: Connection,
@@ -242,7 +244,66 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     await dbConnect();
     console.log(`[LIST_SAVE_API] ✅ Database connection established`);
 
-    console.log(`[LIST_SAVE_API] 💾 Creating new listing document...`);
+    console.log(`[LIST_SAVE_API] 🔍 Fetching NFT metadata for listing...`);
+    // Fetch NFT metadata to store in the database
+    let nftName = 'Unknown NFT';
+    let nftImageUrl = '/placeholder-image.svg';
+    let collectionName = 'Unknown Collection';
+    
+    try {
+      const connection = new Connection(rpcUrl, 'confirmed');
+      const metaplex = Metaplex.make(connection);
+      
+      const nftMint = new PublicKey(nftMintAddress);
+      const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint });
+      
+      let loadedJson = nft.json;
+      if (!loadedJson) {
+        console.log(`[LIST_SAVE_API] NFT JSON not pre-loaded for ${nftMintAddress}. Fetching from URI: ${nft.uri}`);
+        try {
+          const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+          const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(nft.uri)}`;
+          const response = await fetch(apiUrl);
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              loadedJson = result.data;
+              console.log(`[LIST_SAVE_API] Successfully fetched metadata for ${nftMintAddress}`);
+            }
+          }
+        } catch (e) {
+          console.error(`[LIST_SAVE_API] Error fetching metadata for ${nftMintAddress}:`, e);
+        }
+      }
+      
+      if (loadedJson) {
+        nftName = loadedJson.name || 'Unknown NFT';
+        
+        // Process image URL
+        let imageUrl = loadedJson.image || '/placeholder-image.svg';
+        if (imageUrl && imageUrl.startsWith('ipfs://')) {
+          const hash = imageUrl.substring(7);
+          nftImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+        } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+          nftImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+        } else {
+          nftImageUrl = imageUrl;
+        }
+      }
+      
+      // Get collection name from database
+      const collection = await NftCollection.findOne({ collectionMintAddress }).lean();
+      if (collection) {
+        collectionName = collection.name;
+      }
+      
+    } catch (error) {
+      console.error(`[LIST_SAVE_API] Error fetching NFT metadata:`, error);
+      // Continue with default values
+    }
+
+    console.log(`[LIST_SAVE_API] 💾 Creating new listing document with metadata...`);
     const newListing = new MarketplaceListing({
         nftMintAddress,
         sellerWalletAddress,
@@ -250,6 +311,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         priceInWhiskey: price,
         listingStatus: 'active',
         transactionSignature: signature,
+        nftName,
+        nftImageUrl,
+        collectionName,
     });
 
     console.log(`[LIST_SAVE_API] 📄 Listing document created:`, {
@@ -258,6 +322,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         collectionMintAddress: newListing.collectionMintAddress,
         priceInWhiskey: newListing.priceInWhiskey,
         listingStatus: newListing.listingStatus,
+        nftName: newListing.nftName,
+        collectionName: newListing.collectionName,
+        nftImageUrl: newListing.nftImageUrl,
         transactionSignature: newListing.transactionSignature ? 
             `${newListing.transactionSignature.substring(0, 20)}...` : 'undefined'
     });

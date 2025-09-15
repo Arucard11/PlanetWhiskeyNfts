@@ -521,8 +521,8 @@ export default function BorrowPage() {
               <p className="text-3xl font-bold text-blue-400">{borrowingStats.ltvRatio / 100}%</p>
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">Current Borrowing Power</h3>
-              <p className="text-3xl font-bold text-purple-400">${borrowingStats.currentBorrowingPower}</p>
+              <h3 className="text-lg font-semibold text-gray-300 mb-2">Available to Borrow</h3>
+              <p className="text-3xl font-bold text-purple-400">${borrowingStats.availableToBorrow}</p>
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h3 className="text-lg font-semibold text-gray-300 mb-2">Deposited NFTs</h3>
@@ -732,7 +732,7 @@ export default function BorrowPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Borrowing Power:</span>
-                    <span className="text-white font-medium">${borrowingStats.currentBorrowingPower.toFixed(2)}</span>
+                    <span className="text-white font-medium">${borrowingStats.availableToBorrow.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Current Debt:</span>

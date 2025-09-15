@@ -55,8 +55,8 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
       return;
     }
 
-    // Convert to smallest unit for on-chain operations (multiply by 10^9 for whiskey tokens)
-    const priceInSmallestUnit = Math.floor(priceNumber * 1_000_000_000);
+    // Convert to smallest unit for on-chain operations (multiply by 10^6 for whiskey tokens)
+    const priceInSmallestUnit = Math.floor(priceNumber * 1_000_000);
     console.log(`[LIST_NFT_MODAL] 💰 Price conversion:`, {
       userInput: price,
       parsedNumber: priceNumber,

@@ -224,12 +224,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const totalDebtRaw = Number(borrowerAccount.totalDebtUsd);
       const totalDebt = totalDebtRaw / 1_000_000; // Convert from micro-dollars
       
-      const availableToBorrow = Math.max(0, totalBorrowingPower - totalDebt);
+      // SECURITY FIX: Only show borrowing power if user has deposited NFTs
+      const safeBorrowingPower = depositedNfts.length > 0 ? totalBorrowingPower : 0;
+      const safeAvailableToBorrow = depositedNfts.length > 0 ? Math.max(0, totalBorrowingPower - totalDebt) : 0;
 
       userLendingData = {
-        totalBorrowingPower,
+        totalBorrowingPower: safeBorrowingPower,
         totalDebt,
-        availableToBorrow,
+        availableToBorrow: safeAvailableToBorrow,
         depositedNfts,
         activeLoans
       };

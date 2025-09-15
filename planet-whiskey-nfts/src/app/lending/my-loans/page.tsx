@@ -435,12 +435,8 @@ export default function MyLoansPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
             >
-              <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <h3 className="text-lg font-semibold text-gray-300 mb-2">Total Borrowing Power</h3>
-                <p className="text-3xl font-bold text-green-400">${lendingData.totalBorrowingPower}</p>
-              </div>
               <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <h3 className="text-lg font-semibold text-gray-300 mb-2">Total Debt</h3>
                 <p className="text-3xl font-bold text-red-400">${lendingData.totalDebt}</p>
