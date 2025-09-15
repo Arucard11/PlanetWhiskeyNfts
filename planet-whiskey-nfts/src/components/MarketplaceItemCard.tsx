@@ -13,6 +13,7 @@ export interface MarketplaceItemCardProps {
   priceInWhiskey: number;
   nftName: string;
   nftImageUrl: string;
+  nftMetadataUri?: string; // Add metadata URI for robust fetching
   collectionName: string;
   onPurchaseSuccess: () => void;
 }
@@ -23,11 +24,60 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
   sellerWalletAddress,
   priceInWhiskey,
   nftName,
-  nftImageUrl,
+  nftImageUrl: initialImageUrl,
+  nftMetadataUri,
   collectionName,
   onPurchaseSuccess,
 }) => {
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState(initialImageUrl || '/placeholder-image.svg');
+
+  // Fetch metadata using the robust endpoint like NftCollectionCard
+  React.useEffect(() => {
+    const fetchMetadata = async () => {
+      if (!nftMetadataUri) {
+        console.log(`[MarketplaceItemCard] No metadataUri for ${nftName}, using initial imageUrl:`, initialImageUrl);
+        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        return;
+      }
+
+      try {
+        console.log(`[MarketplaceItemCard] Fetching metadata for ${nftName} from:`, nftMetadataUri);
+        
+        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(nftMetadataUri)}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          console.warn(`[MarketplaceItemCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          return;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[MarketplaceItemCard] API returned error: ${result.message}`);
+          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          return;
+        }
+
+        const metadata = result.data;
+        console.log(`[MarketplaceItemCard] Successfully fetched metadata for ${nftName}:`, metadata);
+
+        if (metadata.image) {
+          console.log(`[MarketplaceItemCard] Setting robust image URL for ${nftName}:`, metadata.image);
+          setImageUrl(metadata.image);
+        } else {
+          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        }
+        
+      } catch (error) {
+        console.error(`[MarketplaceItemCard] Error fetching metadata for ${nftName}:`, error);
+        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+      }
+    };
+
+    fetchMetadata();
+  }, [nftMetadataUri, nftName, initialImageUrl]);
 
   const handleConfirmPurchase = () => {
     console.log("Purchase confirmed for:", nftMintAddress);
@@ -42,9 +92,9 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
           layout
         >
           <div className="relative w-full h-56 sm:h-64 bg-slate-800 rounded-t-3xl overflow-hidden">
-            {nftImageUrl ? (
+            {imageUrl ? (
               <MediaWithFallback
-                src={nftImageUrl}
+                src={imageUrl}
                 alt={`Media of ${nftName}`}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
@@ -81,7 +131,7 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <div className="text-center">
                   <p className="text-amber-400/80 text-sm font-medium">Price</p>
-                  <p className="text-2xl font-bold text-amber-300">{(priceInWhiskey / 1e6).toFixed(0)} <span className="text-sm">WHISKEY</span></p>
+                  <p className="text-2xl font-bold text-white">{(priceInWhiskey / 1e6).toFixed(0)} <span className="text-sm text-white">WHISKEY</span></p>
                 </div>
                 <div className="flex items-center text-amber-200/60 text-sm">
                   <Tag className="h-4 w-4 mr-1" />
@@ -105,7 +155,7 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
             onClose={() => setIsBuyModalOpen(false)}
             nftMintAddress={nftMintAddress}
             nftName={nftName}
-            nftImageUrl={nftImageUrl}
+            nftImageUrl={imageUrl}
             collectionName={collectionName}
             priceInWhiskey={priceInWhiskey}
             onPurchaseSuccess={handleConfirmPurchase}

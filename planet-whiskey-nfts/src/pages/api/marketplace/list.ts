@@ -247,8 +247,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     console.log(`[LIST_SAVE_API] 🔍 Fetching NFT metadata for listing...`);
     // Fetch NFT metadata to store in the database
     let nftName = 'Unknown NFT';
-    let nftImageUrl = '/placeholder-image.svg';
+    let nftImageUrl = null; // No placeholder - must have real image
     let collectionName = 'Unknown Collection';
+    let nftMetadataUri = null; // Store metadata URI
     
     try {
       const connection = new Connection(rpcUrl, 'confirmed');
@@ -256,6 +257,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       
       const nftMint = new PublicKey(nftMintAddress);
       const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint });
+      nftMetadataUri = nft.uri; // Store for later use
       
       let loadedJson = nft.json;
       if (!loadedJson) {
@@ -280,14 +282,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (loadedJson) {
         nftName = loadedJson.name || 'Unknown NFT';
         
-        // Process image URL
-        let imageUrl = loadedJson.image || '/placeholder-image.svg';
+        // Process image URL - no placeholder fallback
+        let imageUrl = loadedJson.image;
         if (imageUrl && imageUrl.startsWith('ipfs://')) {
           const hash = imageUrl.substring(7);
           nftImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
         } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
           nftImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-        } else {
+        } else if (imageUrl) {
           nftImageUrl = imageUrl;
         }
       }
@@ -302,6 +304,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       console.error(`[LIST_SAVE_API] Error fetching NFT metadata:`, error);
       // Continue with default values
     }
+    
+    // Validate that we have a real image URL
+    if (!nftImageUrl) {
+      console.error(`[LIST_SAVE_API] ❌ Cannot create listing: No valid image URL found for NFT ${nftMintAddress}`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot list NFT without a valid image. Please ensure the NFT has proper metadata with an image.' 
+      });
+    }
 
     console.log(`[LIST_SAVE_API] 💾 Creating new listing document with metadata...`);
     const newListing = new MarketplaceListing({
@@ -313,6 +324,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         transactionSignature: signature,
         nftName,
         nftImageUrl,
+        nftMetadataUri: nftMetadataUri, // Store metadata URI for robust fetching
         collectionName,
     });
 

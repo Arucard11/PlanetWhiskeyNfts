@@ -397,7 +397,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage("Creating unique NFT metadata...");
             
             // Get the actual image URL from the base metadata with retry logic
-            let actualImageUrl = liveCollectionData.nftBaseMetadataUri; // Default fallback
+            let actualImageUrl = null; // No fallback - must get real image
             let baseNftDescription = `${liveCollectionData.name} - Edition #${mintNumber}. A premium treasury NFT from our exclusive collection.`; // Default fallback
             
             // Multiple gateway attempts for better reliability
@@ -483,7 +483,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         }
                     } catch (backupError) {
                         console.warn(`[NFT_MINT] ❌ Backup image source also failed:`, backupError);
-                        console.log(`[NFT_MINT] 🎯 FINAL FALLBACK: Will use placeholder image`);
+                        console.error(`[NFT_MINT] 🚨 CRITICAL: No valid image URL found. Cannot mint NFT without proper image.`);
                     }
                 }
             } catch (error) {
@@ -503,6 +503,20 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Create unique metadata for this NFT using the create-nft-metadata API
             const mintTimestamp = Date.now();
+            // Final validation: ensure we have a proper image URL, not a metadata URI
+            if (!actualImageUrl) {
+                throw new Error('❌ Failed to extract image URL from metadata. Cannot mint NFT without proper image.');
+            }
+            
+            // IPFS URLs are valid image URLs even without file extensions
+            // Only reject if it's clearly a metadata URI (contains "metadata" or ends with .json)
+            if (actualImageUrl.includes('metadata') || actualImageUrl.endsWith('.json')) {
+                throw new Error(`❌ actualImageUrl appears to be a metadata URI, not an image URL: "${actualImageUrl}". Cannot mint NFT without proper image.`);
+            }
+            
+            console.log(`🔍 [NFT_MINT] Final actualImageUrl being sent to metadata creation: "${actualImageUrl}"`);
+            console.log(`🔍 [NFT_MINT] actualImageUrl type:`, typeof actualImageUrl);
+            
             const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
                 method: 'POST',
                 headers: {

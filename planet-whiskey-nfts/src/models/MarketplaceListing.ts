@@ -9,6 +9,7 @@ export interface IMarketplaceListing extends Document {
   transactionSignature: string; // Signature of the on-chain listing transaction
   nftName: string; // Store NFT name to avoid repeated metadata fetching
   nftImageUrl: string; // Store processed image URL
+  nftMetadataUri?: string; // Store metadata URI for robust fetching
   collectionName: string; // Store collection name
   createdAt: Date;
 }
@@ -22,6 +23,7 @@ const MarketplaceListingSchema: Schema = new Schema({
   transactionSignature: { type: String, required: true, unique: true },
   nftName: { type: String, required: true }, // Store NFT name
   nftImageUrl: { type: String, required: true }, // Store processed image URL
+  nftMetadataUri: { type: String, required: false }, // Store metadata URI for robust fetching
   collectionName: { type: String, required: true }, // Store collection name
   createdAt: { type: Date, default: Date.now },
 });

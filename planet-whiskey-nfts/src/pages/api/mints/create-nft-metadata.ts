@@ -49,7 +49,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } = req.body;
 
     if (!nftName || !nftSymbol || !nftDescription || !nftImageUrl || !collectionName) {
-      return res.status(400).json({ message: 'Missing required metadata fields' });
+      return res.status(400).json({ message: 'Missing required metadata fields. All fields including nftImageUrl are required.' });
+    }
+
+    // Validate that we have a real image URL, not a placeholder
+    if (nftImageUrl === '/placeholder-image.svg' || nftImageUrl.includes('placeholder')) {
+      return res.status(400).json({ message: 'Cannot create NFT metadata with placeholder image. A real image URL is required.' });
+    }
+
+    // Validate that it's not a metadata URI (but allow IPFS image URLs without extensions)
+    if (nftImageUrl.includes('metadata') || nftImageUrl.endsWith('.json')) {
+      return res.status(400).json({ message: 'Cannot create NFT metadata with metadata URI as image. An image URL is required.' });
     }
 
     console.log('[CREATE_NFT_METADATA] Creating metadata for:', {
@@ -89,8 +99,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     console.log('[CREATE_NFT_METADATA] Creating metadata for NFT:', nftName);
+    console.log('[CREATE_NFT_METADATA] Full metadata object:', JSON.stringify(metadata, null, 2));
 
     // Upload metadata to IPFS via Pinata
+    console.log('[CREATE_NFT_METADATA] Uploading to Pinata...');
     const pinataResponse = await pinata.pinJSONToIPFS(metadata, {
       pinataMetadata: {
         name: `${nftName}_metadata.json`,
@@ -105,7 +117,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const metadataUri = `ipfs://${pinataResponse.IpfsHash}`;
     
+    console.log('[CREATE_NFT_METADATA] Pinata response:', JSON.stringify(pinataResponse, null, 2));
     console.log('[CREATE_NFT_METADATA] Metadata uploaded to IPFS:', metadataUri);
+    
+    // Test if the uploaded metadata is immediately accessible
+    try {
+      console.log('[CREATE_NFT_METADATA] Testing immediate access via Pinata gateway...');
+      const testUrl = `https://gateway.pinata.cloud/ipfs/${pinataResponse.IpfsHash}`;
+      const testResponse = await fetch(testUrl);
+      console.log('[CREATE_NFT_METADATA] Test fetch status:', testResponse.status);
+      if (testResponse.ok) {
+        const testData = await testResponse.json();
+        console.log('[CREATE_NFT_METADATA] ✅ Metadata immediately accessible via Pinata gateway');
+      } else {
+        console.log('[CREATE_NFT_METADATA] ⚠️ Metadata not immediately accessible via Pinata gateway');
+      }
+    } catch (testError) {
+      console.log('[CREATE_NFT_METADATA] ❌ Error testing immediate access:', testError);
+    }
 
     return res.status(200).json({
       success: true,

@@ -149,6 +149,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                 _id: listing._id.toString(),
                 nftName: listing.nftName || 'Unknown NFT',
                 nftImageUrl: imageUrl,
+                nftMetadataUri: listing.nftMetadataUri, // Pass metadata URI for robust fetching
                 collectionName: listing.collectionName || collection?.name || 'Unknown Collection',
               };
             } catch (e) {

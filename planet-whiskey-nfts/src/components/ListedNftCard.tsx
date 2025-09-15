@@ -70,7 +70,7 @@ const ListedNftCard: React.FC<ListedNftCardProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center text-green-400 text-sm">
             <Tag className="h-4 w-4 mr-1" />
-            <span className="font-bold">{(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</span>
+            <span className="font-bold text-white">{(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</span>
           </div>
         </div>
 

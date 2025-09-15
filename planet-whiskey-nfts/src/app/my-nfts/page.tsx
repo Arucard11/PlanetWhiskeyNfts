@@ -7,7 +7,6 @@ import MyNftCard from '@/components/MyNftCard';
 import ListNftModal from '@/components/ListNftModal';
 import ListedNftCard from '@/components/ListedNftCard';
 import CancelListingModal from '@/components/CancelListingModal';
-import ImageWithFallback from '@/components/ImageWithFallback';
 import { toast } from 'react-toastify';
 //do not in any way change the way the image is being fetched from the api or the way the image is being displayed in the marketplace page
 
@@ -339,12 +338,14 @@ export default function MyNftsPage() {
                   {ownedCollectionNfts.map((nft) => {
                     const imageUrl = nft.json?.image || '/placeholder-image.svg';
                     console.log(`[my-nfts-page] Rendering MyNftCard for ${nft.name} with imageUrl:`, imageUrl);
+                    console.log(`[my-nfts-page] NFT URI for ${nft.name}:`, nft.uri);
                     return (
                       <MyNftCard
                         key={nft.address}
                         mintAddress={nft.address}
                         name={nft.json?.name || nft.name}
                         imageUrl={imageUrl}
+                        metadataUri={nft.uri} // Pass the metadata URI for robust fetching
                         collectionName={nft.collectionName}
                         collectionMintAddress={nft.collectionMintAddress}
                         onList={handleOpenListModal}

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Layers } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import ImageWithFallback from '@/components/ImageWithFallback';
+import MediaWithFallback from '@/components/MediaWithFallback';
 
 interface CollectionWithListings {
     _id: string;
@@ -157,7 +157,9 @@ export default function MarketplacePage() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {collections.map((collection, index) => (
+            {collections.map((collection, index) => {
+              console.log(`🔥 [marketplace-page] Rendering collection: ${collection.name}, imageUrl: "${collection.imageUrl}"`);
+              return (
               <motion.div
                 key={collection.collectionMintAddress}
                 initial={{ opacity: 0, y: 50 }}
@@ -167,7 +169,7 @@ export default function MarketplacePage() {
                 <Link href={`/marketplace/${collection.collectionMintAddress}`} className="block group">
                     <div className="relative aspect-square w-full overflow-hidden rounded-xl border-2 border-white/10 group-hover:border-amber-400/50 transition-all duration-300">
                         {collection.imageUrl ? (
-                          <ImageWithFallback
+                          <MediaWithFallback
                               src={collection.imageUrl}
                               alt={collection.name}
                               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
@@ -185,7 +187,7 @@ export default function MarketplacePage() {
                     </div>
                 </Link>
               </motion.div>
-            ))}
+            )})}
           </div>
         )}
       </div>

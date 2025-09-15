@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import * as anchor from "@coral-xyz/anchor";
 import { Connection, PublicKey } from '@solana/web3.js';
+import { Metaplex } from '@metaplex-foundation/js';
 import { Lendingprogram } from '../../../lib/idl/lendingprogram';
 import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
@@ -38,6 +39,7 @@ interface UserLendingData {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log(`🔥 [lending-user-data] API CALLED - This should show up!`);
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -124,18 +126,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const nftCollectionMint = nftInfo.collectionMintAddress || nftInfo.collection?.address;
             const collectionValue = collectionValues[nftCollectionMint] || 1; // Default $1
             
-            // Get image URL and convert to proxy format (same as my-nfts API)
-            let imageUrl = nftInfo.json?.image || '/placeholder-image.svg';
+            // Get image URL - use the same logic as my-nfts API (which works properly)
+            let imageUrl = nftInfo.json?.image;
             
-            // Convert IPFS URLs to use our proxy
-            if (imageUrl && imageUrl.startsWith('ipfs://')) {
-              const hash = imageUrl.substring(7);
-              imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-              console.log(`[lending-user-data] Converted IPFS URL to proxy: ${imageUrl}`);
-            } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
-              imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-              console.log(`[lending-user-data] Converted Pinata URL to proxy: ${imageUrl}`);
+            if (!imageUrl) {
+              console.warn(`🔥 [lending-user-data] No image URL found for ${nftInfo.name}, skipping this NFT`);
+              continue; // Skip NFTs without valid images
             }
+            
+            console.log(`🔥 [lending-user-data] Original imageUrl for ${nftInfo.name}: "${imageUrl}"`);
+            
+            console.log(`[lending-user-data] Adding deposited NFT: ${nftInfo.name || 'Unknown NFT'}, imageUrl: ${imageUrl}`);
             
             depositedNfts.push({
               mintAddress: nftMint.toString(),
@@ -148,29 +149,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`📊 NFT value set: ${nftInfo.name} = $${collectionValue} (collection: ${nftCollectionMint})`);
           } else {
             // NFT not found in user's current NFTs (it's in escrow)
-            // Get collection from on-chain metadata or use default
-            const defaultValue = 1; // $1 default
+            // Fetch metadata directly using the robust collections/metadata API
+            console.log(`🔍 [lending-user-data] NFT ${nftMint.toString()} not in wallet, fetching metadata directly...`);
             
-            depositedNfts.push({
-              mintAddress: nftMint.toString(),
-              name: 'Deposited NFT',
-              imageUrl: '/placeholder-image.svg',
-              collectionName: 'Planet Whiskey Collection',
-              value: defaultValue
-            });
+            try {
+              // Use Metaplex to get the metadata URI first
+              const metaplex = Metaplex.make(connection);
+              const nft = await metaplex.nfts().findByMint({ mintAddress: new PublicKey(nftMint.toString()) });
+              
+              if (nft.uri) {
+                console.log(`🔍 [lending-user-data] Found metadata URI for deposited NFT: ${nft.uri}`);
+                
+                // Use the robust metadata fetching API
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+                const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(nft.uri)}`;
+                const metadataResponse = await fetch(apiUrl);
+                
+                if (metadataResponse.ok) {
+                  const result = await metadataResponse.json();
+                  if (result.success && result.data) {
+                    const metadata = result.data;
+                    const imageUrl = metadata.image;
+                    const nftName = metadata.name || nft.name || 'Deposited NFT';
+                    
+                    if (!imageUrl) {
+                      console.warn(`🔥 [lending-user-data] No image URL in metadata for deposited NFT ${nftMint.toString()}, skipping`);
+                      continue; // Skip NFTs without valid images
+                    }
+                    
+                    console.log(`✅ [lending-user-data] Successfully fetched metadata for deposited NFT: ${nftName}, imageUrl: ${imageUrl}`);
+                    
+                    // Get collection value
+                    const nftCollectionMint = nft.collection?.address?.toString();
+                    const collectionValue = (nftCollectionMint && collectionValues[nftCollectionMint]) || 1;
+                    
+                    depositedNfts.push({
+                      mintAddress: nftMint.toString(),
+                      name: nftName,
+                      imageUrl: imageUrl,
+                      collectionName: metadata.collection?.name || nft.collection?.name || 'Planet Whiskey Collection',
+                      value: collectionValue
+                    });
+                    
+                    console.log(`📊 Deposited NFT (fetched): ${nftName} = $${collectionValue}`);
+                    continue; // Skip the fallback below
+                  }
+                }
+              }
+            } catch (metadataError) {
+              console.warn(`Failed to fetch metadata for deposited NFT ${nftMint.toString()}:`, metadataError);
+            }
             
-            console.log(`📊 Deposited NFT (in escrow): ${nftMint.toString()} = $${defaultValue}`);
+            // Fallback if metadata fetching fails - skip NFT instead of using placeholder
+            console.warn(`🔥 [lending-user-data] Failed to fetch valid metadata for deposited NFT ${nftMint.toString()}, skipping this NFT`);
+            continue; // Skip NFTs without valid images
           }
         } catch (nftError) {
           console.warn(`Failed to process NFT ${nftMint.toString()}:`, nftError);
-          // Add basic info even if processing fails
-          depositedNfts.push({
-            mintAddress: nftMint.toString(),
-            name: 'Unknown NFT',
-            imageUrl: '/placeholder-image.svg',
-            collectionName: 'Unknown Collection',
-            value: 1 // Default $1
-          });
+          console.warn(`🔥 [lending-user-data] Skipping NFT due to processing error: ${nftMint.toString()}`);
+          continue; // Skip NFTs that can't be processed properly
         }
       }
 

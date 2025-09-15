@@ -11,7 +11,8 @@ import MediaWithFallback from './MediaWithFallback';
 export interface MyNftCardProps {
   mintAddress: string;
   name: string;
-  imageUrl: string; // Use imageUrl prop like other components
+  imageUrl?: string; // Make optional since we'll fetch it
+  metadataUri?: string; // Add metadata URI for robust fetching
   collectionName: string; // Keep this simple for display
   collectionMintAddress: string;
   onList: (mintAddress: string) => void;
@@ -20,18 +21,70 @@ export interface MyNftCardProps {
 const MyNftCard: React.FC<MyNftCardProps> = ({
   mintAddress,
   name,
-  imageUrl,
+  imageUrl: initialImageUrl,
+  metadataUri,
   collectionName,
   collectionMintAddress,
   onList,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [imageUrl, setImageUrl] = useState(initialImageUrl || '/placeholder-image.svg');
+  
+  console.log(`🔥 [MyNftCard] COMPONENT RENDERED for ${name} - This should show up!`);
 
-  // Debug logging to see what image URL we're receiving
-  console.log(`[MyNftCard] Received imageUrl for ${name}:`, imageUrl);
-  console.log(`[MyNftCard] ImageUrl type:`, typeof imageUrl);
-  console.log(`[MyNftCard] ImageUrl length:`, imageUrl?.length);
-  console.log(`[MyNftCard] ImageUrl is empty:`, !imageUrl);
+  // Fetch metadata using the robust endpoint like NftCollectionCard
+  useEffect(() => {
+    console.log(`[MyNftCard] useEffect triggered for ${name}, metadataUri:`, metadataUri, 'initialImageUrl:', initialImageUrl);
+    
+    const fetchMetadata = async () => {
+      if (!metadataUri) {
+        console.log(`[MyNftCard] No metadataUri for ${name}, using initial imageUrl:`, initialImageUrl);
+        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        return;
+      }
+
+      try {
+        console.log(`[MyNftCard] Fetching metadata for ${name} from:`, metadataUri);
+        
+        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          console.warn(`[MyNftCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          return;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[MyNftCard] API returned error: ${result.message}`);
+          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          return;
+        }
+
+        const metadata = result.data;
+        console.log(`[MyNftCard] Successfully fetched metadata for ${name}:`, metadata);
+
+        if (metadata.image) {
+          console.log(`[MyNftCard] Setting robust image URL for ${name}:`, metadata.image);
+          setImageUrl(metadata.image);
+        } else {
+          console.log(`[MyNftCard] No image in metadata for ${name}, using placeholder`);
+          setImageUrl('/placeholder-image.svg');
+        }
+        
+      } catch (error) {
+        console.error(`[MyNftCard] Error fetching metadata for ${name}:`, error);
+        console.log(`[MyNftCard] Falling back to placeholder for ${name}`);
+        setImageUrl('/placeholder-image.svg');
+      }
+    };
+
+    fetchMetadata();
+  }, [metadataUri, name, initialImageUrl]);
+
+  // Debug logging to see what image URL we're using
+  console.log(`[MyNftCard] Final imageUrl for ${name}:`, imageUrl);
 
   const handleImageLoad = () => {
     console.log(`[MyNftCard] Image loaded successfully for ${name}:`, imageUrl);

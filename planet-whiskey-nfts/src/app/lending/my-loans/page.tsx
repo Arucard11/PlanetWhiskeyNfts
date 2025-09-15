@@ -7,7 +7,7 @@ import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { Connection, Transaction } from '@solana/web3.js';
 import { getCurrentWhiskeyRate } from '../../../lib/coingeckoPricing';
-import ImageWithFallback from '../../../components/ImageWithFallback';
+import MediaWithFallback from '../../../components/MediaWithFallback';
 
 interface LoanInfo {
   loanId: string;
@@ -600,10 +600,12 @@ export default function MyLoansPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {lendingData.depositedNfts.map((nft) => (
+                    {lendingData.depositedNfts.map((nft) => {
+                      console.log(`🔥 [my-loans-page] Rendering NFT: ${nft.name}, imageUrl: "${nft.imageUrl}"`);
+                      return (
                       <div key={nft.mintAddress} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
                         <div className="aspect-square rounded-lg overflow-hidden mb-3">
-                          <ImageWithFallback
+                          <MediaWithFallback
                             src={nft.imageUrl}
                             alt={nft.name}
                             className="w-full h-full object-cover"
@@ -626,7 +628,7 @@ export default function MyLoansPage() {
                           </p>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
               </motion.div>

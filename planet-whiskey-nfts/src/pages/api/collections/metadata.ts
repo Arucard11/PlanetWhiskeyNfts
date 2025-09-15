@@ -107,7 +107,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     
     if (!response || !response.ok) {
-      console.warn(`[metadata-api] Failed to fetch metadata from all gateways: ${response?.status} ${response?.statusText}`);
+      console.error(`❌ [metadata-api] Failed to fetch metadata from all gateways: ${response?.status} ${response?.statusText}`);
+      console.error(`🔍 [metadata-api] Hash that failed: ${hash}`);
+      console.error(`🔍 [metadata-api] Original URI: ${metadataUri}`);
+      console.error(`🔍 [metadata-api] This might indicate:`);
+      console.error(`   - The metadata was not successfully uploaded to IPFS`);
+      console.error(`   - The IPFS hash is incorrect or malformed`);
+      console.error(`   - There are widespread IPFS gateway issues`);
+      console.error(`   - The content hasn't propagated across IPFS network yet`);
       return res.status(response?.status || 500).json({ 
         message: `Failed to fetch metadata from all IPFS gateways: ${response?.statusText || lastError?.message || 'Unknown error'}` 
       });
