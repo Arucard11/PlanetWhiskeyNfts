@@ -1,37 +1,29 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env node
 
-import { Connection, PublicKey, Keypair, Transaction } from '@solana/web3.js';
-import * as anchor from '@coral-xyz/anchor';
-import { Lendingprogram } from '../../planet-whiskey-nfts/src/lib/idl/lendingprogram';
-import fs from 'fs';
-import path from 'path';
-
-interface LoanInfo {
-  publicKey: PublicKey;
-  account: any;
-}
+// JavaScript version of liquidation bot for testing
+const { Connection, PublicKey, Keypair, Transaction } = require('@solana/web3.js');
+const anchor = require('@coral-xyz/anchor');
+const fs = require('fs');
+const path = require('path');
 
 class LiquidationBot {
-  private connection!: Connection;
-  private program!: anchor.Program<Lendingprogram>;
-  private liquidationKeypair!: Keypair;
-  private globalMarketPda!: PublicKey;
-  private isRunning: boolean = false;
-  private checkInterval: NodeJS.Timeout | null = null;
-
   constructor() {
+    this.isRunning = false;
+    this.checkInterval = null;
+    this.processId = process.pid;
+    console.log(`🤖 Initializing Liquidation Bot (PID: ${this.processId})`);
     this.loadEnvironment();
     this.setupProgram();
     this.calculatePDAs();
   }
 
-  private loadEnvironment() {
+  loadEnvironment() {
     // Load environment variables
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
     this.connection = new Connection(rpcUrl, 'confirmed');
 
     // Load dedicated liquidation keypair
-    const liquidationKeypairPath = path.join(__dirname, '../liquidation-keypair.json');
+    const liquidationKeypairPath = path.join(__dirname, 'liquidation-keypair.json');
     const liquidationSecretKey = JSON.parse(fs.readFileSync(liquidationKeypairPath, 'utf8'));
     this.liquidationKeypair = Keypair.fromSecretKey(new Uint8Array(liquidationSecretKey));
 
@@ -40,8 +32,15 @@ class LiquidationBot {
     console.log('  Liquidation Authority:', this.liquidationKeypair.publicKey.toString());
   }
 
-  private setupProgram() {
-    const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!;
+  setupProgram() {
+    const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6';
+    
+    if (!lendingProgramId) {
+      throw new Error('NEXT_PUBLIC_LENDING_PROGRAM_ID environment variable is required');
+    }
+    
+    console.log('  Lending Program ID:', lendingProgramId);
+    
     const provider = new anchor.AnchorProvider(
       this.connection,
       new anchor.Wallet(this.liquidationKeypair),
@@ -49,13 +48,13 @@ class LiquidationBot {
     );
 
     // Load IDL
-    const idlPath = path.join(__dirname, '../../planet-whiskey-nfts/src/lib/idl/lendingprogram.json');
+    const idlPath = path.join(__dirname, '../src/lib/idl/lendingprogram.json');
     const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
-    this.program = new anchor.Program<Lendingprogram>(idl, provider);
+    this.program = new anchor.Program(idl, provider);
   }
 
-  private calculatePDAs() {
-    const lendingProgramId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
+  calculatePDAs() {
+    const lendingProgramId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6');
     
     [this.globalMarketPda] = PublicKey.findProgramAddressSync(
       [Buffer.from('global_market')],
@@ -65,7 +64,7 @@ class LiquidationBot {
     console.log('📍 Global Market PDA:', this.globalMarketPda.toString());
   }
 
-  private async fetchExpiredLoans(): Promise<LoanInfo[]> {
+  async fetchExpiredLoans() {
     try {
       console.log('🔍 Scanning for expired loans...');
       
@@ -74,7 +73,7 @@ class LiquidationBot {
       console.log(`Found ${loanAccounts.length} total loans`);
 
       const currentTimestamp = Math.floor(Date.now() / 1000);
-      const expiredLoans: LoanInfo[] = [];
+      const expiredLoans = [];
 
       for (const loanAccount of loanAccounts) {
         const loan = loanAccount.account;
@@ -84,12 +83,16 @@ class LiquidationBot {
           console.log(`🚨 EXPIRED LOAN FOUND: ${loanAccount.publicKey.toString()}`);
           console.log(`  Borrower: ${loan.borrowerAccount.toString()}`);
           console.log(`  Grace period ended: ${new Date(loan.gracePeriodEndsTs.toNumber() * 1000).toISOString()}`);
-          console.log(`  Status: ${loan.status}`);
+          console.log(`  Status: ${Object.keys(loan.status)[0]}`);
           
           expiredLoans.push({
             publicKey: loanAccount.publicKey,
             account: loan
           });
+        } else {
+          const timeRemaining = loan.gracePeriodEndsTs.toNumber() - currentTimestamp;
+          console.log(`✅ Active loan: ${loanAccount.publicKey.toString()}`);
+          console.log(`  Time remaining: ${Math.floor(timeRemaining / 3600)} hours`);
         }
       }
 
@@ -102,12 +105,14 @@ class LiquidationBot {
     }
   }
 
-  private isLoanExpired(loan: any, currentTimestamp: number): boolean {
+  isLoanExpired(loan, currentTimestamp) {
     // Loan is expired if current time is past grace period end time
-    return currentTimestamp > loan.gracePeriodEndsTs && loan.status.active;
+    const isActive = Object.keys(loan.status)[0] === 'active';
+    const isPastGracePeriod = currentTimestamp > loan.gracePeriodEndsTs.toNumber();
+    return isActive && isPastGracePeriod;
   }
 
-  private async liquidateExpiredLoan(loanInfo: LoanInfo): Promise<void> {
+  async liquidateExpiredLoan(loanInfo) {
     try {
       const loan = loanInfo.account;
       console.log(`🔥 Starting liquidation for loan: ${loanInfo.publicKey.toString()}`);
@@ -120,7 +125,7 @@ class LiquidationBot {
         return;
       }
 
-      // Liquidate the first deposited NFT (in a real implementation, you might want to liquidate all)
+      // Liquidate the first deposited NFT
       const nftMint = borrowerAccount.depositedNfts[0];
       console.log(`🔥 Liquidating NFT: ${nftMint.toString()}`);
 
@@ -142,7 +147,8 @@ class LiquidationBot {
           nftEscrow: nftEscrowPda,
           liquidator: this.liquidationKeypair.publicKey,
           tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-        } as any)
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
         .instruction();
 
       const transaction = new Transaction().add(instruction);
@@ -174,7 +180,7 @@ class LiquidationBot {
     }
   }
 
-  private async processExpiredLoans(): Promise<void> {
+  async processExpiredLoans() {
     try {
       const expiredLoans = await this.fetchExpiredLoans();
       
@@ -188,7 +194,7 @@ class LiquidationBot {
       for (const loanInfo of expiredLoans) {
         await this.liquidateExpiredLoan(loanInfo);
         
-        // Add a small delay between liquidations to avoid overwhelming the network
+        // Add a small delay between liquidations
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
@@ -197,47 +203,71 @@ class LiquidationBot {
     }
   }
 
-  private async checkBalance(): Promise<void> {
+  async checkBalance() {
     try {
       const balance = await this.connection.getBalance(this.liquidationKeypair.publicKey);
       const balanceSOL = balance / anchor.web3.LAMPORTS_PER_SOL;
       
+      console.log(`💰 Liquidation wallet balance: ${balanceSOL.toFixed(4)} SOL`);
+      
       if (balanceSOL < 0.1) {
         console.warn('⚠️  LOW BALANCE WARNING: Liquidation wallet has insufficient SOL for transactions');
-        console.warn(`  Current balance: ${balanceSOL.toFixed(4)} SOL`);
       }
     } catch (error) {
       console.error('❌ Error checking balance:', error);
     }
   }
 
-  public async start(intervalMinutes: number = 5): Promise<void> {
+  async runOnce() {
+    console.log(`\n⏰ [${new Date().toISOString()}] [PID:${this.processId}] Running liquidation check...`);
+    await this.checkBalance();
+    await this.processExpiredLoans();
+  }
+
+  async start(intervalMinutes = 5) {
     if (this.isRunning) {
       console.log('🤖 Liquidation bot is already running');
       return;
     }
 
     this.isRunning = true;
-    console.log(`🚀 Starting liquidation bot with ${intervalMinutes}-minute intervals`);
+    const intervalMs = intervalMinutes * 60 * 1000;
+    console.log(`🚀 Starting liquidation bot with ${intervalMinutes}-minute intervals (${intervalMs}ms)`);
+    console.log(`📍 Current time: ${new Date().toISOString()}`);
+    console.log(`⏰ Next check will be at: ${new Date(Date.now() + intervalMs).toISOString()}`);
     
-    // Initial balance check
-    await this.checkBalance();
-    
-    // Initial scan
-    await this.processExpiredLoans();
+    try {
+      // Initial run
+      console.log('🔥 Performing initial liquidation check...');
+      await this.runOnce();
+      console.log('✅ Initial check completed');
 
-    // Set up periodic scanning
-    this.checkInterval = setInterval(async () => {
-      console.log(`\n⏰ [${new Date().toISOString()}] Running periodic liquidation check...`);
-      await this.checkBalance();
-      await this.processExpiredLoans();
-    }, intervalMinutes * 60 * 1000);
+      // Set up periodic scanning
+      this.checkInterval = setInterval(async () => {
+        try {
+          const nextCheckTime = new Date(Date.now() + intervalMs).toISOString();
+          console.log(`\n📅 Next liquidation check scheduled for: ${nextCheckTime}`);
+          await this.runOnce();
+        } catch (error) {
+          console.error('❌ Error during scheduled liquidation check:', error);
+        }
+      }, intervalMs);
 
-    console.log('🤖 Liquidation bot is now running...');
-    console.log('   Press Ctrl+C to stop');
+      console.log('🤖 Liquidation bot is now running continuously...');
+      console.log(`   Checking every ${intervalMinutes} minutes`);
+      console.log('   Press Ctrl+C to stop');
+      
+      // Keep the process alive
+      process.stdin.resume();
+      
+    } catch (error) {
+      console.error('❌ Error starting liquidation bot:', error);
+      this.isRunning = false;
+      throw error;
+    }
   }
 
-  public stop(): void {
+  stop() {
     if (!this.isRunning) {
       console.log('🤖 Liquidation bot is not running');
       return;
@@ -256,23 +286,31 @@ class LiquidationBot {
 
 // Main execution
 async function main() {
+  console.log(`🚀 Starting Liquidation Bot (PID: ${process.pid}) at ${new Date().toISOString()}`);
+  
   const bot = new LiquidationBot();
 
   // Handle graceful shutdown
-  process.on('SIGINT', () => {
-    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+  const cleanup = () => {
+    console.log('\n🛑 Shutting down liquidation bot gracefully...');
     bot.stop();
     process.exit(0);
-  });
+  };
 
-  process.on('SIGTERM', () => {
-    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
-    bot.stop();
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+
+  // For testing, just run once instead of continuous monitoring
+  if (process.argv.includes('--once')) {
+    console.log('🧪 Running liquidation bot once for testing...');
+    await bot.runOnce();
+    console.log('✅ Test run completed');
     process.exit(0);
-  });
-
-  // Start the bot with 5-minute intervals
-  await bot.start(5);
+  } else {
+    // Start the bot with 5-minute intervals
+    console.log('⏰ Starting continuous monitoring with 5-minute intervals...');
+    await bot.start(5);
+  }
 }
 
 if (require.main === module) {
@@ -282,4 +320,4 @@ if (require.main === module) {
   });
 }
 
-export { LiquidationBot };
+module.exports = { LiquidationBot };

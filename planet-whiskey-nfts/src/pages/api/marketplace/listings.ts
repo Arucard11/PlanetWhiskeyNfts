@@ -132,11 +132,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               if (!onChainExists) return null;
               
               // Use stored metadata from database instead of fetching from blockchain
+              let imageUrl = listing.nftImageUrl || '/placeholder-image.svg';
+              
+              // Convert IPFS URLs to use our proxy (same as my-nfts API)
+              if (imageUrl && imageUrl.startsWith('ipfs://')) {
+                const hash = imageUrl.substring(7);
+                imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+                console.log(`[marketplace-listings] Converted IPFS URL to proxy: ${imageUrl}`);
+              } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+                console.log(`[marketplace-listings] Converted Pinata URL to proxy: ${imageUrl}`);
+              }
+              
               return {
                 ...listing,
                 _id: listing._id.toString(),
                 nftName: listing.nftName || 'Unknown NFT',
-                nftImageUrl: listing.nftImageUrl || '/placeholder-image.svg',
+                nftImageUrl: imageUrl,
                 collectionName: listing.collectionName || collection?.name || 'Unknown Collection',
               };
             } catch (e) {
@@ -159,6 +171,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                     const result = await metadataResponse.json();
                     if (result.success && result.data && result.data.image) {
                         collectionImageUrl = result.data.image;
+                        
+                        // Convert IPFS URLs to use our proxy
+                        if (collectionImageUrl && collectionImageUrl.startsWith('ipfs://')) {
+                          const hash = collectionImageUrl.substring(7);
+                          collectionImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+                        } else if (collectionImageUrl && collectionImageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                          collectionImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(collectionImageUrl)}`;
+                        }
                     }
                 }
             } catch (error) {
@@ -217,6 +237,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                         const result = await metadataResponse.json();
                         if (result.success && result.data && result.data.image) {
                             imageUrl = result.data.image;
+                            
+                            // Convert IPFS URLs to use our proxy
+                            if (imageUrl && imageUrl.startsWith('ipfs://')) {
+                              const hash = imageUrl.substring(7);
+                              imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+                            } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                              imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+                            }
                         }
                     }
                 } catch (error) {

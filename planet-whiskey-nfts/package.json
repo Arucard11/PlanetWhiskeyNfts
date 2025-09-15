@@ -9,9 +9,12 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev-next-only": "next dev",
+    "liquidation-bot": "node scripts/liquidation-bot.cjs",
     "dev-memory": "node scripts/dev-with-memory.js",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
+    "start-with-bot": "node scripts/start-with-bot.cjs",
     "lint": "next lint",
     "clear-db": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx src/lib/utils.ts",
     "migrate-usd-price": "NODE_OPTIONS='-r dotenv/config' DOTENV_CONFIG_PATH=.env.local tsx scripts/migrate-add-usd-price.ts"

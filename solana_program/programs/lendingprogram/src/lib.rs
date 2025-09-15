@@ -876,6 +876,14 @@ pub mod lendingprogram {
         msg!("  Dynamic rate: {}%", interest_rate_bps as f32 / 100.0);
         msg!("  Rate increase due to utilization: {}%", (interest_rate_bps - base_rate_bps) as f32 / 100.0);
 
+        // CRITICAL SECURITY CHECK: User must have deposited NFTs as collateral
+        require!(
+            !borrower_account.deposited_nfts.is_empty(),
+            ErrorCode::InsufficientBorrowingPower
+        );
+        
+        msg!("✅ Collateral verification: User has {} deposited NFTs", borrower_account.deposited_nfts.len());
+
         // Check borrowing capacity
         let new_total_debt = borrower_account.total_debt_usd + loan_amount_usd as u128;
         msg!("💰 Borrowing capacity check:");

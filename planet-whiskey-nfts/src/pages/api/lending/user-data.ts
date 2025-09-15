@@ -124,10 +124,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const nftCollectionMint = nftInfo.collectionMintAddress || nftInfo.collection?.address;
             const collectionValue = collectionValues[nftCollectionMint] || 1; // Default $1
             
+            // Get image URL and convert to proxy format (same as my-nfts API)
+            let imageUrl = nftInfo.json?.image || '/placeholder-image.svg';
+            
+            // Convert IPFS URLs to use our proxy
+            if (imageUrl && imageUrl.startsWith('ipfs://')) {
+              const hash = imageUrl.substring(7);
+              imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+              console.log(`[lending-user-data] Converted IPFS URL to proxy: ${imageUrl}`);
+            } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+              imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
+              console.log(`[lending-user-data] Converted Pinata URL to proxy: ${imageUrl}`);
+            }
+            
             depositedNfts.push({
               mintAddress: nftMint.toString(),
               name: nftInfo.name || 'Unknown NFT',
-              imageUrl: nftInfo.json?.image || '/placeholder-image.svg',
+              imageUrl: imageUrl,
               collectionName: nftInfo.collectionName || 'Unknown Collection',
               value: collectionValue
             });

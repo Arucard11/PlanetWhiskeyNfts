@@ -1,6 +1,8 @@
 // Liquidation Bot Manager - Auto-starts with the Next.js app
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, fork, ChildProcess } from 'child_process';
 import path from 'path';
+
+console.log('📦 Loading liquidation-bot-manager.ts module...');
 
 class LiquidationBotManager {
   private botProcess: ChildProcess | null = null;
@@ -10,8 +12,15 @@ class LiquidationBotManager {
 
   constructor() {
     // Auto-start bot when manager is initialized
+    console.log('🤖 Initializing Liquidation Bot Manager...');
+    console.log('   NODE_ENV:', process.env.NODE_ENV);
+    console.log('   AUTO_START_LIQUIDATION_BOT:', process.env.AUTO_START_LIQUIDATION_BOT);
+    
     if (process.env.NODE_ENV === 'production' || process.env.AUTO_START_LIQUIDATION_BOT === 'true') {
+      console.log('🚀 Auto-starting liquidation bot...');
       this.start();
+    } else {
+      console.log('⏸️ Liquidation bot auto-start disabled');
     }
   }
 
@@ -23,8 +32,10 @@ class LiquidationBotManager {
 
     try {
       console.log('🚀 Starting liquidation bot...');
+      console.log('   Working Directory:', process.cwd());
       
-      const botPath = path.join(process.cwd(), '../solana_program/bots/liquidation-bot-test.js');
+      const botPath = path.join(process.cwd(), 'scripts/liquidation-bot-test.cjs');
+      console.log('   Bot Script Path:', botPath);
       
       // Environment variables for the bot
       const env = {
@@ -33,11 +44,11 @@ class LiquidationBotManager {
         SOLANA_RPC_URL: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
       };
 
-      // Spawn the bot process
-      this.botProcess = spawn('node', [botPath], {
+      // Fork the bot process (better for Node.js scripts)
+      this.botProcess = fork(botPath, [], {
         env,
-        cwd: path.join(process.cwd(), '../solana_program'),
-        stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout and stderr
+        cwd: process.cwd(),
+        silent: true, // Capture stdout and stderr
       });
 
       this.isRunning = true;
@@ -79,6 +90,11 @@ class LiquidationBotManager {
       });
 
       console.log(`🤖 Liquidation bot started with PID: ${this.botProcess.pid}`);
+      console.log('   Environment Variables:');
+      console.log('     LENDING_PROGRAM_ID:', process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID);
+      console.log('     SOLANA_RPC_URL:', process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+      console.log('     LIQUIDATION_BOT_INTERVAL_MINUTES:', process.env.LIQUIDATION_BOT_INTERVAL_MINUTES || '5');
+      console.log('✅ Liquidation bot is now monitoring for expired loans...');
 
     } catch (error) {
       console.error('🤖 Failed to start liquidation bot:', error);
