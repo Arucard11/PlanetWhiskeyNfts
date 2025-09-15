@@ -8,6 +8,7 @@ module.exports = {
       fontFamily: {
         'sans': ['var(--font-inter)', 'system-ui', 'sans-serif'],
         'display': ['var(--font-playfair-display)', 'serif'],
+        'dm-sans': ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
       },
       colors: {
         // Amber palette (extended)
