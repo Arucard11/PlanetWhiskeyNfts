@@ -5,6 +5,10 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        'sans': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'display': ['var(--font-playfair-display)', 'serif'],
+      },
       colors: {
         // Amber palette (extended)
         'amber': {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import '@solana/wallet-adapter-react-ui/styles.css'; // Wallet adapter styles
-// import { Geist, Geist_Mono } from "next/font/google"; // Removing Geist fonts
+import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css"; // Your project's global styles (including Tailwind)
 // import ChakraWrapper from "@/components/ChakraWrapper"; // Removed ChakraWrapper import
 import WalletContextProvider from "@/contexts/WalletContextProvider"; // Added WalletContextProvider import
@@ -10,15 +10,18 @@ import { Toaster } from 'react-hot-toast';
 
 // Note: Liquidation bot is now started via the startup script (scripts/start-with-bot.js)
 
-// const geistSans = Geist({
-//   variable: "--font-geist-sans",
-//   subsets: ["latin"],
-// });
+const playfairDisplay = Playfair_Display({
+  variable: "--font-playfair-display",
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  style: ["normal", "italic"],
+});
 
-// const geistMono = Geist_Mono({
-//   variable: "--font-geist-mono",
-//   subsets: ["latin"],
-// });
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+});
 
 export const metadata: Metadata = {
   title: "NFT Treasury", // Updated title
@@ -32,8 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* Classes from Geist removed, Tailwind will apply fonts from globals.css and tailwind.config.ts */}
-      <body className="font-sans antialiased">
+      <body className={`${inter.variable} ${playfairDisplay.variable} font-sans antialiased`}>
         <WalletContextProvider>
           <Toaster position="top-center" reverseOrder={false} />
           <Navbar />
