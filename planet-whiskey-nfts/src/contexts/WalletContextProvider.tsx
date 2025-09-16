@@ -8,7 +8,7 @@ import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets'; // Exampl
 import { clusterApiUrl } from '@solana/web3.js';
 
 // Default styles that can be overridden by your app
-// import '@solana/wallet-adapter-react-ui/styles.css'; // <-- COMMENTED OUT/REMOVED
+import '@solana/wallet-adapter-react-ui/styles.css'; // <-- COMMENTED OUT/REMOVED
 
 interface WalletContextProviderProps {
     children: ReactNode;
