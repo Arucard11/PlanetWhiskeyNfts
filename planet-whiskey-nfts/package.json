@@ -11,6 +11,8 @@
     "dev": "next dev",
     "dev-next-only": "next dev",
     "liquidation-bot": "node scripts/liquidation-bot.cjs",
+    "bot-only": "node scripts/bot-only.cjs",
+    "server-only": "node scripts/server-only.cjs",
     "dev-memory": "node scripts/dev-with-memory.js",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
