@@ -323,34 +323,6 @@ export default function Home() {
                 transition={{ duration: 1, delay: 0.8 }}
                 className="relative"
               >
-                {/* Cinematic glow background */}
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/30 via-amber-600/30 to-orange-600/30 rounded-2xl blur-2xl scale-110 opacity-60" />
-                
-                {/* Floating particles around button */}
-                <div className="absolute inset-0">
-                  {[...Array(8)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute w-1 h-1 bg-amber-400/60 rounded-full"
-                      style={{
-                        left: `${10 + i * 10}%`,
-                        top: `${-20 + (i % 2) * 40}%`,
-                      }}
-                      animate={{
-                        scale: [0, 1.5, 0],
-                        opacity: [0, 0.8, 0],
-                        y: [0, -20, 0],
-                      }}
-                      transition={{
-                        duration: Math.random() * 3 + 2,
-                        repeat: Infinity,
-                        delay: Math.random() * 2,
-                        ease: "easeInOut"
-                      }}
-                    />
-                  ))}
-                </div>
-
                 <a
                   href="https://www.planetwhiskey.xyz/angelshareventures"
                   target="_blank"
@@ -358,51 +330,23 @@ export default function Home() {
                   className="group relative inline-flex items-center"
                 >
                   <motion.div
-                    className="relative px-16 py-8 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-black font-bold text-2xl rounded-2xl shadow-2xl shadow-amber-500/40 overflow-hidden border-2 border-amber-400/50"
+                    className="relative px-12 py-4 bg-transparent border-2 border-amber-400/80 text-amber-400 font-semibold text-xl rounded-xl backdrop-blur-sm transition-all duration-300 overflow-hidden"
                     whileHover={{ 
                       scale: 1.05,
-                      boxShadow: "0 25px 50px -12px rgba(251, 191, 36, 0.6)",
-                      borderColor: "rgba(251, 191, 36, 0.8)"
+                      backgroundColor: "rgba(251, 191, 36, 0.1)",
+                      borderColor: "rgba(251, 191, 36, 1)",
+                      color: "rgba(251, 191, 36, 1)",
+                      boxShadow: "0 10px 30px -5px rgba(251, 191, 36, 0.3)"
                     }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", stiffness: 400 }}
-                    style={{
-                      textShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
-                    }}
                   >
-                    {/* Button glow effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-amber-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-2xl" />
-                    
-                    {/* Shimmer effect */}
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
-                      animate={{
-                        x: ['-100%', '200%'],
-                      }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        repeatDelay: 2,
-                        ease: "easeInOut"
-                      }}
-                    />
+                    {/* Subtle glow effect on hover */}
+                    <div className="absolute inset-0 bg-amber-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl" />
                     
                     <span className="relative z-10 flex items-center tracking-wide">
-                      <motion.span 
-                        className="mr-4 text-3xl filter drop-shadow-lg"
-                        whileHover={{ scale: 1.2, rotate: 5 }}
-                        transition={{ type: "spring", stiffness: 400 }}
-                      >
-                        🏛️
-                      </motion.span>
                       THE THREE GOLD TREASURY
-                      <motion.div
-                        className="ml-4"
-                        animate={{ x: [0, 5, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
-                        <ChevronRight className="w-7 h-7 group-hover:translate-x-2 transition-transform duration-300" />
-                      </motion.div>
+                      <ChevronRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
                     </span>
                   </motion.div>
                 </a>
@@ -685,8 +629,6 @@ export default function Home() {
           </motion.div>
           
           <div className="relative max-w-7xl mx-auto">
-            {/* Enhanced connecting line */}
-            <div className="hidden lg:block absolute top-24 left-0 w-full h-2 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-600 rounded-full opacity-20" />
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
               {[

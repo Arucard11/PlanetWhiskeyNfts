@@ -21,12 +21,27 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "NFT Treasury",
+  title: "Planet Whiskey Reserve Vault",
   description: "Mint unique NFT collections from your favorite distilleries.",
   icons: {
-    icon: '/disteller.jpg',
+    icon: [
+      {
+        url: '/disteller.jpg',
+        sizes: '32x32',
+        type: 'image/jpeg',
+      },
+      {
+        url: '/disteller.jpg',
+        sizes: '16x16',
+        type: 'image/jpeg',
+      },
+    ],
     shortcut: '/disteller.jpg',
-    apple: '/disteller.jpg',
+    apple: {
+      url: '/disteller.jpg',
+      sizes: '180x180',
+      type: 'image/jpeg',
+    },
   },
 };
 
@@ -37,6 +52,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" type="image/jpeg" href="/disteller.jpg" />
+        <link rel="shortcut icon" type="image/jpeg" href="/disteller.jpg" />
+        <link rel="apple-touch-icon" href="/disteller.jpg" />
+      </head>
       <body className={`${inter.variable} ${playfairDisplay.variable} font-sans antialiased`}>
         <WalletContextProvider>
           <Toaster position="top-center" reverseOrder={false} />
