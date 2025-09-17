@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM",
+  "address": "3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -30,7 +30,7 @@ export type Whiskeyprogram = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "collectionConfig",
@@ -231,7 +231,7 @@ export type Whiskeyprogram = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "lendingPoolConfig",
@@ -349,11 +349,11 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "usdcMint",
-          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
+          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         },
         {
           "name": "tokenProgram",
@@ -390,7 +390,7 @@ export type Whiskeyprogram = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "collectionConfig",
@@ -598,7 +598,7 @@ export type Whiskeyprogram = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "lendingPoolConfig",
@@ -716,11 +716,11 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "usdcMint",
-          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
+          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         },
         {
           "name": "tokenProgram",
@@ -914,7 +914,7 @@ export type Whiskeyprogram = {
         },
         {
           "name": "whiskeyTokenMint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "payerWhiskeyTokenAccount",

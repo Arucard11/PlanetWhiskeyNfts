@@ -5,4 +5,19 @@ target
 node_modules
 test-ledger
 .yarn
+
+# SECURITY: All keypairs must be kept secret
 admin-keypair.json
+mainnet-admin-keypair.json
+mainnet-liquidation-keypair.json
+whiskeyprogram-keypair.json
+marketplaceprogram-keypair.json
+lendingprogram-keypair.json
+liquidation-keypair.json
+*-keypair.json
+
+# Environment files with sensitive data
+mainnet-environment.env
+.env.local
+.env.mainnet
+.env.production

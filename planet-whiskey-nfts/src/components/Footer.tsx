@@ -26,9 +26,9 @@ const Footer = () => {
 
   const footerLinks = [
     { name: 'Assets', href: '/#assets' },
+    { name: 'FAQ', href: '/faq' },
+    { name: 'Terms of Service', href: '/terms' },
     { name: 'Distiller\'s Guide', href: '/#how-it-works' },
-    { name: 'Terms of Service', href: '#' },
-    { name: 'Privacy Policy', href: '#' },
   ];
 
   return (
@@ -52,7 +52,11 @@ const Footer = () => {
           {/* Navigation Links */}
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {footerLinks.map(link => (
-              <Link key={link.name} href={link.href} className="text-gray-400 hover:text-white transition-colors duration-300">
+              <Link 
+                key={link.name} 
+                href={link.href} 
+                className="text-gray-400 hover:text-amber-400 hover:underline transition-all duration-300 cursor-pointer relative z-10 px-1 py-1"
+              >
                 {link.name}
               </Link>
             ))}

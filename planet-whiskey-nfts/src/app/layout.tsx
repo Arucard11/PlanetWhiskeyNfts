@@ -23,6 +23,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "NFT Treasury",
   description: "Mint unique NFT collections from your favorite distilleries.",
+  icons: {
+    icon: '/disteller.jpg',
+    shortcut: '/disteller.jpg',
+    apple: '/disteller.jpg',
+  },
 };
 
 export default function RootLayout({

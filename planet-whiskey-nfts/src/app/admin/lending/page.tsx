@@ -65,7 +65,7 @@ export default function LendingAdminPage() {
   
   // Solana connection - memoized to prevent recreation on every render
   const connection = React.useMemo(() => 
-    new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'),
+    new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'),
     []
   );
   

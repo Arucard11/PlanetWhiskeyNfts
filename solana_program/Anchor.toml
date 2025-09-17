@@ -11,12 +11,18 @@ lendingprogram = "4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6"
 marketplaceprogram = "E9rdfVCukatP1LxyMun3mnw28pprwpTJtzkqtw1YVQ7n"
 whiskeyprogram = "Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM"
 
+[programs.mainnet]
+lendingprogram = "HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK"
+marketplaceprogram = "BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT"
+whiskeyprogram = "3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8"
+
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
-wallet = "~/.config/solana/admin-keypair.json"
+cluster = "mainnet"
+wallet = "mainnet-admin-keypair.json"
+url = "https://mainnet.helius-rpc.com/?api-key=bad198ca-d062-40c7-9a29-ed8304998f90"
 
 [workspace]
 members = ["programs/solana_program", "programs/marketplaceprogram", "programs/lendingprogram"]

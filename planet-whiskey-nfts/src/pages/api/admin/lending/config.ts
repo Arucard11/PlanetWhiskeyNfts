@@ -22,7 +22,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method === 'GET') {
       try {
         const connection = new Connection(
-          process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+          process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
           'confirmed'
         );
 
@@ -87,7 +87,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         try {
           const connection = new Connection(
-            process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+            process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
             'confirmed'
           );
 
@@ -113,7 +113,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             )
             .accounts({
               globalMarket: globalMarketPda,
-              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk'), // Admin wallet
+              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
             })
             .instruction();
 
@@ -124,7 +124,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           // Get recent blockhash
           const { blockhash } = await connection.getLatestBlockhash('confirmed');
           transaction.recentBlockhash = blockhash;
-          transaction.feePayer = new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk');
+          transaction.feePayer = new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X');
 
           console.log('✅ Transaction prepared for admin wallet signing');
 
@@ -132,7 +132,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             success: true,
             message: 'Transaction prepared successfully',
             requiresWalletSigning: true,
-            adminWallet: '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk',
+            adminWallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X',
             transaction: transaction.serialize({ requireAllSignatures: false }),
             globalMarketPda: globalMarketPda.toString(),
           });

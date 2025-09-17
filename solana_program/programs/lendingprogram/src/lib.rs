@@ -5,19 +5,19 @@ use anchor_spl::{
 };
 use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6");
+declare_id!("HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK");
 
 // Reference to the whiskey program for cross-program vault access
 pub mod whiskeyprogram {
     use anchor_lang::prelude::*;
-    declare_id!("Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM");
+    declare_id!("3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8");
 }
 
-// Constants
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu");
+// Constants - MAINNET ADDRESSES
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");
 
 // ADMIN WALLET - This wallet controls ALL lending administrative functions
-pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
+pub const ADMIN_WALLET: Pubkey = pubkey!("F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 
 // Seeds for PDAs - Project Constellation Architecture
 pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
@@ -27,8 +27,8 @@ pub const COLLATERAL_ESCROW_SEED: &[u8] = b"collateral_escrow";
 // Removed NFT_AUCTION_SEED - no longer needed
 pub const CAPITAL_VAULT_SEED: &[u8] = b"capital_vault_usdc";
 
-// Token mint addresses (Devnet)
-pub const USDC_MINT: &str = "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"; // Test USDC mint for devnet
+// Token mint addresses (MAINNET)
+pub const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // Real USDC mint for mainnet
 
 // Loan duration constants (in seconds)
 pub const ONE_MONTH_SECS: u32 = 2592000;   // 30 days
@@ -459,12 +459,7 @@ pub mod lendingprogram {
 
         global_market.bump = ctx.bumps.global_market;
 
-        // Initialize the Collection Registry that was created alongside the Global Market
-        let collection_registry = &mut ctx.accounts.collection_registry;
-        collection_registry.authority = ctx.accounts.owner.key();
-        collection_registry.collections = Vec::new();
-        collection_registry.next_registry = None;
-        collection_registry.bump = ctx.bumps.collection_registry;
+        // Use the existing Collection Registry V2 (no initialization needed)
 
         msg!("Global market initialized with max {} staked NFTs", max_staked_nfts);
         msg!("Collection registry initialized with authority: {}", ctx.accounts.owner.key());
@@ -1401,11 +1396,8 @@ pub struct InitializeGlobalMarket<'info> {
     pub global_market: Account<'info, GlobalMarket>,
 
     #[account(
-        init,
-        payer = owner,
-        space = CollectionRegistry::SPACE,
         seeds = [b"collection_registry"],
-        bump
+        bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
 
@@ -1474,7 +1466,7 @@ pub struct DepositNft<'info> {
     pub global_market: Account<'info, GlobalMarket>,
 
     #[account(
-        seeds = [b"collection_registry_v2"],
+        seeds = [b"collection_registry"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1835,7 +1827,7 @@ pub struct InitializeCollectionRegistry<'info> {
 pub struct AddCollection<'info> {
     #[account(
         mut,
-        seeds = [b"collection_registry_v2"],
+        seeds = [b"collection_registry"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1850,7 +1842,7 @@ pub struct AddCollection<'info> {
 pub struct UpdateCollectionValue<'info> {
     #[account(
         mut,
-        seeds = [b"collection_registry_v2"],
+        seeds = [b"collection_registry"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1865,7 +1857,7 @@ pub struct UpdateCollectionValue<'info> {
 pub struct ToggleCollectionApproval<'info> {
     #[account(
         mut,
-        seeds = [b"collection_registry_v2"],
+        seeds = [b"collection_registry"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1899,7 +1891,7 @@ pub struct InitializeCollectionRegistryV2<'info> {
         init,
         payer = authority,
         space = CollectionRegistry::SPACE,
-        seeds = [b"collection_registry_v2"], // Different seeds!
+        seeds = [b"collection_registry"],
         bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,
@@ -1916,7 +1908,7 @@ pub struct WithdrawNft<'info> {
     pub global_market: Account<'info, GlobalMarket>,
 
     #[account(
-        seeds = [b"collection_registry_v2"],
+        seeds = [b"collection_registry"],
         bump = collection_registry.bump
     )]
     pub collection_registry: Account<'info, CollectionRegistry>,

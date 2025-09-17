@@ -20,9 +20,9 @@ const marketplaceProgramId = new PublicKey(process.env.NEXT_PUBLIC_MARKETPLACE_P
 
 
 // REMOVED: Server-side admin wallet operations - All admin operations now require client-side wallet signing
-// Admin wallet address is hardcoded in Rust programs: 2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk
+// Admin wallet address is hardcoded in Rust programs: F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X
 
-const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'; // Fallback to Devnet
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'; // Fallback to Mainnet
 export const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD"); // Whiskey program ID from env
 
 if (!SOLANA_RPC_URL) {

@@ -33,7 +33,7 @@ class LiquidationBot {
   }
 
   setupProgram() {
-    const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6';
+    const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || 'Gn8egVBW5KcHaemZAaHFFvXoDkw7CQSRDqwrLLKzeQT3';
     
     if (!lendingProgramId) {
       throw new Error('NEXT_PUBLIC_LENDING_PROGRAM_ID environment variable is required');
@@ -54,7 +54,7 @@ class LiquidationBot {
   }
 
   calculatePDAs() {
-    const lendingProgramId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6');
+    const lendingProgramId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || 'Gn8egVBW5KcHaemZAaHFFvXoDkw7CQSRDqwrLLKzeQT3');
     
     [this.globalMarketPda] = PublicKey.findProgramAddressSync(
       [Buffer.from('global_market')],

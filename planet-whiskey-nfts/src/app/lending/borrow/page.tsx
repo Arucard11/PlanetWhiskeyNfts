@@ -229,7 +229,7 @@ export default function BorrowPage() {
       console.log('✅ Loan transaction created:', data);
 
       // Deserialize and send transaction
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
       
       console.log('🔍 Transaction details:', {
@@ -300,7 +300,7 @@ export default function BorrowPage() {
     }
 
     setDepositing(true);
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com', 'confirmed');
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com', 'confirmed');
     
     try {
       let successCount = 0;

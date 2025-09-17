@@ -27,8 +27,8 @@ const convertIpfsToProxy = (uri: string): string => {
         return proxyUrl;
     }
     
-    // If it's already a Pinata gateway URL, convert it to use our proxy
-    if (uri.includes('gateway.pinata.cloud/ipfs/')) {
+    // If it's already a Pinata gateway URL (old or new), convert it to use our proxy
+    if (uri.includes('gateway.pinata.cloud/ipfs/') || uri.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/')) {
         const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
         console.log(`[ImageWithFallback] Converting Pinata URL to proxy: ${uri} -> ${proxyUrl}`);
         return proxyUrl;

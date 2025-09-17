@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/lendingprogram.json`.
  */
 export type Lendingprogram = {
-  "address": "4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6",
+  "address": "HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK",
   "metadata": {
     "name": "lendingprogram",
     "version": "0.1.0",
@@ -67,7 +67,7 @@ export type Lendingprogram = {
         {
           "name": "admin",
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         }
       ],
       "args": [
@@ -165,7 +165,7 @@ export type Lendingprogram = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         }
       ],
       "args": []
@@ -2072,7 +2072,7 @@ export type Lendingprogram = {
         {
           "name": "admin",
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         }
       ],
       "args": [
@@ -2219,7 +2219,7 @@ export type Lendingprogram = {
         {
           "name": "admin",
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         }
       ],
       "args": [
@@ -2357,7 +2357,7 @@ export type Lendingprogram = {
         {
           "name": "admin",
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         }
       ],
       "args": [

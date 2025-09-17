@@ -8,44 +8,34 @@ import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { Wallet, TrendingUp, RefreshCw, DollarSign, Send } from 'lucide-react';
 import { useRealTimeWhiskeyPrice, formatWhiskeyTokens, formatUsdAmount, getPriceChangeColor, formatPercentageChange } from '@/lib/coingeckoPricing';
 
-const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT || "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
-const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET || "4fSp8ipFWs5NffyMX2SP6F3zGrUjT7vfwxcfrNdVafSR");
-const LENDING_POOL_WALLET = new PublicKey(process.env.NEXT_PUBLIC_LENDING_POOL_WHISKEY_VAULT || "7YnB5mZMzX6Ft9jtXBxYXrZ6fCnASxkz7cNSMEGCuq4G"); // 80% of mint revenue goes here as WHISKEY (then swapped to USDC)
+const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT || "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");
+const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET || "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
+const CAPITAL_VAULT = new PublicKey(process.env.NEXT_PUBLIC_CAPITAL_VAULT_PDA || "6tCuvX7wx47jT9wWMxRF4yBC8RsnW3VwbMunThoUH9kg");
 
 export default function AdminPage() {
   const { connection } = useConnection();
   const { publicKey, signTransaction, connected } = useWallet();
   
-  const [treasurySolBalance, setTreasurySolBalance] = useState<number | null>(null);
   const [treasuryWhiskeyBalance, setTreasuryWhiskeyBalance] = useState<number | null>(null);
-  const [lendingPoolSolBalance, setLendingPoolSolBalance] = useState<number | null>(null);
+  const [capitalVaultUsdcBalance, setCapitalVaultUsdcBalance] = useState<number | null>(null);
   const [treasuryValueUsd, setTreasuryValueUsd] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Real-time WHISKEY price hook
   const { priceData: whiskeyPriceData, loading: priceLoading, error: priceError } = useRealTimeWhiskeyPrice(30000);
 
-  // Fetch treasury wallet balances and WHISKEY price
+  // Fetch treasury wallet balances and capital vault USDC
   const fetchBalances = async () => {
     if (!connected) {
-      setTreasurySolBalance(null);
       setTreasuryWhiskeyBalance(null);
-      setLendingPoolSolBalance(null);
-      setWhiskeyPrice(null);
+      setCapitalVaultUsdcBalance(null);
       setTreasuryValueUsd(null);
       return;
     }
 
     setIsLoading(true);
     try {
-      // Fetch treasury SOL balance
-      const solBalanceLamports = await connection.getBalance(TREASURY_WALLET);
-      setTreasurySolBalance(solBalanceLamports / LAMPORTS_PER_SOL);
-
-      // Fetch lending pool SOL balance
-      const lendingPoolSolLamports = await connection.getBalance(LENDING_POOL_WALLET);
-      setLendingPoolSolBalance(lendingPoolSolLamports / LAMPORTS_PER_SOL);
-
       // Fetch treasury WHISKEY token balance
       let whiskeyBalance = 0;
       try {
@@ -61,6 +51,15 @@ export default function AdminPage() {
         setTreasuryWhiskeyBalance(0);
       }
 
+      // Fetch capital vault USDC balance
+      try {
+        const vaultUsdcBalance = await connection.getTokenAccountBalance(CAPITAL_VAULT);
+        setCapitalVaultUsdcBalance(vaultUsdcBalance.value.uiAmount || 0);
+      } catch (error) {
+        console.warn('Capital vault USDC balance not found or error:', error);
+        setCapitalVaultUsdcBalance(0);
+      }
+
       // Calculate treasury value in USD using real-time price
       if (whiskeyBalance > 0 && whiskeyPriceData?.usd) {
         setTreasuryValueUsd(whiskeyBalance * whiskeyPriceData.usd);
@@ -68,7 +67,7 @@ export default function AdminPage() {
         setTreasuryValueUsd(0);
       }
     } catch (error) {
-      console.error('Error fetching treasury balances:', error);
+      console.error('Error fetching balances:', error);
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +119,7 @@ export default function AdminPage() {
 
       {/* Balance Cards */}
       {connected && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* WHISKEY Price Card */}
           <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
@@ -172,43 +171,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Treasury SOL Balance */}
-          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Treasury SOL</h3>
-                  <p className="text-gray-400 text-sm">Network fees & SOL earnings</p>
-                </div>
-              </div>
-              <button
-                onClick={fetchBalances}
-                disabled={isLoading}
-                className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 text-gray-300 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="text-3xl font-bold text-white">
-                {formatBalance(treasurySolBalance)} SOL
-              </div>
-              <button
-                onClick={() => {
-                  setWithdrawType('SOL');
-                  setShowWithdrawModal(true);
-                }}
-                disabled={true}
-                className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <Send className="w-4 h-4" />
-                <span>Treasury Funds</span>
-              </button>
-            </div>
-          </div>
 
           {/* WHISKEY Balance */}
           <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
@@ -244,7 +206,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Lending Pool SOL Balance */}
+          {/* Capital Vault USDC Balance */}
           <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-white/10 rounded-xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -252,8 +214,8 @@ export default function AdminPage() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Lending Pool SOL</h3>
-                  <p className="text-gray-400 text-sm">80% of mint revenue (as USDC)</p>
+                  <h3 className="text-lg font-semibold text-white">Capital Vault USDC</h3>
+                  <p className="text-gray-400 text-sm">Available for lending</p>
                 </div>
               </div>
               <button
@@ -266,17 +228,17 @@ export default function AdminPage() {
             </div>
             <div className="space-y-3">
               <div className="text-3xl font-bold text-blue-400">
-                {formatBalance(lendingPoolSolBalance)} SOL
+                {formatBalance(capitalVaultUsdcBalance, 2)} USDC
               </div>
               <div className="text-sm text-gray-400">
-                WHISKEY → USDC via Jupiter
+                Reserve funds for loans
               </div>
               <button
                 disabled={true}
                 className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <DollarSign className="w-4 h-4" />
-                <span>Lending Pool</span>
+                <span>Lending Reserve</span>
               </button>
             </div>
           </div>
@@ -325,18 +287,18 @@ export default function AdminPage() {
           <h3 className="text-xl font-semibold text-white mb-4">Earnings Summary</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-400">{formatBalance(treasurySolBalance)} SOL</div>
-              <div className="text-gray-400 text-sm">Treasury SOL Balance</div>
-            </div>
-            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
               <div className="text-2xl font-bold text-amber-400">{formatBalance(treasuryWhiskeyBalance, 0)} WHISKEY</div>
               <div className="text-gray-400 text-sm">Treasury WHISKEY</div>
+            </div>
+            <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-2xl font-bold text-blue-400">{formatBalance(capitalVaultUsdcBalance, 2)} USDC</div>
+              <div className="text-gray-400 text-sm">Capital Vault Reserve</div>
             </div>
             <div className="text-center p-4 bg-slate-800/50 rounded-lg">
               <div className="text-2xl font-bold text-green-400">
                 {treasuryValueUsd ? `$${treasuryValueUsd.toFixed(2)}` : '$0.00'}
               </div>
-              <div className="text-gray-400 text-sm">USD Value</div>
+              <div className="text-gray-400 text-sm">Treasury USD Value</div>
             </div>
           </div>
         </div>

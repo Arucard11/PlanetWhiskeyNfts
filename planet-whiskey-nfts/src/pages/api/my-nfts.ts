@@ -95,7 +95,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(400).json({ success: false, message: 'Wallet address is required.' });
   }
 
-  const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
   if (!rpcUrl) {
     return res.status(500).json({ success: false, message: 'Server configuration error: SOLANA_RPC_URL is not set.' });
   }
@@ -187,8 +187,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         
         // Try to fetch the actual image URL from the metadata first
         try {
+          const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
           const baseMetadataUrl = imageUrl.startsWith('ipfs://') 
-            ? imageUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+            ? imageUrl.replace('ipfs://', `${pinataGateway}/ipfs/`)
             : imageUrl;
             
           const baseMetadataResponse = await fetch(baseMetadataUrl);
@@ -211,7 +212,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         const hash = imageUrl.substring(7);
         imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
         console.log(`[my-nfts] Converted image URL to proxy: ${imageUrl}`);
-      } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+      } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
         imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
         console.log(`[my-nfts] Converted Pinata URL to proxy: ${imageUrl}`);
       }

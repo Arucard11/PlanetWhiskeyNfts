@@ -287,7 +287,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         if (imageUrl && imageUrl.startsWith('ipfs://')) {
           const hash = imageUrl.substring(7);
           nftImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-        } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+        } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
           nftImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
         } else if (imageUrl) {
           nftImageUrl = imageUrl;

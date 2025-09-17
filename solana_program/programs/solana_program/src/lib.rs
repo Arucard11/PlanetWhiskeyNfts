@@ -72,7 +72,59 @@ fn read_dynamic_fees(global_market_account: &AccountInfo) -> Result<DynamicFeeDa
     })
 }
 
+// Transfer USDC from our USDC vault to lending program's capital vault via CPI
+// This happens AFTER we've swapped WHISKEY → USDC in our program
+// CRITICAL: Includes retry mechanism - this transfer MUST succeed
+fn transfer_usdc_to_capital_vault<'info>(
+    accounts: &MintNftWithSwap<'info>,
+    usdc_amount: u64,
+    signer_seeds: &[&[&[u8]]],
+) -> Result<()> {
+    msg!("💰 CRITICAL: Transferring {} USDC to lending capital vault", usdc_amount);
+
+    const MAX_RETRIES: u8 = 3;
+    let mut attempts = 0;
+
+    loop {
+        attempts += 1;
+        msg!("🔄 USDC transfer attempt {}/{}", attempts, MAX_RETRIES);
+
+        // Transfer USDC from our vault to lending program's capital vault
+        let transfer_instruction = Transfer {
+            from: accounts.lending_pool_usdc_vault.to_account_info(),
+            to: accounts.lending_capital_vault.to_account_info(), 
+            authority: accounts.lending_pool_config.to_account_info(),
+        };
+
+        let cpi_context = CpiContext::new_with_signer(
+            accounts.token_program.to_account_info(),
+            transfer_instruction,
+            signer_seeds,
+        );
+
+        match token::transfer(cpi_context, usdc_amount) {
+            Ok(_) => {
+                msg!("✅ SUCCESS: Transferred {} USDC to lending capital vault on attempt {}", usdc_amount, attempts);
+                return Ok(());
+            }
+            Err(e) => {
+                msg!("❌ USDC transfer attempt {} failed: {:?}", attempts, e);
+                
+                if attempts >= MAX_RETRIES {
+                    msg!("🚨 CRITICAL ERROR: Failed to transfer USDC after {} attempts", MAX_RETRIES);
+                    return Err(e);
+                }
+                
+                msg!("⏳ Retrying USDC transfer...");
+                // Small delay before retry (in production, you might want to add actual delay)
+                continue;
+            }
+        }
+    }
+}
+
 // MAINNET MODE: Real Jupiter swap implementation using manual CPI
+// Swaps WHISKEY from our whiskey vault → USDC to our USDC vault
 fn execute_real_jupiter_swap<'info>(
     accounts: &MintNftWithSwap<'info>,
     in_amount: u64,
@@ -81,7 +133,7 @@ fn execute_real_jupiter_swap<'info>(
     route_plan: Vec<u8>,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
-    msg!("🔄 MAINNET: Executing Jupiter swap - {} WHISKEY → {} USDC", in_amount, quoted_out_amount);
+    msg!("🔄 MAINNET: Executing Jupiter swap - {} WHISKEY (from our vault) → {} USDC (to our vault)", in_amount, quoted_out_amount);
     
     // Jupiter SharedAccountsRoute instruction discriminator
     // This is the instruction hash for Jupiter's shared_accounts_route instruction
@@ -206,18 +258,18 @@ fn validate_mint_price(
     Ok(())
 }
 
-declare_id!("Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM");
+declare_id!("3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8");
 
 // Constants
 pub const MAX_NAME_LENGTH: usize = 32;
 pub const MAX_SYMBOL_LENGTH: usize = 10;
 pub const MAX_URI_LENGTH: usize = 200;
 
-// Token addresses
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"); // New WHISKEY token
+// Token addresses (MAINNET)
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"); // MAINNET WHISKEY token
 
 // Admin wallet (hardcoded for security)
-pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
+pub const ADMIN_WALLET: Pubkey = pubkey!("F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 
 // Fee configuration defaults
 pub const DEFAULT_TRANSACTION_FEE_BPS: u16 = 250; // 2.5% default
@@ -229,37 +281,16 @@ pub const FEE_WALLET_SEED: &[u8] = b"fee_wallet";
 pub const TREASURY_WALLET_SEED: &[u8] = b"treasury_wallet"; 
 pub const LENDING_POOL_SEED: &[u8] = b"lending_pool";
 
-// Token mint addresses - Environment dependent
-// DEVNET
-pub const USDC_MINT_DEVNET: Pubkey = pubkey!("4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP");
-pub const WHISKEY_MINT_DEVNET: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu");
+// Token mint addresses - Mainnet only
+pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"); // USDC
+pub const WHISKEY_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"); // WHISKEY
 
-// MAINNET 
-pub const USDC_MINT_MAINNET: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"); // Real USDC
-pub const WHISKEY_MINT_MAINNET: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"); // Will be updated for mainnet
-
-// Jupiter program ID (same for devnet and mainnet)
+// Jupiter V6 program ID (mainnet)
 pub const JUPITER_PROGRAM_ID: Pubkey = pubkey!("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
 
-// Environment-aware token mint getters
-pub fn get_usdc_mint() -> Pubkey {
-    if cfg!(feature = "mainnet") {
-        USDC_MINT_MAINNET
-    } else {
-        USDC_MINT_DEVNET
-    }
-}
+// Lending Program ID (mainnet) - for CPI validation
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("Gn8egVBW5KcHaemZAaHFFvXoDkw7CQSRDqwrLLKzeQT3");
 
-pub fn get_whiskey_mint() -> Pubkey {
-    if cfg!(feature = "mainnet") {
-        WHISKEY_MINT_MAINNET
-    } else {
-        WHISKEY_MINT_DEVNET
-    }
-}
-
-// Legacy constant for backward compatibility
-pub const USDC_MINT: Pubkey = USDC_MINT_DEVNET;
 
 // Account structs
 #[account]
@@ -797,20 +828,29 @@ pub mod whiskeyprogram {
             // Read dynamic fee configuration from GlobalMarket account
             let fee_config = read_dynamic_fees(&ctx.accounts.global_market.to_account_info())?;
             
-            // Calculate revenue split: 80% to lending pool (as USDC), 20% to treasury (as WHISKEY)
+            // Calculate DYNAMIC revenue split from GlobalMarket account (not hardcoded!)
             let lending_share = (total_price as u128 * fee_config.lending_wallet_share_bps as u128) / 10000u128;
             let treasury_share = (total_price as u128 * fee_config.treasury_wallet_share_bps as u128) / 10000u128;
             
             let lending_amount = lending_share as u64;
             let treasury_amount = treasury_share as u64;
 
+            // Validate that the split makes sense (should add up to ~100%)
+            let total_split_bps = fee_config.lending_wallet_share_bps + fee_config.treasury_wallet_share_bps;
+            if total_split_bps != 10000 {
+                msg!("⚠️ WARNING: Fee split doesn't equal 100% ({}bps total)", total_split_bps);
+            }
+
             msg!("💰 Mint payment breakdown:");
             msg!("  Total price: {} WHISKEY (calculated from USD)", total_price);
             msg!("  🏦 Lending pool: {} WHISKEY → USDC ({}%)", lending_amount, fee_config.lending_wallet_share_bps as f32 / 100.0);
             msg!("  🏛️ Treasury: {} WHISKEY ({}%)", treasury_amount, fee_config.treasury_wallet_share_bps as f32 / 100.0);
 
-            // Transfer WHISKEY to lending pool vault
+            // Swap WHISKEY to USDC in our program, then transfer USDC to lending capital vault
             if lending_amount > 0 {
+                msg!("🔄 MAINNET: Processing {} WHISKEY for lending pool (swap → transfer USDC)", lending_amount);
+                
+                // First, transfer WHISKEY from payer to our whiskey vault for swapping
                 transfer(
                     CpiContext::new(
                         ctx.accounts.token_program.to_account_info(),
@@ -822,9 +862,9 @@ pub mod whiskeyprogram {
                     ),
                     lending_amount,
                 )?;
-                msg!("✅ WHISKEY transferred to lending pool vault: {} WHISKEY", lending_amount);
+                msg!("✅ WHISKEY received for swapping: {} WHISKEY", lending_amount);
 
-                // Environment-aware Jupiter swap execution
+                // Execute Jupiter swap in our program: WHISKEY (from our vault) → USDC (to our USDC vault)
                 let lending_pool_bump = ctx.accounts.lending_pool_config.bump;
                 let lending_pool_seeds = &[
                     LENDING_POOL_SEED,
@@ -841,36 +881,56 @@ pub mod whiskeyprogram {
                 // In production, this comes from Jupiter's quote API
                 let route_plan = vec![]; // Empty for direct swap (if available)
 
-                // Execute swap based on environment
-                if cfg!(feature = "mainnet") {
-                    msg!("🔄 MAINNET: Executing ATOMIC Jupiter swap: {} WHISKEY → USDC", lending_amount);
+                // MAINNET ONLY: Execute Jupiter swap and transfer to capital vault
+                msg!("🔄 MAINNET: Executing ATOMIC Jupiter swap: {} WHISKEY → USDC", lending_amount);
+                
+                // Execute the REAL Jupiter CPI swap with retry logic
+                let mut swap_success = false;
+                let actual_usdc_out = minimum_usdc_out;
+                
+                for swap_attempt in 1..=3 {
+                    msg!("🔄 Jupiter swap attempt {}/3", swap_attempt);
                     
-                    // Execute the REAL Jupiter CPI swap
-                    execute_real_jupiter_swap(
+                    match execute_real_jupiter_swap(
                         &ctx.accounts,
                         lending_amount,
                         minimum_usdc_out,
                         100, // 1% slippage in basis points
-                        route_plan,
+                        route_plan.clone(),
+                        lending_pool_signer,
+                    ) {
+                        Ok(_) => {
+                            msg!("✅ Jupiter swap completed on attempt {}: {} WHISKEY → ~{} USDC", swap_attempt, lending_amount, minimum_usdc_out);
+                            swap_success = true;
+                            break;
+                        }
+                        Err(e) => {
+                            msg!("❌ Jupiter swap attempt {} failed: {:?}", swap_attempt, e);
+                            if swap_attempt == 3 {
+                                msg!("🚨 CRITICAL: Jupiter swap failed after 3 attempts");
+                                return Err(e);
+                            }
+                            msg!("⏳ Retrying Jupiter swap...");
+                        }
+                    }
+                }
+
+                if swap_success {
+                    // CRITICAL: Transfer USDC to lending capital vault with retry mechanism
+                    msg!("🎯 CRITICAL OPERATION: Transferring USDC to lending capital vault");
+                    transfer_usdc_to_capital_vault(
+                        &ctx.accounts,
+                        actual_usdc_out,
                         lending_pool_signer,
                     )?;
-
-                    // Update lending pool statistics with actual swap results
-                    ctx.accounts.lending_pool_config.total_whiskey_received += lending_amount;
-                    ctx.accounts.lending_pool_config.total_usdc_swapped += minimum_usdc_out;
-                    ctx.accounts.lending_pool_config.last_swap_timestamp = Clock::get()?.unix_timestamp;
-
-                    msg!("✅ MAINNET: Jupiter swap completed: {} WHISKEY → ~{} USDC", lending_amount, minimum_usdc_out);
-                } else {
-                    msg!("🔄 DEVNET: Simulating Jupiter swap: {} WHISKEY → {} USDC", lending_amount, minimum_usdc_out);
-                    
-                    // DEVNET MODE: Update lending pool statistics without swap
-                    ctx.accounts.lending_pool_config.total_whiskey_received += lending_amount;
-                    // Note: total_usdc_swapped stays 0 in devnet mode
-                    ctx.accounts.lending_pool_config.last_swap_timestamp = Clock::get()?.unix_timestamp;
-
-                    msg!("✅ DEVNET: Lending pool updated without Jupiter swap");
                 }
+
+                // Update lending pool statistics with actual swap results
+                ctx.accounts.lending_pool_config.total_whiskey_received += lending_amount;
+                ctx.accounts.lending_pool_config.total_usdc_swapped += minimum_usdc_out;
+                ctx.accounts.lending_pool_config.last_swap_timestamp = Clock::get()?.unix_timestamp;
+
+                msg!("✅ MAINNET: USDC transferred to capital vault for lending liquidity");
             }
 
             // Transfer 20% to treasury (stays as WHISKEY)
@@ -1168,6 +1228,15 @@ pub struct MintNftWithSwap<'info> {
     /// CHECK: USDC mint for Jupiter swaps
     pub usdc_mint: UncheckedAccount<'info>,
 
+    // Lending program's capital vault (where USDC goes for lending liquidity)
+    /// CHECK: Validated as USDC token account owned by lending program's global market PDA
+    #[account(
+        mut,
+        constraint = lending_capital_vault.mint == USDC_MINT @ ErrorCode::InvalidTokenMint,
+        constraint = lending_capital_vault.owner == global_market.key() @ ErrorCode::InvalidVaultOwner
+    )]
+    pub lending_capital_vault: Account<'info, TokenAccount>,
+
     // System Programs
         pub token_program: Program<'info, Token>,
         pub associated_token_program: Program<'info, AssociatedToken>,
@@ -1211,4 +1280,8 @@ pub enum ErrorCode {
     InvalidVault,
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
+    #[msg("Invalid token mint - expected USDC")]
+    InvalidTokenMint,
+    #[msg("Invalid vault owner - must be owned by global market PDA")]
+    InvalidVaultOwner,
 }

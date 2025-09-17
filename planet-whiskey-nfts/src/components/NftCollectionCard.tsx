@@ -402,7 +402,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Multiple gateway attempts for better reliability
             const tryMultipleGateways = async (ipfsHash: string) => {
+                const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
                 const gateways = [
+                    `${pinataGateway}/ipfs/${ipfsHash}`,
                     `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
                     `https://ipfs.io/ipfs/${ipfsHash}`,
                     `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`,
@@ -469,8 +471,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     // BACKUP: Try to get image from collection's metadataUri (collection image)
                     try {
                         console.log(`[NFT_MINT] 🔄 Attempting backup: using collection metadata image`);
+                        const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
                         const collectionMetadataUrl = liveCollectionData.metadataUri.startsWith('ipfs://') 
-                            ? liveCollectionData.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')
+                            ? liveCollectionData.metadataUri.replace('ipfs://', `${pinataGateway}/ipfs/`)
                             : liveCollectionData.metadataUri;
                         
                         const collectionResponse = await fetch(collectionMetadataUrl);
@@ -693,11 +696,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 program.programId
             );
 
+            // Derive lending capital vault PDA (for the lending program)
+            const [lendingCapitalVaultPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("capital_vault_usdc")],
+                LENDING_PROGRAM_ID
+            );
+
             // Log the derived addresses for debugging
             console.log('🔍 Derived PDA addresses:');
             console.log('  Lending Pool Config:', lendingPoolConfigPda.toString());
             console.log('  WHISKEY Vault V2:', lendingPoolWhiskeyVaultPda.toString());
             console.log('  USDC Vault V2:', lendingPoolUsdcVaultPda.toString());
+            console.log('  Lending Capital Vault:', lendingCapitalVaultPda.toString());
 
             // Treasury wallet address (the admin wallet) - from environment variables
             const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
@@ -721,9 +731,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 );
             }
 
-            // Jupiter and USDC constants
-            const JUPITER_PROGRAM_ID = new PublicKey("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
-            const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+            // Jupiter and USDC constants (from environment variables)
+            const JUPITER_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_JUPITER_PROGRAM_ID || "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
+            const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
             // Prepare accounts object with Jupiter CPI accounts
             const accounts = {
@@ -739,14 +749,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 globalMarket: globalMarketPda,
                 whiskeyTokenMint: WHISKEY_TOKEN_MINT_PK,
                 payerWhiskeyTokenAccount: payerWhiskeyTokenAccount,
-                // COMMENTED OUT FOR DEVNET - Jupiter CPI accounts (restore for mainnet)
+                // MAINNET: Jupiter CPI accounts for WHISKEY → USDC swaps
                 lendingPoolConfig: lendingPoolConfigPda,
                 lendingPoolWhiskeyVault: lendingPoolWhiskeyVaultPda,
                 lendingPoolUsdcVault: lendingPoolUsdcVaultPda,
+                lendingCapitalVault: lendingCapitalVaultPda, // Add missing capital vault
                 treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
                 treasuryWallet: TREASURY_WALLET,
-                // usdcMint: USDC_MINT, // COMMENTED OUT FOR DEVNET
-                // jupiterProgram: JUPITER_PROGRAM_ID, // COMMENTED OUT FOR DEVNET
+                usdcMint: USDC_MINT, // MAINNET: Real USDC mint
+                jupiterProgram: JUPITER_PROGRAM_ID, // MAINNET: Jupiter program for swaps
                 // System programs
                 tokenProgram: TOKEN_PROGRAM_ID,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,

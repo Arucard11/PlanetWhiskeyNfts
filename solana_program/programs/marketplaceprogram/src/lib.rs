@@ -2,9 +2,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint, CloseAccount};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("E9rdfVCukatP1LxyMun3mnw28pprwpTJtzkqtw1YVQ7n"); // New Program ID
+declare_id!("BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT");
 
-pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu");
+pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");
 
 // Helper function to read dynamic fee configuration from GlobalMarket account
 fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u16> {
@@ -29,9 +29,9 @@ fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u
 }
 
 // ADMIN WALLET - This wallet controls ALL marketplace administrative functions
-pub const ADMIN_WALLET: Pubkey = pubkey!("2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk");
+pub const ADMIN_WALLET: Pubkey = pubkey!("F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 
-pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6");
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK");
 pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
 
 // Default transaction fee (can be updated by admin)

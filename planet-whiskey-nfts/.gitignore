@@ -40,5 +40,20 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# admin keypair (never commit!)
+# SECURITY: All keypairs and sensitive files (never commit!)
 ../solana_program/admin-keypair.json
+../solana_program/mainnet-admin-keypair.json
+../solana_program/mainnet-liquidation-keypair.json
+../solana_program/whiskeyprogram-keypair.json
+../solana_program/marketplaceprogram-keypair.json
+../solana_program/lendingprogram-keypair.json
+../solana_program/liquidation-keypair.json
+../solana_program/*-keypair.json
+../solana_program/mainnet-environment.env
+scripts/liquidation-keypair.json
+scripts/*-keypair.json
+
+# Environment files with sensitive data
+.env.mainnet
+.env.production
+env.mainnet

@@ -1,5 +1,5 @@
 {
-  "address": "Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM",
+  "address": "3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -24,7 +24,7 @@
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "collection_config",
@@ -225,7 +225,7 @@
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "lending_pool_config",
@@ -343,11 +343,11 @@
         },
         {
           "name": "whiskey_token_mint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "usdc_mint",
-          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
+          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         },
         {
           "name": "token_program",
@@ -384,7 +384,7 @@
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "collection_config",
@@ -592,7 +592,7 @@
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk"
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
         },
         {
           "name": "lending_pool_config",
@@ -710,11 +710,11 @@
         },
         {
           "name": "whiskey_token_mint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "usdc_mint",
-          "address": "4Cft5hME2qFcMkSKV1389QXtMSprrxYewsEGnj7usWHP"
+          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         },
         {
           "name": "token_program",
@@ -908,7 +908,7 @@
         },
         {
           "name": "whiskey_token_mint",
-          "address": "6ebFhcM7zXtmrNa6Nod6YRNhtH4tgC5YheHTwwBW8Nfu"
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
         },
         {
           "name": "payer_whiskey_token_account",
@@ -1120,6 +1120,17 @@
         },
         {
           "name": "treasury_wallet",
+          "writable": true
+        },
+        {
+          "name": "jupiter_program",
+          "address": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "lending_capital_vault",
           "writable": true
         },
         {
@@ -1393,6 +1404,16 @@
       "code": 6015,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidTokenMint",
+      "msg": "Invalid token mint - expected USDC"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidVaultOwner",
+      "msg": "Invalid vault owner - must be owned by global market PDA"
     }
   ],
   "types": [

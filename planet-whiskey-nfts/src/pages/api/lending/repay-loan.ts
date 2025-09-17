@@ -8,8 +8,8 @@ import lendingIdl from '../../../lib/idl/lendingprogram.json';
 
 // Program IDs
 const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
-const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
-const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_TOKEN_MINT!);
+const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
+const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
 const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -33,8 +33,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Validate environment variables
   const requiredEnvVars = [
     'NEXT_PUBLIC_LENDING_PROGRAM_ID',
-    'NEXT_PUBLIC_WHISKEY_TOKEN_MINT',
-    'NEXT_PUBLIC_USDC_TOKEN_MINT',
+    'NEXT_PUBLIC_WHISKEY_MINT',
+    'NEXT_PUBLIC_USDC_MINT',
     'NEXT_PUBLIC_TREASURY_WALLET',
     'NEXT_PUBLIC_SOLANA_RPC_URL'
   ];
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('📊 Current WHISKEY price:', currentWhiskeyRate);
 
     // Setup Solana connection and program
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com', 'confirmed');
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com', 'confirmed');
     const provider = new anchor.AnchorProvider(connection, {} as any, {});
     anchor.setProvider(provider);
     

@@ -18,7 +18,7 @@ import NftCollection from '../../../models/NftCollection';
 
 // console.log("DEBUG: PINATA_API_KEY from env:", process.env.PINATA_API_KEY); // Removed
 // console.log("DEBUG: PINATA_SECRET_API_KEY from env:", process.env.PINATA_SECRET_API_KEY); // Removed
-const pinata = new PinataClient(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_API_KEY);
+const pinata = new PinataClient(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_KEY);
 
 export const config = {
   api: {
@@ -257,7 +257,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const adminWalletPublicKey = new PublicKey(sAdminWalletAddress as string);
 
     // Validate that the provided admin wallet address matches the expected admin wallet
-    const expectedAdminWallet = process.env.NEXT_PUBLIC_ADMIN_WALLET || "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk";
+    const expectedAdminWallet = process.env.NEXT_PUBLIC_ADMIN_WALLET || "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X";
     if (adminWalletPublicKey.toBase58() !== expectedAdminWallet) {
       console.error("[ADMIN_CREATE_COLLECTION] Unauthorized: Provided wallet is not the admin wallet");
       return res.status(403).json({ message: 'Unauthorized: Only the admin wallet can create collections.' });

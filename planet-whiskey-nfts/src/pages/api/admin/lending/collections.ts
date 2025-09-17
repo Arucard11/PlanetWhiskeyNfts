@@ -11,8 +11,8 @@ import NftCollection from '@/models/NftCollection';
 const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ');
 const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || 'Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM');
 
-// Collection Registry PDA seed (V2 - new registry with correct authority)
-const COLLECTION_REGISTRY_SEED = 'collection_registry_v2';
+// Collection Registry PDA seed (unified registry)
+const COLLECTION_REGISTRY_SEED = 'collection_registry';
 
 interface CollectionEntry {
   mint: string;
@@ -66,7 +66,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Setup Solana connection
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
       'confirmed'
     );
 
@@ -210,7 +210,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           )
           .accounts({
             collectionRegistry: collectionRegistryPda,
-            admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk'), // Admin wallet
+            admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
           })
           .instruction();
 
@@ -269,7 +269,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             .toggleCollectionApproval(new PublicKey(collectionMint))
             .accounts({
               collectionRegistry: collectionRegistryPda,
-              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk'), // Admin wallet
+              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
             })
             .instruction();
         } else if (newValueUsd) {
@@ -281,7 +281,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             )
             .accounts({
               collectionRegistry: collectionRegistryPda,
-              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk'), // Admin wallet
+              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
             })
             .instruction();
         } else {

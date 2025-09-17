@@ -312,9 +312,102 @@ export default function Home() {
                 Assets
               </span>
             </h2>
-            <p className="text-2xl text-gray-400 max-w-5xl mx-auto leading-relaxed">
+            <p className="text-2xl text-gray-400 max-w-5xl mx-auto leading-relaxed mb-8">
               Explore asset-backed NFT collections of <span className="text-amber-400">Whiskey barrels, Gold, and Bitcoin</span>.
             </p>
+            <div className="flex justify-center mb-12">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 1, delay: 0.8 }}
+                className="relative"
+              >
+                {/* Cinematic glow background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/30 via-amber-600/30 to-orange-600/30 rounded-2xl blur-2xl scale-110 opacity-60" />
+                
+                {/* Floating particles around button */}
+                <div className="absolute inset-0">
+                  {[...Array(8)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-1 h-1 bg-amber-400/60 rounded-full"
+                      style={{
+                        left: `${10 + i * 10}%`,
+                        top: `${-20 + (i % 2) * 40}%`,
+                      }}
+                      animate={{
+                        scale: [0, 1.5, 0],
+                        opacity: [0, 0.8, 0],
+                        y: [0, -20, 0],
+                      }}
+                      transition={{
+                        duration: Math.random() * 3 + 2,
+                        repeat: Infinity,
+                        delay: Math.random() * 2,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <a
+                  href="https://www.planetwhiskey.xyz/angelshareventures"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative inline-flex items-center"
+                >
+                  <motion.div
+                    className="relative px-16 py-8 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-black font-bold text-2xl rounded-2xl shadow-2xl shadow-amber-500/40 overflow-hidden border-2 border-amber-400/50"
+                    whileHover={{ 
+                      scale: 1.05,
+                      boxShadow: "0 25px 50px -12px rgba(251, 191, 36, 0.6)",
+                      borderColor: "rgba(251, 191, 36, 0.8)"
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", stiffness: 400 }}
+                    style={{
+                      textShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
+                    }}
+                  >
+                    {/* Button glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-amber-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-2xl" />
+                    
+                    {/* Shimmer effect */}
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                      animate={{
+                        x: ['-100%', '200%'],
+                      }}
+                      transition={{
+                        duration: 3,
+                        repeat: Infinity,
+                        repeatDelay: 2,
+                        ease: "easeInOut"
+                      }}
+                    />
+                    
+                    <span className="relative z-10 flex items-center tracking-wide">
+                      <motion.span 
+                        className="mr-4 text-3xl filter drop-shadow-lg"
+                        whileHover={{ scale: 1.2, rotate: 5 }}
+                        transition={{ type: "spring", stiffness: 400 }}
+                      >
+                        🏛️
+                      </motion.span>
+                      THE THREE GOLD TREASURY
+                      <motion.div
+                        className="ml-4"
+                        animate={{ x: [0, 5, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        <ChevronRight className="w-7 h-7 group-hover:translate-x-2 transition-transform duration-300" />
+                      </motion.div>
+                    </span>
+                  </motion.div>
+                </a>
+              </motion.div>
+            </div>
           </motion.div>
           
           {loadingCompanies ? (
@@ -568,6 +661,7 @@ export default function Home() {
           )}
         </div>
       </section>
+
 
       {/* Revolutionary Distiller's Guide Section */}
       <section id="how-it-works" className="py-32 bg-gradient-to-b from-black via-slate-900 to-black relative">

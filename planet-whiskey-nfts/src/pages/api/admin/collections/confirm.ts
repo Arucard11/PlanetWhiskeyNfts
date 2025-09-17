@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await connectToDatabase();
 
     // Get fresh connection
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
     const transaction = Transaction.from(Buffer.from(signedTransaction, 'base64'));
     
     console.log('[ADMIN_CONFIRM_COLLECTION] Using existing blockhash from signed transaction...');

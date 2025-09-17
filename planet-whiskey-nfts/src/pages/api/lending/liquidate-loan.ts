@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Load environment variables
-const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const LENDING_PROGRAM_ID = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

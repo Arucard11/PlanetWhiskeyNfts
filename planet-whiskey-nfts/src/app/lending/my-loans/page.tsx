@@ -183,7 +183,7 @@ export default function MyLoansPage() {
       console.log('✅ Withdrawal transaction created:', data);
 
       // Deserialize and send transaction
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
       
       // Simulate transaction first to get better error details
@@ -257,7 +257,7 @@ export default function MyLoansPage() {
       console.log('✅ Repayment transaction created:', data);
 
       // Deserialize and send transaction
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
       const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
       
       // Simulate transaction first to get better error details

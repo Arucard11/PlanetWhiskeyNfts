@@ -9,7 +9,7 @@ import { withAdminAuth } from '@/lib/adminAuth';
 
 // Pinata configuration
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
-const PINATA_SECRET_API_KEY = process.env.PINATA_SECRET_API_KEY;
+const PINATA_SECRET_API_KEY = process.env.PINATA_SECRET_KEY;
 
 // Disable Next.js body parser to handle formidable
 export const config = {
@@ -47,6 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
+
+  const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
 
   try {
     // Parse form data
@@ -89,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const imageResult = await imageUploadResponse.json();
-    const imageUrl = `https://gateway.pinata.cloud/ipfs/${imageResult.IpfsHash}`;
+    const imageUrl = `${pinataGateway}/ipfs/${imageResult.IpfsHash}`;
     console.log('✅ Image uploaded:', imageUrl);
 
     // Create collection metadata
@@ -141,14 +143,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const metadataResult = await metadataUploadResponse.json();
-    const metadataUri = `https://gateway.pinata.cloud/ipfs/${metadataResult.IpfsHash}`;
+    const metadataUri = `${pinataGateway}/ipfs/${metadataResult.IpfsHash}`;
     console.log('✅ Metadata uploaded:', metadataUri);
 
     // Create Solana transaction for whiskey-gated collection
-    const connection = new Connection(process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
     
     // Get admin wallet address from environment (no private key needed)
-    const adminWallet = new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || '2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk');
+    const adminWallet = new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X');
 
     // Load Whiskey Program
     const whiskeyProgramId = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);

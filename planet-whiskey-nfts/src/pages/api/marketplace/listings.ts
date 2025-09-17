@@ -139,7 +139,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                 const hash = imageUrl.substring(7);
                 imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
                 console.log(`[marketplace-listings] Converted IPFS URL to proxy: ${imageUrl}`);
-              } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+              } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
                 imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
                 console.log(`[marketplace-listings] Converted Pinata URL to proxy: ${imageUrl}`);
               }
@@ -177,7 +177,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                         if (collectionImageUrl && collectionImageUrl.startsWith('ipfs://')) {
                           const hash = collectionImageUrl.substring(7);
                           collectionImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                        } else if (collectionImageUrl && collectionImageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                        } else if (collectionImageUrl && (collectionImageUrl.includes('gateway.pinata.cloud/ipfs/') || collectionImageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
                           collectionImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(collectionImageUrl)}`;
                         }
                     }
@@ -243,7 +243,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                             if (imageUrl && imageUrl.startsWith('ipfs://')) {
                               const hash = imageUrl.substring(7);
                               imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                            } else if (imageUrl && imageUrl.includes('gateway.pinata.cloud/ipfs/')) {
+                            } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
                               imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
                             }
                         }

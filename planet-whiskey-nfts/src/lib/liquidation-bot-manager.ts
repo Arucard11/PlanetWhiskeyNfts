@@ -41,7 +41,7 @@ class LiquidationBotManager {
       const env = {
         ...process.env,
         NEXT_PUBLIC_LENDING_PROGRAM_ID: process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID,
-        SOLANA_RPC_URL: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+        SOLANA_RPC_URL: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
       };
 
       // Fork the bot process (better for Node.js scripts)
@@ -92,7 +92,7 @@ class LiquidationBotManager {
       console.log(`🤖 Liquidation bot started with PID: ${this.botProcess.pid}`);
       console.log('   Environment Variables:');
       console.log('     LENDING_PROGRAM_ID:', process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID);
-      console.log('     SOLANA_RPC_URL:', process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+      console.log('     SOLANA_RPC_URL:', process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
       console.log('     LIQUIDATION_BOT_INTERVAL_MINUTES:', process.env.LIQUIDATION_BOT_INTERVAL_MINUTES || '5');
       console.log('✅ Liquidation bot is now monitoring for expired loans...');
 

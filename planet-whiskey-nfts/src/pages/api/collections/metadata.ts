@@ -11,11 +11,13 @@ const ipfsToPinataUrl = (uri: string): string => {
     return uri;
   }
   const hash = uri.substring(7);
-  return `https://gateway.pinata.cloud/ipfs/${hash}`;
+  const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+  return `${pinataGateway}/ipfs/${hash}`;
 };
 
 // Fallback IPFS gateways
 const ipfsGateways = [
+  `${process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud'}/ipfs/`,
   'https://gateway.pinata.cloud/ipfs/',
   'https://ipfs.io/ipfs/',
   'https://cloudflare-ipfs.com/ipfs/',

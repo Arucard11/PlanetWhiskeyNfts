@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import PinataClient from '@pinata/sdk';
 
-const pinata = new PinataClient(process.env.PINATA_API_KEY!, process.env.PINATA_SECRET_API_KEY!);
+const pinata = new PinataClient(process.env.PINATA_API_KEY!, process.env.PINATA_SECRET_KEY!);
 
 interface NFTMetadata {
   name: string;
@@ -91,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         category: "image",
         creators: [
           {
-            address: creatorAddress || process.env.NEXT_PUBLIC_ADMIN_WALLET || "2VERvChaga6hFBBMFaEzTYpXPgyBo2zbRFuMCVXf1Mhk", // Default admin wallet
+            address: creatorAddress || process.env.NEXT_PUBLIC_ADMIN_WALLET || "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X", // Default admin wallet
             share: 100
           }
         ]
@@ -123,7 +123,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Test if the uploaded metadata is immediately accessible
     try {
       console.log('[CREATE_NFT_METADATA] Testing immediate access via Pinata gateway...');
-      const testUrl = `https://gateway.pinata.cloud/ipfs/${pinataResponse.IpfsHash}`;
+      const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+      const testUrl = `${pinataGateway}/ipfs/${pinataResponse.IpfsHash}`;
       const testResponse = await fetch(testUrl);
       console.log('[CREATE_NFT_METADATA] Test fetch status:', testResponse.status);
       if (testResponse.ok) {

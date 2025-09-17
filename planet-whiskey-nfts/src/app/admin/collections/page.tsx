@@ -348,7 +348,7 @@ export default function ManageCollectionsPage() {
         // Get fresh blockhash if needed
         if (!transaction.recentBlockhash) {
           console.log('🔄 Getting fresh blockhash...');
-          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
           const { blockhash } = await connection.getLatestBlockhash();
           transaction.recentBlockhash = blockhash;
         }
@@ -374,7 +374,7 @@ export default function ManageCollectionsPage() {
           console.error('❌ Full error object:', signError);
           throw new Error(`Failed to sign transaction: ${signError instanceof Error ? signError.message : 'Unknown signing error'}`);
         }
-        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
         console.log('📡 Transaction sent:', signature);
