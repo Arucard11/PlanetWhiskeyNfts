@@ -12,7 +12,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Known token mints
 export const WHISKEY_TOKEN_MINT = process.env.NEXT_PUBLIC_WHISKEY_MINT!;
 export const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT!;
-export const WRAPPED_SOL_MINT = process.env.NEXT_PUBLIC_WRAPPED_SOL_MINT || 'So11111111111111111111111111111111111111112';
+export const WRAPPED_SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 export interface RaydiumPoolInfo {
   type: string;
