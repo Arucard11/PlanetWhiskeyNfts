@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Derive collection registry PDA
     const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('collection_registry_v2')],
+      [Buffer.from('collection_registry')],
       LENDING_PROGRAM_ID
     );
 

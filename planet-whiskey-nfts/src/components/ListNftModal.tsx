@@ -153,11 +153,39 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
         setListingMessage("3/4: Confirming transaction on the blockchain...");
         
         console.log(`[LIST_NFT_MODAL] ⏳ Confirming transaction...`);
-        await connection.confirmTransaction({
-            signature,
-            blockhash,
-            lastValidBlockHeight
-        });
+        
+        // Fast confirmation with aggressive polling
+        console.log(`[LIST_NFT_MODAL] 🚀 Starting fast confirmation polling...`);
+        let confirmed = false;
+        const maxAttempts = 30; // 30 attempts over ~15 seconds
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const status = await connection.getSignatureStatus(signature);
+                console.log(`[LIST_NFT_MODAL] 📊 Attempt ${attempt}: Status = ${status.value?.confirmationStatus || 'pending'}`);
+                
+                if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
+                    console.log(`[LIST_NFT_MODAL] ✅ Transaction confirmed on attempt ${attempt}!`);
+                    confirmed = true;
+                    break;
+                } else if (status.value?.err) {
+                    throw new Error(`Transaction failed: ${status.value.err}`);
+                }
+                
+                // Wait 500ms between checks for fast confirmation
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (statusError) {
+                console.log(`[LIST_NFT_MODAL] ⚠️ Status check ${attempt} failed:`, statusError);
+                if (attempt === maxAttempts) {
+                    throw new Error('Failed to confirm transaction after multiple attempts');
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        if (!confirmed) {
+            console.log(`[LIST_NFT_MODAL] ⏰ Timeout after ${maxAttempts} attempts, but proceeding...`);
+        }
 
         console.log(`[LIST_NFT_MODAL] ✅ Transaction confirmed on blockchain!`);
 

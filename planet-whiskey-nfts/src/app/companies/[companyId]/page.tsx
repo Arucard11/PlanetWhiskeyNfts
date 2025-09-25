@@ -178,6 +178,7 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
                                     name={collection.name}
                                     symbol={collection.symbol}
                                     metadataUri={collection.metadataUri}
+                                    nftBaseMetadataUri={collection.nftBaseMetadataUri}
                                     mintPriceLamports={collection.mintPriceLamports}
                                     mintPriceWhiskeyTokens={collection.mintPriceWhiskeyTokens}
                                     mintPriceUsd={collection.mintPriceUsd}

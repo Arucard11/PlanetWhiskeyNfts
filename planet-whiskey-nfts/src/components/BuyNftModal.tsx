@@ -95,27 +95,54 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
         setBuyMessage("3/4: Confirming purchase on blockchain...");
 
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-        try {
-            await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
-        } catch (confirmError: any) {
-            console.error("❌ Transaction confirmation failed:", confirmError);
-            
-            // Try to get transaction details even if confirmation failed
+        
+        // Fast confirmation with aggressive polling
+        console.log('[BUY_MODAL] 🚀 Starting fast confirmation polling...');
+        let confirmed = false;
+        const maxAttempts = 30; // 30 attempts over ~15 seconds
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                const tx = await connection.getTransaction(signature, {
-                    maxSupportedTransactionVersion: 0,
-                });
-                if (tx?.meta?.logMessages) {
-                    console.log("📋 Transaction logs:", tx.meta.logMessages);
-                    setBuyMessage(`❌ Transaction failed. Check console for detailed logs. Error: ${confirmError.message}`);
-                } else {
-                    setBuyMessage(`❌ Transaction confirmation failed: ${confirmError.message}`);
+                const status = await connection.getSignatureStatus(signature);
+                console.log(`[BUY_MODAL] 📊 Attempt ${attempt}: Status = ${status.value?.confirmationStatus || 'pending'}`);
+                
+                if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
+                    console.log(`[BUY_MODAL] ✅ Transaction confirmed on attempt ${attempt}!`);
+                    confirmed = true;
+                    break;
+                } else if (status.value?.err) {
+                    setBuyMessage(`❌ Transaction failed: ${status.value.err}`);
+                    return;
                 }
-            } catch (logError) {
-                console.error("Failed to get transaction logs:", logError);
-                setBuyMessage(`❌ Transaction confirmation failed: ${confirmError.message}`);
+                
+                // Wait 500ms between checks for fast confirmation
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (statusError) {
+                console.log(`[BUY_MODAL] ⚠️ Status check ${attempt} failed:`, statusError);
+                if (attempt === maxAttempts) {
+                    // Try to get transaction details for better error reporting
+                    try {
+                        const tx = await connection.getTransaction(signature, {
+                            maxSupportedTransactionVersion: 0,
+                        });
+                        if (tx?.meta?.logMessages) {
+                            console.log("📋 Transaction logs:", tx.meta.logMessages);
+                            setBuyMessage(`❌ Transaction failed. Check console for detailed logs.`);
+                        } else {
+                            setBuyMessage(`❌ Transaction confirmation failed after multiple attempts`);
+                        }
+                    } catch (logError) {
+                        console.error("Failed to get transaction logs:", logError);
+                        setBuyMessage(`❌ Transaction confirmation failed after multiple attempts`);
+                    }
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
-            return;
+        }
+        
+        if (!confirmed) {
+            console.log(`[BUY_MODAL] ⏰ Timeout after ${maxAttempts} attempts, but proceeding...`);
         }
 
         setBuyMessage("4/4: Finalizing purchase in database...");

@@ -15,7 +15,7 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
-
+env.example
 # Next.js build output
 .next/
 */.next/
@@ -90,3 +90,5 @@ test-ledger/
 *.key
 !.gitkeep 
 .env.example
+mainnet-admin-keypair.json
+new-whiskey-program-keypair-v10.json

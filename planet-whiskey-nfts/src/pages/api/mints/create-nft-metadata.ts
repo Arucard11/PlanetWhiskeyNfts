@@ -52,9 +52,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'Missing required metadata fields. All fields including nftImageUrl are required.' });
     }
 
-    // Validate that we have a real image URL, not a placeholder
-    if (nftImageUrl === '/placeholder-image.svg' || nftImageUrl.includes('placeholder')) {
-      return res.status(400).json({ message: 'Cannot create NFT metadata with placeholder image. A real image URL is required.' });
+    // Validate that we have a real image URL, not a local placeholder
+    if (nftImageUrl === '/placeholder-image.svg') {
+      return res.status(400).json({ message: 'Cannot create NFT metadata with local placeholder image. A real image URL is required.' });
+    }
+    
+    // Allow branded placeholder URLs from via.placeholder.com (these are valid external images)
+    const isBrandedPlaceholder = nftImageUrl.includes('via.placeholder.com');
+    if (isBrandedPlaceholder) {
+      console.log('[CREATE_NFT_METADATA] Using branded placeholder image:', nftImageUrl);
     }
 
     // Validate that it's not a metadata URI (but allow IPFS image URLs without extensions)

@@ -100,7 +100,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Associated Token Accounts
-        const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT || "Hjy8sNxUneizfMaWKXmdaTrKxw8C6AchBNHu2jfXFkfu");
+        const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
         const buyerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, buyer);
         const sellerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, seller);
         const buyerNftTokenAccount = await getAssociatedTokenAddress(nftMint, buyer);
@@ -211,7 +211,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         );
 
         // Derive GlobalMarket PDA from lending program for dynamic fees
-        const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || "25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+        const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
         const [globalMarketPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("global_market")],
             LENDING_PROGRAM_ID

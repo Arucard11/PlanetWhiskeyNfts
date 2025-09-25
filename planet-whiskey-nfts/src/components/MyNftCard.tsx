@@ -30,11 +30,9 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [imageUrl, setImageUrl] = useState(initialImageUrl || '/placeholder-image.svg');
   
-  console.log(`🔥 [MyNftCard] COMPONENT RENDERED for ${name} - This should show up!`);
 
   // Fetch metadata using the robust endpoint like NftCollectionCard
   useEffect(() => {
-    console.log(`[MyNftCard] useEffect triggered for ${name}, metadataUri:`, metadataUri, 'initialImageUrl:', initialImageUrl);
     
     const fetchMetadata = async () => {
       if (!metadataUri) {
@@ -44,30 +42,39 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
       }
 
       try {
-        console.log(`[MyNftCard] Fetching metadata for ${name} from:`, metadataUri);
+        console.log(`[MyNftCard] Fetching metadata DIRECTLY for ${name} from:`, metadataUri);
         
-        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
-        const response = await fetch(apiUrl);
+        // EXACT SAME APPROACH AS NftCollectionCard.tsx - DIRECT FETCH
+        let metadataUrl = metadataUri;
+        if (metadataUri.startsWith('ipfs://')) {
+          const ipfsHash = metadataUri.replace('ipfs://', '');
+          const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+          metadataUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
+          console.log(`[MyNftCard] Converted IPFS to gateway: ${metadataUrl}`);
+        }
+
+        const response = await fetch(metadataUrl);
         
         if (!response.ok) {
-          console.warn(`[MyNftCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
+          console.warn(`[MyNftCard] Failed to fetch metadata directly: ${response.status} ${response.statusText}`);
           setImageUrl(initialImageUrl || '/placeholder-image.svg');
           return;
         }
 
-        const result = await response.json();
-        if (!result.success) {
-          console.warn(`[MyNftCard] API returned error: ${result.message}`);
-          setImageUrl(initialImageUrl || '/placeholder-image.svg');
-          return;
-        }
-
-        const metadata = result.data;
-        console.log(`[MyNftCard] Successfully fetched metadata for ${name}:`, metadata);
+        const metadata = await response.json();
+        console.log(`[MyNftCard] Successfully fetched metadata DIRECTLY for ${name}:`, metadata);
 
         if (metadata.image) {
-          console.log(`[MyNftCard] Setting robust image URL for ${name}:`, metadata.image);
-          setImageUrl(metadata.image);
+          let imageUrl = metadata.image;
+          // Convert IPFS image URLs to gateway URLs (same as NftCollectionCard)
+          if (metadata.image.startsWith('ipfs://')) {
+            const ipfsHash = metadata.image.replace('ipfs://', '');
+            const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+            imageUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
+            console.log(`[MyNftCard] Converted image IPFS to gateway: ${imageUrl}`);
+          }
+          console.log(`[MyNftCard] Setting REAL image URL for ${name}:`, imageUrl);
+          setImageUrl(imageUrl);
         } else {
           console.log(`[MyNftCard] No image in metadata for ${name}, using placeholder`);
           setImageUrl('/placeholder-image.svg');
@@ -83,8 +90,6 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
     fetchMetadata();
   }, [metadataUri, name, initialImageUrl]);
 
-  // Debug logging to see what image URL we're using
-  console.log(`[MyNftCard] Final imageUrl for ${name}:`, imageUrl);
 
   const handleImageLoad = () => {
     console.log(`[MyNftCard] Image loaded successfully for ${name}:`, imageUrl);

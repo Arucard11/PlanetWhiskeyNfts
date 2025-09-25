@@ -1,0 +1,30 @@
+{
+  "name": "planet-whiskey-liquidation-bot",
+  "version": "1.0.0",
+  "description": "Automated liquidation bot for Planet Whiskey NFT lending platform",
+  "main": "src/bot.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/bot.js",
+    "dry-run": "LIQUIDATION_DRY_RUN=true node src/bot.js"
+  },
+  "keywords": [
+    "solana",
+    "nft",
+    "liquidation",
+    "defi",
+    "bot",
+    "planet-whiskey"
+  ],
+  "author": "Planet Whiskey Team",
+  "license": "MIT",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.87.6",
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

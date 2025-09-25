@@ -5,13 +5,9 @@ use anchor_spl::{
 };
 use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK");
+declare_id!("48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3");
 
-// Reference to the whiskey program for cross-program vault access
-pub mod whiskeyprogram {
-    use anchor_lang::prelude::*;
-    declare_id!("3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8");
-}
+// Removed hardcoded whiskey program reference - no longer needed
 
 // Constants - MAINNET ADDRESSES
 pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");

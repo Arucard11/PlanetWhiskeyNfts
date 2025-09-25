@@ -117,14 +117,20 @@ export async function convertWhiskeyTokensToUsd(whiskeyAmount: number): Promise<
 /**
  * Format WHISKEY tokens with proper decimals
  */
-export function formatWhiskeyTokens(tokens: number, decimals: number = 6): string {
+export function formatWhiskeyTokens(tokens: number | undefined | null, decimals: number = 6): string {
+  if (tokens === undefined || tokens === null || isNaN(tokens)) {
+    return '0.00';
+  }
   return tokens.toFixed(2);
 }
 
 /**
  * Format USD amounts with proper formatting
  */
-export function formatUsdAmount(amount: number): string {
+export function formatUsdAmount(amount: number | undefined | null): string {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return '$0.00';
+  }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -136,7 +142,10 @@ export function formatUsdAmount(amount: number): string {
 /**
  * Format percentage changes
  */
-export function formatPercentageChange(change: number): string {
+export function formatPercentageChange(change: number | undefined | null): string {
+  if (change === undefined || change === null || isNaN(change)) {
+    return '+0.00%';
+  }
   const sign = change >= 0 ? '+' : '';
   return `${sign}${change.toFixed(2)}%`;
 }
@@ -144,7 +153,10 @@ export function formatPercentageChange(change: number): string {
 /**
  * Get price change color for UI
  */
-export function getPriceChangeColor(change: number): string {
+export function getPriceChangeColor(change: number | undefined | null): string {
+  if (change === undefined || change === null || isNaN(change)) {
+    return 'text-gray-500';
+  }
   if (change > 0) return 'text-green-500';
   if (change < 0) return 'text-red-500';
   return 'text-gray-500';

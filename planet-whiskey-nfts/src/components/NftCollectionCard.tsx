@@ -1,53 +1,41 @@
-"use client";
-
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey, SystemProgram,  SYSVAR_RENT_PUBKEY, ComputeBudgetProgram } from '@solana/web3.js';
-import { Program, AnchorProvider, type Wallet, BN, type Idl, web3 } from '@coral-xyz/anchor';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import { 
+    PublicKey, 
+    Transaction, 
+    VersionedTransaction,
+    SystemProgram, 
+    TransactionInstruction,
+    LAMPORTS_PER_SOL,
+    Keypair,
+    SYSVAR_RENT_PUBKEY
+} from '@solana/web3.js';
+import { 
+    TOKEN_PROGRAM_ID, 
+    ASSOCIATED_TOKEN_PROGRAM_ID, 
+    getAssociatedTokenAddressSync,
+    createAssociatedTokenAccountInstruction
+} from '@solana/spl-token';
+import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
+import { Wallet } from '@solana/wallet-adapter-react';
 import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
-// Assuming your IDL and program types are here - adjust path as necessary
+// Raydium SDK Integration
+import { Liquidity, LiquidityPoolKeys, Percent, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+
+// Import IDL and types
 import { Whiskeyprogram } from '@/lib/idl/whiskeyprogram';
 import idl from '@/lib/idl/whiskeyprogram.json';
 import MediaWithFallback from './MediaWithFallback';
-import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange } from '@/lib/coingeckoPricing';
+import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange, getCurrentWhiskeyRate } from '@/lib/coingeckoPricing';
+import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 
-// Global cache for metadata to prevent duplicate API calls
-const globalMetadataCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Token addresses
+const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
+const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
 
-// Debounce mechanism to prevent rapid API calls
-let pendingRequests = new Map<string, Promise<any>>();
+// Jito tip accounts (mainnet)
 
-// Ensure your program ID is correctly sourced, e.g., from an environment variable or a constants file
-const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
-
-
-
-// Augmented collection data interface that the API endpoint /api/collections/:collectionOnChainAddress returns
-interface IAugmentedNftCollection {
-    _id: string;
-    collectionOnChainAddress: string; 
-    collectionMintAddress: string;    
-    name: string; // Name of the CollectionConfig PDA (used for seeds if needed)
-    symbol: string;                   
-    metadataUri: string; // Collection's own metadata URI             
-    nftBaseMetadataUri: string; // Base URI for individual NFTs      
-    mintPriceLamports: number;
-    mintPriceWhiskeyTokens: number;
-    mintPriceUsd?: number; // NEW: USD price (what admin sets)
-    itemLimit: number;
-    companyId: string; 
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt?: Date; 
-    itemsMintedOnChain?: number; // This is crucial, fetched live
-    authority: string; // Public key string of the collection authority (for receiving mint fees)
-    bump: number; // Bump for the CollectionConfig PDA
-    isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
-    requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
-}
 
 export interface NftCollectionCardProps {
     _id: string; 
@@ -55,883 +43,723 @@ export interface NftCollectionCardProps {
     name: string;                     
     symbol: string;                   
     metadataUri: string;              
+    nftBaseMetadataUri: string;       // Base URI for individual NFTs
     mintPriceLamports: number; 
-    mintPriceWhiskeyTokens: number;   // WHISKEY token amount (calculated from USD)
-    mintPriceUsd?: number;            // NEW: USD price (what admin sets)
+    mintPriceWhiskeyTokens: number;
+    mintPriceUsd?: number;
     itemLimit: number; 
     itemsMintedOnChain?: number; 
     onMintSuccess?: () => void;
-    isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
-    requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
+    isWhiskeyGated?: boolean;
+    requiredWhiskeyAmount?: number;
 }
-
-
 
 const NftCollectionCard: React.FC<NftCollectionCardProps> = ({ 
     _id, 
     collectionOnChainAddress, 
-    name: initialName, 
-    symbol: initialSymbol,
+    name,
+    symbol,
     metadataUri, 
-    mintPriceLamports: initialMintPriceLamports, 
-    mintPriceWhiskeyTokens: initialMintPriceWhiskeyTokens,
+    nftBaseMetadataUri,
+    mintPriceLamports,
+    mintPriceWhiskeyTokens,
     mintPriceUsd,
-    itemLimit: initialItemLimit,
-    itemsMintedOnChain: initialItemsMintedOnChain = 0,
+    itemLimit,
+    itemsMintedOnChain = 0,
     onMintSuccess,
     isWhiskeyGated = false,
     requiredWhiskeyAmount = 0
 }) => {
-    // Real-time WHISKEY price hook that updates every 5 seconds
-    // Removed duplicate price hook - using the one below
-    // Debug log the props received by this component
-    console.log(`[NftCollectionCard] 🎯 Component initialized for collection:`, {
-        name: initialName,
-        _id,
-        collectionOnChainAddress,
-        metadataUri,
-        mintPriceLamports: initialMintPriceLamports,
-        mintPriceWhiskeyTokens: initialMintPriceWhiskeyTokens,
-        mintPriceUsd,
-        itemLimit: initialItemLimit,
-        itemsMintedOnChain: initialItemsMintedOnChain
-    });
-
     const { connection } = useConnection();
-    const { publicKey, connected, signTransaction, signAllTransactions } = useWallet();
+    const { publicKey, connected, signAllTransactions, signTransaction } = useWallet();
 
+    // State management
     const [isMinting, setIsMinting] = useState(false);
-    const [mintMessage, setMintMessage] = useState<string | null>(null);
-    const [imageUrl, setImageUrl] = useState<string>('');
-
-    const [displayItemsMinted, setDisplayItemsMinted] = useState(initialItemsMintedOnChain);
-    const [displayItemLimit, setDisplayItemLimit] = useState(initialItemLimit);
-    const [walletNftCount, setWalletNftCount] = useState<number | null>(null);
-    const [isCheckingWalletLimit, setIsCheckingWalletLimit] = useState(false);
+    const [mintMessage, setMintMessage] = useState('');
     
-    const [whiskeyRate, setWhiskeyRate] = useState<number | null>(null);
-    const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number | null>(null);
-    const [isCheckingWhiskeyBalance, setIsCheckingWhiskeyBalance] = useState(false);
+    // Two-step mint flow state
+    const [step1Complete, setStep1Complete] = useState(false);
+    const [step2Complete, setStep2Complete] = useState(false);
+    const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+    const [imageUrl, setImageUrl] = useState('');
+    const [imageLoading, setImageLoading] = useState(true);
+    const [walletNftCount, setWalletNftCount] = useState<number>(0);
+    const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number>(0);
+    // Real-time WHISKEY price data
+    const { priceData: whiskeyPriceData, loading: priceLoadingState } = useRealTimeWhiskeyPrice();
+    const whiskeyRate = whiskeyPriceData?.usd || 1;
 
-    // Effect to fetch collection image from metadata using our proxy
+    // Display values
+    const displayName = name;
+    const displaySymbol = symbol;
+    const displayItemLimit = itemLimit;
+    const displayItemsMinted = itemsMintedOnChain;
+    
+    // Calculate WHISKEY tokens needed based on USD price
+    const usdPrice = mintPriceUsd || 0;
+    const whiskeyTokensNeeded = whiskeyRate && whiskeyRate > 0 ? (usdPrice / whiskeyRate) : 0;
+    const displayMintPriceWhiskeyTokens = whiskeyTokensNeeded;
+    
+    const hasRequiredWhiskey = userWhiskeyBalance >= (requiredWhiskeyAmount || 0);
+
+    // Fetch collection image on mount
     useEffect(() => {
         const fetchCollectionImage = async () => {
             if (!metadataUri) {
-                setImageUrl('/placeholder-image.svg');
+                setImageLoading(false);
                 return;
             }
 
             try {
-                console.log(`[NftCollectionCard] Fetching collection image for: ${initialName}`);
+                setImageLoading(true);
                 
-                // Check global cache first
-                const cached = globalMetadataCache.get(metadataUri);
-                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-                    console.log(`[NftCollectionCard] Using cached metadata for: ${initialName}`);
-                    if (cached.data && cached.data.image) {
-                        setImageUrl(cached.data.image);
-                    } else {
-                        setImageUrl('/placeholder-image.svg');
-                    }
-                    return;
+                let metadataUrl = metadataUri;
+                if (metadataUri.startsWith('ipfs://')) {
+                    const ipfsHash = metadataUri.replace('ipfs://', '');
+                    const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+                    metadataUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
                 }
 
-                // Check if there's already a pending request for this metadata
-                if (pendingRequests.has(metadataUri)) {
-                    console.log(`[NftCollectionCard] Waiting for pending request for: ${initialName}`);
-                    const result = await pendingRequests.get(metadataUri);
-                    if (result && result.image) {
-                        setImageUrl(result.image);
-                    } else {
-                        setImageUrl('/placeholder-image.svg');
+                const response = await fetch(metadataUrl);
+                const metadata = await response.json();
+                
+                if (metadata.image) {
+                    let imageUrl = metadata.image;
+                    if (metadata.image.startsWith('ipfs://')) {
+                        const ipfsHash = metadata.image.replace('ipfs://', '');
+                        const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+                        imageUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
                     }
-                    return;
+                    setImageUrl(imageUrl);
                 }
-
-                // Create a new request promise
-                const requestPromise = (async () => {
-                    try {
-                        // Add a small delay to prevent rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        
-                        // Use our server-side proxy to avoid CORS issues
-                        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
-                        const response = await fetch(apiUrl);
-                        
-                        if (!response.ok) {
-                            console.warn(`[NftCollectionCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
-                            return null;
-                        }
-
-                        const result = await response.json();
-                        if (!result.success) {
-                            console.warn(`[NftCollectionCard] API returned error: ${result.message}`);
-                            return null;
-                        }
-
-                        const metadata = result.data;
-                        console.log(`[NftCollectionCard] Fetched metadata:`, metadata);
-
-                        // Cache the result
-                        globalMetadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });
-
-                        return metadata;
                     } catch (error) {
-                        console.error(`[NftCollectionCard] Error fetching collection image:`, error);
-                        return null;
+                console.error('Error fetching collection metadata:', error);
                     } finally {
-                        // Remove from pending requests
-                        pendingRequests.delete(metadataUri);
-                    }
-                })();
-
-                // Store the pending request
-                pendingRequests.set(metadataUri, requestPromise);
-
-                // Wait for the result
-                const metadata = await requestPromise;
-                if (metadata && metadata.image) {
-                    console.log(`[NftCollectionCard] Setting image URL: ${metadata.image}`);
-                    setImageUrl(metadata.image);
-                } else {
-                    console.warn(`[NftCollectionCard] No image found in metadata`);
-                    setImageUrl('/placeholder-image.svg');
-                }
-            } catch (error) {
-                console.error(`[NftCollectionCard] Error in fetchCollectionImage:`, error);
-                setImageUrl('/placeholder-image.svg');
+                setImageLoading(false);
             }
         };
 
         fetchCollectionImage();
-    }, [metadataUri, initialName]);
+    }, [metadataUri]);
 
-    // Effect to check wallet NFT count when wallet connects
+    // Check wallet NFT count for whiskey-gated collections
     useEffect(() => {
         const checkWalletNftCount = async () => {
-            if (!publicKey || !connected || !signTransaction || !signAllTransactions) {
-                setWalletNftCount(null);
-                return;
-            }
+            if (!connected || !publicKey || !isWhiskeyGated) return;
 
-            setIsCheckingWalletLimit(true);
             try {
-                // Use Anchor to fetch and decode the account data safely
-                const walletAdapter = { publicKey, signTransaction, signAllTransactions } as Wallet;
-                const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
-                const program = new Program(idl as any, provider);
-
-                // Use the collection-specific PDA that matches the updated smart contract
-                const collectionConfigPda = new PublicKey(collectionOnChainAddress);
-                const [walletNftCounterPda] = PublicKey.findProgramAddressSync(
-                    [Buffer.from("wallet_nft_counter"), publicKey.toBuffer(), collectionConfigPda.toBuffer()],
-                    program.programId // Use program's ID
-                );
-
-                // Fetch the account using the program instance
-                const counterAccount = await (program.account as any).walletNftCounter.fetch(walletNftCounterPda);
-                setWalletNftCount(counterAccount.nftCount);
-                console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted ${counterAccount.nftCount}/5 NFTs for this collection (decoded).`);
-            } catch (error: any) {
-                // It's expected for the account to not exist if the user has never minted.
-                // This is not an error state, it just means the count is 0.
-                if (error.message && error.message.includes("Account does not exist")) {
+                // TODO: Implement wallet NFT counter check when program supports it
+                // For now, allow minting (set to 0)
                      setWalletNftCount(0);
-                     console.log(`[WalletLimit] Wallet ${publicKey.toBase58()} has minted 0/5 NFTs for this collection (no counter account found).`);
-                } else {
-                    console.error('[WalletLimit] Error checking wallet NFT count:', error);
-                    setWalletNftCount(0); // Set to 0 instead of null for better UX
-                }
-            } finally {
-                setIsCheckingWalletLimit(false);
+            } catch (error) {
+                console.error('Error checking wallet NFT count:', error);
+                setWalletNftCount(0);
             }
         };
 
         checkWalletNftCount();
-    }, [publicKey, connected, connection, signTransaction, signAllTransactions]);
+    }, [connected, publicKey, connection, isWhiskeyGated]);
 
-    // Effect to check user's WHISKEY balance for gated collections
+    // Check user WHISKEY balance
     useEffect(() => {
         const checkUserWhiskeyBalance = async () => {
-            if (!publicKey || !connected || !isWhiskeyGated) {
-                setUserWhiskeyBalance(null);
-                return;
-            }
+            if (!connected || !publicKey) return;
 
-            setIsCheckingWhiskeyBalance(true);
             try {
-                // Get user's WHISKEY token account
-                const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
-                const userWhiskeyTokenAccount = await getAssociatedTokenAddress(
-                    whiskeyMint,
-                    publicKey
-                );
-
-                // Fetch the token account balance
-                const tokenAccount = await connection.getTokenAccountBalance(userWhiskeyTokenAccount);
-                if (tokenAccount.value) {
-                    // Convert from lamports to full tokens (WHISKEY has 6 decimals)
-                    const balanceInTokens = tokenAccount.value.uiAmount || 0;
-                    setUserWhiskeyBalance(balanceInTokens);
-                    console.log(`[WhiskeyBalance] User has ${balanceInTokens} WHISKEY tokens`);
+                const whiskeyTokenAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, publicKey);
+                const accountInfo = await connection.getAccountInfo(whiskeyTokenAccount);
+                
+                if (accountInfo) {
+                    const balance = await connection.getTokenAccountBalance(whiskeyTokenAccount);
+                    setUserWhiskeyBalance(parseFloat(balance.value.uiAmount?.toString() || '0'));
                 } else {
                     setUserWhiskeyBalance(0);
                 }
-            } catch (error: any) {
-                console.log(`[WhiskeyBalance] Error checking WHISKEY balance (likely no token account):`, error.message);
+            } catch (error) {
+                console.error('Error checking WHISKEY balance:', error);
                 setUserWhiskeyBalance(0);
-            } finally {
-                setIsCheckingWhiskeyBalance(false);
             }
         };
 
         checkUserWhiskeyBalance();
-    }, [publicKey, connected, isWhiskeyGated, connection]);
+    }, [connected, publicKey, connection]);
 
-    // Use real-time WHISKEY rate from the hook - same as admin dashboard
-    const { priceData: whiskeyPriceData, loading: priceLoading, error: priceError } = useRealTimeWhiskeyPrice(30000);
-    
-    useEffect(() => {
-        if (whiskeyPriceData?.usd) {
-            setWhiskeyRate(whiskeyPriceData.usd);
-        }
-    }, [whiskeyPriceData]);
+ 
 
-    // Separate effect for updating display values without affecting image loading
-    useEffect(() => {
-        setDisplayItemsMinted(initialItemsMintedOnChain);
-        setDisplayItemLimit(initialItemLimit);
-    }, [initialItemsMintedOnChain, initialItemLimit]);
+ 
 
-    const handleMint = useCallback(async () => {
-        if (!connected || !publicKey || !signTransaction || !signAllTransactions) {
-            setMintMessage("Wallet not connected. Please connect your wallet to mint.");
-            return;
+    // Step 1: Swap WHISKEY to USDC and deposit to vault
+    const handleStep1SwapAndDeposit = async (): Promise<void> => {
+        if (!connected || !publicKey || !signAllTransactions) {
+            throw new Error('Wallet not connected');
         }
 
-        // Check if whiskey rate is loaded
-        if (!whiskeyRate) {
-            setMintMessage("⏳ Loading WHISKEY price data... Please wait a moment and try again.");
-            return;
-        }
-
-        // Check wallet NFT limit before proceeding (only for regular collections)
-        if (!isWhiskeyGated) {
-            const maxAllowed = 5;
-            if (walletNftCount !== null && walletNftCount >= maxAllowed) {
-                setMintMessage("❌ Wallet limit reached! You can only mint 5 NFTs total per wallet across all collections.");
-                return;
-            }
-        }
-
-        // Prevent multiple simultaneous minting attempts
-        if (isMinting) {
-            console.warn("Minting already in progress, ignoring duplicate request");
-            return;
-        }
-
-        setIsMinting(true);
-        setMintMessage("Fetching latest collection details...");
-
-        let liveCollectionData: IAugmentedNftCollection;
-        try {
-            const apiResponse = await fetch(`/api/collections/${collectionOnChainAddress}`);
-            if (!apiResponse.ok) {
-                const errorData = await apiResponse.json();
-                throw new Error(errorData.message || `Failed to fetch collection details: ${apiResponse.statusText}`);
-            }
-            const responseJson = await apiResponse.json();
-            if (!responseJson.success || !responseJson.data) {
-                throw new Error(responseJson.message || "Failed to fetch valid collection data.");
-            }
-            liveCollectionData = responseJson.data;
-            
-            setDisplayItemsMinted(liveCollectionData.itemsMintedOnChain || 0);
-            setDisplayItemLimit(liveCollectionData.itemLimit);
-            
-            if (!liveCollectionData.authority) { // Ensure authority is present
-                throw new Error("Collection authority not found in fetched data.");
-            }
-
-        } catch (error: any) {
-            console.error("Failed to fetch live collection data:", error);
-            setMintMessage(`Error: ${error.message}`);
-            setIsMinting(false);
-            return;
-        }
+        console.log('[STEP1] Starting WHISKEY->USDC swap...');
+        console.log(`[STEP1] Using RPC endpoint: ${connection.rpcEndpoint}`);
         
-        const currentItemsMinted = liveCollectionData.itemsMintedOnChain || 0;
-        if (currentItemsMinted >= liveCollectionData.itemLimit) {
-            setMintMessage("Sold out! (checked with latest data)");
-            setIsMinting(false);
-            return;
+        try {
+            console.log('[STEP1] 🚀 Starting Step 1 - Swap Only (New Atomic Flow)');
+            
+            // Calculate swap amount (only the lending portion that needs to be USDC)
+            const lendingShareBps = 8000; // 80% to lending
+            const lendingPercentage = lendingShareBps / 10000; // e.g., 8000/10000 = 0.80
+            const whiskeyToSwap = displayMintPriceWhiskeyTokens * lendingPercentage;
+            const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * (1 - lendingPercentage);
+            
+            console.log(`[STEP1] Payment breakdown:`);
+            console.log(`  - Total WHISKEY payment: ${displayMintPriceWhiskeyTokens} WHISKEY`);
+            console.log(`  - Lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
+            console.log(`  - Treasury portion (${((1 - lendingPercentage) * 100).toFixed(1)}%): ${whiskeyToKeepForTreasury} WHISKEY → Treasury (Step 2)`);
+            
+            // Import the direct swap function
+            console.log('[STEP1] Importing raydium swap function...');
+            const { createWhiskeyToUsdcDirectSwap } = await import('../lib/raydiumSwap');
+            console.log('[STEP1] ✅ Raydium swap function imported');
+            
+            // Create direct WHISKEY->USDC swap transactions (only for lending portion)
+            console.log(`[STEP1] Creating swap for ${whiskeyToSwap} WHISKEY (${(lendingPercentage * 100).toFixed(1)}% of total)`);
+            
+            let swapTransactions;
+            try {
+                console.log('[STEP1] Calling createWhiskeyToUsdcDirectSwap...');
+                swapTransactions = await createWhiskeyToUsdcDirectSwap(
+                    connection,
+                    publicKey,
+                    whiskeyToSwap, // ✅ Only swap the lending percentage
+                    0.005 // 0.5% slippage
+                );
+                console.log('[STEP1] ✅ Swap transactions created successfully');
+            } catch (swapError) {
+                console.error('[STEP1] ❌ Error in createWhiskeyToUsdcDirectSwap:', swapError);
+                console.error('[STEP1] Swap error details:', {
+                    message: swapError.message,
+                    stack: swapError.stack,
+                    whiskeyToSwap,
+                    publicKey: publicKey.toString()
+                });
+                throw swapError;
+            }
+            
+            console.log(`[STEP1] Created ${swapTransactions.length} swap transactions`);
+            
+            // Check transaction types from Raydium
+            swapTransactions.forEach((tx, index) => {
+                console.log(`[STEP1] Swap transaction ${index + 1} type: ${tx.constructor.name}`);
+                if ('version' in tx) {
+                    console.log(`[STEP1] Swap transaction ${index + 1} version: ${(tx as any).version}`);
+                }
+            });
+            
+            // Sign and send swap transactions only (no payment processing in Step 1 anymore)
+            console.log('[STEP1] Requesting wallet signatures for swap transactions...');
+            const signedTransactions = await signAllTransactions(swapTransactions);
+            console.log('[STEP1] ✅ All swap transactions signed by wallet');
+            
+            // Log transaction sizes after signing
+            signedTransactions.forEach((tx, index) => {
+                const serializedSize = tx.serialize().length;
+                console.log(`[STEP1] Signed Swap Transaction ${index + 1}: ${serializedSize} bytes`);
+                
+                if (serializedSize > 1000) {
+                    console.warn(`[STEP1] ⚠️ Transaction ${index + 1} is large: ${serializedSize} bytes`);
+                }
+            });
+            
+            // Send swap transactions sequentially
+            console.log('[STEP1] Sending swap transactions to blockchain...');
+            for (let i = 0; i < signedTransactions.length; i++) {
+                const tx = signedTransactions[i];
+                
+                try {
+                    console.log(`[STEP1] Sending swap transaction ${i + 1}...`);
+                    const signature = await connection.sendRawTransaction(tx.serialize());
+                    console.log(`[STEP1] Swap transaction ${i + 1} sent: ${signature}`);
+                    
+                    console.log(`[STEP1] Confirming swap transaction ${i + 1}...`);
+                    await connection.confirmTransaction(signature, 'confirmed');
+                    console.log(`[STEP1] ✅ Swap transaction ${i + 1} confirmed: ${signature}`);
+                    
+                } catch (sendError) {
+                    console.error(`[STEP1] ❌ Error sending swap transaction ${i + 1}:`, sendError);
+                    throw sendError;
+                }
+            }
+            
+            console.log('[STEP1] 🎉 All swap transactions completed successfully!');
+            console.log('[STEP1] ✅ Step 1 complete: WHISKEY swapped to USDC. Ready for Step 2 (Atomic Mint + Payment)');
+            
+        } catch (error) {
+            console.error('[STEP1] Error in swap:', error);
+            throw error;
+        }
+    };
+
+    // Step 2: Mint NFT after deposit is confirmed
+    const handleStep2MintNft = async (): Promise<void> => {
+        if (!connected || !publicKey || !signAllTransactions) {
+            throw new Error('Wallet not connected');
         }
 
-        setMintMessage("Preparing to mint with custom program...");
-
+        console.log('[STEP2] Starting NFT mint...');
+        console.log(`[STEP2] Using RPC endpoint: ${connection.rpcEndpoint}`);
+        
         try {
-            setIsMinting(true);
-            setMintMessage("Preparing transaction...");
-
-            // Create a proper wallet adapter for Anchor
-            const walletAdapter = {
+            console.log('[STEP2] Setting up Anchor program...');
+            
+            // Setup Anchor program with proper wallet interface
+            const walletInterface = {
                 publicKey,
-                signTransaction,
-                signAllTransactions,
-            };
-
-            // Setup Anchor Provider and Program
-            const provider = new AnchorProvider(connection, walletAdapter, AnchorProvider.defaultOptions());
-            const program = new Program(idl as any, provider);
-
-            const collectionConfigPda = new PublicKey(collectionOnChainAddress); // This is liveCollectionData.collectionOnChainAddress
-            const collectionMintAccountPk = new PublicKey(liveCollectionData.collectionMintAddress);
-            const collectionAuthorityReceiverPk = new PublicKey(liveCollectionData.authority);
-
-
-            // Prepare NFT-specific metadata
-            const mintNumber = new BN(currentItemsMinted).add(new BN(1)).toNumber();
-            const nftName = `${liveCollectionData.name} #${mintNumber}`; 
-            const nftSymbol = liveCollectionData.symbol;
-            
-            setMintMessage("Creating unique NFT metadata...");
-            
-            // Get the actual image URL from the base metadata with retry logic
-            let actualImageUrl = null; // No fallback - must get real image
-            let baseNftDescription = `${liveCollectionData.name} - Edition #${mintNumber}. A premium treasury NFT from our exclusive collection.`; // Default fallback
-            
-            // Multiple gateway attempts for better reliability
-            const tryMultipleGateways = async (ipfsHash: string) => {
-                const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-                const gateways = [
-                    `${pinataGateway}/ipfs/${ipfsHash}`,
-                    `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
-                    `https://ipfs.io/ipfs/${ipfsHash}`,
-                    `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`,
-                    `https://dweb.link/ipfs/${ipfsHash}`
-                ];
-                
-                for (const gateway of gateways) {
-                    try {
-                        console.log(`[NFT_MINT] Trying gateway: ${gateway}`);
-                        const response = await fetch(gateway, { 
-                            headers: { 'Accept': 'application/json' }
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
-                            console.log(`[NFT_MINT] ✅ Success with gateway: ${gateway}`);
-                            return data;
-                        }
-                    } catch (error) {
-                        console.warn(`[NFT_MINT] Gateway ${gateway} failed:`, error.message);
-                        continue;
-                    }
-                }
-                throw new Error('All gateways failed');
+                signTransaction: signTransaction!,
+                signAllTransactions: signAllTransactions!
             };
             
-            try {
-                console.log(`[NFT_MINT] Fetching base metadata to extract image URL and description from: ${liveCollectionData.nftBaseMetadataUri}`);
-                
-                let baseMetadata: any = null;
-                
-                if (liveCollectionData.nftBaseMetadataUri.startsWith('ipfs://')) {
-                    // Extract IPFS hash and try multiple gateways
-                    const ipfsHash = liveCollectionData.nftBaseMetadataUri.replace('ipfs://', '');
-                    console.log(`[NFT_MINT] Extracted IPFS hash: ${ipfsHash}`);
-                    baseMetadata = await tryMultipleGateways(ipfsHash);
-                } else {
-                    // Direct URL
-                    const response = await fetch(liveCollectionData.nftBaseMetadataUri);
-                    if (response.ok) {
-                        baseMetadata = await response.json();
-                    }
-                }
-                
-                if (baseMetadata) {
-                    // Extract image URL if available
-                    if (baseMetadata.image) {
-                        actualImageUrl = baseMetadata.image;
-                        console.log(`[NFT_MINT] ✅ Successfully extracted image URL: ${actualImageUrl}`);
-                    } else {
-                        console.warn(`[NFT_MINT] ⚠️ No image field found in base metadata. Available fields:`, Object.keys(baseMetadata));
-                        console.warn(`[NFT_MINT] Full metadata:`, baseMetadata);
-                    }
-                    
-                    // Extract and use admin's description instead of hardcoded one
-                    if (baseMetadata.description) {
-                        baseNftDescription = baseMetadata.description;
-                        console.log(`[NFT_MINT] ✅ Successfully extracted admin's description: ${baseNftDescription}`);
-                    } else {
-                        console.warn(`[NFT_MINT] ⚠️ No description field found in base metadata, using default fallback`);
-                    }
-                } else {
-                    console.warn(`[NFT_MINT] ❌ Failed to fetch base metadata from all sources, trying backup image source...`);
-                    
-                    // BACKUP: Try to get image from collection's metadataUri (collection image)
-                    try {
-                        console.log(`[NFT_MINT] 🔄 Attempting backup: using collection metadata image`);
-                        const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-                        const collectionMetadataUrl = liveCollectionData.metadataUri.startsWith('ipfs://') 
-                            ? liveCollectionData.metadataUri.replace('ipfs://', `${pinataGateway}/ipfs/`)
-                            : liveCollectionData.metadataUri;
-                        
-                        const collectionResponse = await fetch(collectionMetadataUrl);
-                        if (collectionResponse.ok) {
-                            const collectionMetadata = await collectionResponse.json();
-                            if (collectionMetadata.image) {
-                                actualImageUrl = collectionMetadata.image;
-                                console.log(`[NFT_MINT] ✅ BACKUP SUCCESS: Using collection image: ${actualImageUrl}`);
-                            }
-                        }
-                    } catch (backupError) {
-                        console.warn(`[NFT_MINT] ❌ Backup image source also failed:`, backupError);
-                        console.error(`[NFT_MINT] 🚨 CRITICAL: No valid image URL found. Cannot mint NFT without proper image.`);
-                    }
-                }
-            } catch (error) {
-                console.warn(`[NFT_MINT] ❌ Error extracting data from base metadata:`, error);
-                console.log(`[NFT_MINT] Using fallback values for image and description`);
-            }
-            
-            // Format the final NFT description - append edition info if not already present
-            let finalNftDescription = baseNftDescription;
-            if (!finalNftDescription.toLowerCase().includes('#' + mintNumber.toString()) && 
-                !finalNftDescription.toLowerCase().includes('edition')) {
-                finalNftDescription = `${baseNftDescription} - Edition #${mintNumber}`;
-            } else if (!finalNftDescription.toLowerCase().includes('#' + mintNumber.toString())) {
-                // If it mentions "edition" but not the specific number, just add the number
-                finalNftDescription = `${baseNftDescription} #${mintNumber}`;
-            }
-            
-            // Create unique metadata for this NFT using the create-nft-metadata API
-            const mintTimestamp = Date.now();
-            // Final validation: ensure we have a proper image URL, not a metadata URI
-            if (!actualImageUrl) {
-                throw new Error('❌ Failed to extract image URL from metadata. Cannot mint NFT without proper image.');
-            }
-            
-            // IPFS URLs are valid image URLs even without file extensions
-            // Only reject if it's clearly a metadata URI (contains "metadata" or ends with .json)
-            if (actualImageUrl.includes('metadata') || actualImageUrl.endsWith('.json')) {
-                throw new Error(`❌ actualImageUrl appears to be a metadata URI, not an image URL: "${actualImageUrl}". Cannot mint NFT without proper image.`);
-            }
-            
-            console.log(`🔍 [NFT_MINT] Final actualImageUrl being sent to metadata creation: "${actualImageUrl}"`);
-            console.log(`🔍 [NFT_MINT] actualImageUrl type:`, typeof actualImageUrl);
-            
-            const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    nftName: nftName,
-                    nftSymbol: nftSymbol,
-                    nftDescription: finalNftDescription, // Use the properly formatted description
-                    nftImageUrl: actualImageUrl, // Now using the extracted image URL instead of metadata URI
-                    attributes: [
-                        { trait_type: "Edition", value: mintNumber.toString() },
-                        { trait_type: "Collection", value: liveCollectionData.name },
-                        { trait_type: "Type", value: "Treasury NFT" },
-                        { trait_type: "Rarity", value: mintNumber <= 10 ? "Legendary" : mintNumber <= 50 ? "Rare" : "Common" },
-                        { trait_type: "Mint Timestamp", value: mintTimestamp.toString() }
-                    ],
-                    collectionName: liveCollectionData.name,
-                    collectionFamily: liveCollectionData.name,
-                    mintNumber: mintNumber,
-                    mintTimestamp: mintTimestamp // Add timestamp for uniqueness
-                })
+            const provider = new AnchorProvider(connection, walletInterface as any, {
+                commitment: 'confirmed',
+                preflightCommitment: 'confirmed'
             });
-
-            if (!metadataResponse.ok) {
-                throw new Error(`Failed to create NFT metadata: ${metadataResponse.statusText}`);
-            }
-
-            const metadataResult = await metadataResponse.json();
-            const nftUri = metadataResult.metadataUri;
             
-            setMintMessage(`Metadata created: ${nftUri}`);
+            console.log('[STEP2] Loading program IDL...');
+            const idl = await import('../lib/idl/whiskeyprogram.json');
+            const program = new Program(idl as any, provider);
+            console.log('[STEP2] ✅ Anchor program setup complete');
 
+            // Get recent blockhash
+            const { blockhash } = await connection.getLatestBlockhash('confirmed');
 
-            // Generate a completely fresh keypair for this transaction
-            const nftMintKeypair = web3.Keypair.generate();
-            console.log(`[NFT_MINT] Generated fresh NFT mint keypair: ${nftMintKeypair.publicKey.toBase58()}`);
+            // Create NFT mint keypair
+            const nftMint = Keypair.generate();
+            
+            // Get collection config PDA
+            const [collectionConfigPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("collection"), Buffer.from(displayName)],
+                program.programId
+            );
 
-            const metadataPda = PublicKey.findProgramAddressSync(
+            // Get token account for NFT
+            const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, publicKey);
+            
+            // Get metadata PDA
+            const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("metadata"),
                     MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                    nftMintKeypair.publicKey.toBuffer(),
+                    nftMint.publicKey.toBuffer(),
                 ],
                 MPL_TOKEN_METADATA_PROGRAM_ID
-            )[0];
-
-            const masterEditionPda = PublicKey.findProgramAddressSync(
+            );
+            
+            // Get master edition PDA  
+            const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("metadata"),
                     MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                    nftMintKeypair.publicKey.toBuffer(),
+                    nftMint.publicKey.toBuffer(),
                     Buffer.from("edition"),
                 ],
                 MPL_TOKEN_METADATA_PROGRAM_ID
-            )[0];
-            
-            const nftTokenAccountPk = await getAssociatedTokenAddress(
-                nftMintKeypair.publicKey,
-                publicKey
-            );
-
-            // Check SOL balance before attempting to mint
-            const solBalance = await connection.getBalance(publicKey);
-            console.log(`SOL balance: ${solBalance / 1e9} SOL (${solBalance} lamports)`);
-            
-            if (solBalance < 20_000_000) { // Less than 0.02 SOL
-                throw new Error(`Insufficient SOL balance. You have ${(solBalance / 1e9).toFixed(4)} SOL but need at least 0.02 SOL for account creation and transaction fees.`);
-            }
-            
-            setMintMessage(`Calling program. Program ID: ${WHISKEY_PROGRAM_ID.toBase58()}`);
-            
-            // Use the new WHISKEY token mint from environment variables
-            const WHISKEY_TOKEN_MINT_PK = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
-            
-            // Get the payer's whiskey token account
-            const payerWhiskeyTokenAccount = await getAssociatedTokenAddress(
-                WHISKEY_TOKEN_MINT_PK,
-                publicKey
             );
             
-            // Get the authority's whiskey token account
-            const authorityWhiskeyTokenAccount = await getAssociatedTokenAddress(
-                WHISKEY_TOKEN_MINT_PK,
-                collectionAuthorityReceiverPk
-            );
+            // Create individual NFT metadata and upload to IPFS
+            console.log(`[STEP2] Creating individual NFT metadata...`);
+            const nftName = `${displayName} #${(displayItemsMinted || 0) + 1}`;
+            const mintNumber = (displayItemsMinted || 0) + 1;
             
-            // Calculate current WHISKEY cost from USD price
-            let currentWhiskeyPrice: number;
-            if (isWhiskeyGated && requiredWhiskeyAmount) {
-                // For whiskey-gated collections, the mint is FREE (0 cost) - we just check qualification
-                currentWhiskeyPrice = 0; // FREE MINT!
-                console.log(`[NftCollectionCard] Whiskey-gated collection: FREE MINT (requires ${requiredWhiskeyAmount} WHISKEY to qualify)`);
-            } else if (liveCollectionData.mintPriceUsd && whiskeyRate) {
-                // Use real-time USD to WHISKEY conversion for regular collections
-                currentWhiskeyPrice = liveCollectionData.mintPriceUsd / whiskeyRate;
-                // Convert to 6 decimal format for the program
-                currentWhiskeyPrice = currentWhiskeyPrice * 1000000;
-            } else {
-                throw new Error("Cannot calculate WHISKEY price - missing USD price or WHISKEY rate");
-            }
-            
-            // Check if payer's whiskey token account exists, create if needed
-            let createPayerAccountIx: any = null;
+            let nftMetadataUri: string;
             try {
-                const payerTokenAccountInfo = await connection.getTokenAccountBalance(payerWhiskeyTokenAccount);
-                console.log(`Payer whiskey token balance: ${payerTokenAccountInfo.value.uiAmount} WHISKEY`);
+                // Ensure we have a valid collection image URL before creating metadata
+                console.log(`[STEP2] Checking collection image URL:`, { imageUrl, imageLoading });
                 
-                if (isWhiskeyGated && requiredWhiskeyAmount) {
-                    // For whiskey-gated collections, check if user QUALIFIES (has minimum required amount)
-                    if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < requiredWhiskeyAmount) {
-                        throw new Error(`You need ${requiredWhiskeyAmount} WHISKEY tokens to qualify for this gated collection. You have ${payerTokenAccountInfo.value.uiAmount || 0}.`);
-                    }
-                    console.log(`✅ User qualifies for whiskey-gated collection with ${payerTokenAccountInfo.value.uiAmount} WHISKEY tokens`);
-                } else {
-                    // For regular collections, check if user can PAY the mint price
-                    const currentWhiskeyPriceFormatted = currentWhiskeyPrice / 1e6; // Convert from smallest units to display units
-                    if (!payerTokenAccountInfo.value.uiAmount || payerTokenAccountInfo.value.uiAmount < currentWhiskeyPriceFormatted) {
-                        throw new Error(`Insufficient WHISKEY tokens. You have ${payerTokenAccountInfo.value.uiAmount || 0} but need ${currentWhiskeyPriceFormatted.toFixed(2)}.`);
+                // Wait for collection image to load if it's still loading
+                if (imageLoading) {
+                    console.log(`[STEP2] ⏳ Collection image still loading, waiting...`);
+                    setMintMessage('Loading collection image...');
+                    
+                    // Wait up to 10 seconds for image to load
+                    let waitTime = 0;
+                    while (imageLoading && waitTime < 10000) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        waitTime += 500;
+                        console.log(`[STEP2] Still waiting for image... (${waitTime}ms)`);
                     }
                 }
-            } catch (accountError: any) {
-                if (accountError.message.includes('could not find account')) {
-                    if (isWhiskeyGated && requiredWhiskeyAmount) {
-                        // For whiskey-gated collections, if no account exists, user definitely doesn't qualify
-                        throw new Error(`You need ${requiredWhiskeyAmount} WHISKEY tokens to qualify for this gated collection. You don't have a WHISKEY token account yet.`);
-                    } else {
-                        // For regular collections, create the account so they can pay
-                        console.log('🪙 Payer WHISKEY token account does not exist, creating...');
-                        createPayerAccountIx = createAssociatedTokenAccountInstruction(
-                            publicKey, // payer
-                            payerWhiskeyTokenAccount,
-                            publicKey, // owner
-                            WHISKEY_TOKEN_MINT_PK // mint
-                        );
-                    }
-                } else if (!accountError.message.includes('WHISKEY tokens')) {
-                    console.warn('Could not check token balance:', accountError);
-                    // Continue with minting - let the program handle the error
+                
+                // Determine the NFT image URL - use collection image if available, otherwise use a branded placeholder
+                let nftImageUrl = '';
+                if (imageUrl && imageUrl !== '' && imageUrl !== '/placeholder-image.svg' && !imageUrl.includes('placeholder')) {
+                    nftImageUrl = imageUrl;
+                    console.log(`[STEP2] ✅ Using collection image: ${nftImageUrl}`);
                 } else {
-                    // Re-throw qualification/payment errors
-                    throw accountError;
+                    // Create a proper branded placeholder that won't be rejected by the API
+                    nftImageUrl = `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`;
+                    console.log(`[STEP2] ⚠️ Collection image not available, using branded placeholder: ${nftImageUrl}`);
                 }
-            }
-            
-            // For the mint function, we need the lending program's global market for dynamic fees
-            const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
-            
-            // Use global market PDA from environment variables or derive from lending program
-            const globalMarketPda = process.env.NEXT_PUBLIC_GLOBAL_MARKET_PDA
-                ? new PublicKey(process.env.NEXT_PUBLIC_GLOBAL_MARKET_PDA)
-                : PublicKey.findProgramAddressSync([Buffer.from("global_market")], LENDING_PROGRAM_ID)[0];
 
-            // Derive wallet NFT counter PDA
-            const [walletNftCounterPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("wallet_nft_counter"), publicKey.toBuffer(), collectionConfigPda.toBuffer()],
-                program.programId
-            );
+                // Create individual NFT metadata using the API
+                const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nftName,
+                        nftSymbol: displaySymbol,
+                        nftDescription: `${displayName} - Edition #${mintNumber}`,
+                        nftImageUrl: nftImageUrl,
+                        attributes: [
+                            { trait_type: 'Edition', value: mintNumber.toString() },
+                            { trait_type: 'Collection', value: displayName },
+                            { trait_type: 'Type', value: 'Treasury NFT' },
+                            { trait_type: 'Rarity', value: 'Legendary' },
+                            { trait_type: 'Mint Timestamp', value: Date.now().toString() }
+                        ],
+                        collectionName: displayName,
+                        collectionFamily: displayName,
+                        mintNumber,
+                        mintTimestamp: Date.now(),
+                        creatorAddress: publicKey.toString()
+                    }),
+                });
 
-            // Derive lending pool config PDA correctly
-            const [lendingPoolConfigPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("lending_pool")], 
-                program.programId
-            );
+                if (!metadataResponse.ok) {
+                    throw new Error(`Failed to create NFT metadata: ${metadataResponse.statusText}`);
+                }
 
-            // Derive the vault PDAs correctly (don't use hardcoded addresses)
-            const [lendingPoolWhiskeyVaultPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("lending_pool"), Buffer.from("whiskey_vault_v2")],
-                program.programId
-            );
-            
-            const [lendingPoolUsdcVaultPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("lending_pool"), Buffer.from("usdc_vault_v2")],
-                program.programId
-            );
+                const metadataResult = await metadataResponse.json();
+                if (!metadataResult.success) {
+                    throw new Error(`Failed to create NFT metadata: ${metadataResult.message}`);
+                }
 
-            // Derive lending capital vault PDA (for the lending program)
-            const [lendingCapitalVaultPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("capital_vault_usdc")],
-                LENDING_PROGRAM_ID
-            );
-
-            // Log the derived addresses for debugging
-            console.log('🔍 Derived PDA addresses:');
-            console.log('  Lending Pool Config:', lendingPoolConfigPda.toString());
-            console.log('  WHISKEY Vault V2:', lendingPoolWhiskeyVaultPda.toString());
-            console.log('  USDC Vault V2:', lendingPoolUsdcVaultPda.toString());
-            console.log('  Lending Capital Vault:', lendingCapitalVaultPda.toString());
-
-            // Treasury wallet address (the admin wallet) - from environment variables
-            const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
-            
-            // Calculate treasury wallet's Associated Token Account for WHISKEY tokens
-            const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(
-                WHISKEY_TOKEN_MINT_PK,
-                TREASURY_WALLET
-            );
-
-            // Check if treasury WHISKEY token account exists, create if needed
-            const treasuryAccountInfo = await connection.getAccountInfo(treasuryWhiskeyTokenAccount);
-            let createTreasuryAccountIx: any = null;
-            if (!treasuryAccountInfo) {
-                console.log('🏦 Treasury WHISKEY token account does not exist, creating...');
-                createTreasuryAccountIx = createAssociatedTokenAccountInstruction(
-                    walletAdapter.publicKey!, // payer
-                    treasuryWhiskeyTokenAccount,
-                    TREASURY_WALLET, // owner
-                    WHISKEY_TOKEN_MINT_PK // mint
-                );
+                nftMetadataUri = metadataResult.metadataUri;
+                console.log(`[STEP2] ✅ NFT metadata created: ${nftMetadataUri}`);
+            } catch (metadataError) {
+                console.error('[STEP2] Error creating NFT metadata:', metadataError);
+                throw new Error(`Failed to create NFT metadata: ${metadataError.message}`);
             }
 
-            // Jupiter and USDC constants (from environment variables)
-            const JUPITER_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_JUPITER_PROGRAM_ID || "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
-            const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+            // Create NFT metadata for the mint instruction
+            const nftMetadata = {
+                name: nftName,
+                symbol: displaySymbol,
+                uri: nftMetadataUri
+            };
+            
+            // Get user token accounts
+            const userUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, publicKey);
+            const userWhiskeyAccount = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), publicKey);
+            
+            console.log(`[STEP2] User token accounts:`);
+            console.log(`  - USDC account: ${userUsdcAccount.toString()}`);
+            console.log(`  - WHISKEY account: ${userWhiskeyAccount.toString()}`);
+            
+            // Check if token accounts exist
+            const [usdcAccountInfo, whiskeyAccountInfo] = await Promise.all([
+                connection.getAccountInfo(userUsdcAccount),
+                connection.getAccountInfo(userWhiskeyAccount)
+            ]);
+            
+            console.log(`[STEP2] Token account status:`);
+            console.log(`  - USDC account exists: ${usdcAccountInfo !== null}`);
+            console.log(`  - WHISKEY account exists: ${whiskeyAccountInfo !== null}`);
+            
+            // Get treasury whiskey account
+            const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+            const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), treasuryWallet);
+            
+            // Hardcoded capital vault from program
+            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+            
+            // Calculate payment amounts
+            const whiskeyRate = await getCurrentWhiskeyRate();
+            const lendingShareBps = 8000; // 80% to lending
+            const treasuryShareBps = 2000; // 20% to treasury
+            
+            const lendingPercentage = lendingShareBps / 10000;
+            const treasuryPercentage = treasuryShareBps / 10000;
+            
+            const whiskeyToTreasury = displayMintPriceWhiskeyTokens * treasuryPercentage;
+            const usdcToVault = (mintPriceUsd || 0) * lendingPercentage;
+            
+            // Convert to lamports/micro-units
+            const whiskeyToTreasuryLamports = Math.floor(whiskeyToTreasury * 1000000); // WHISKEY has 6 decimals
+            const usdcToVaultLamports = Math.floor(usdcToVault * 1000000); // USDC has 6 decimals
+            const currentWhiskeyPriceUsdMicro = Math.floor(whiskeyRate * 1000000); // Price in micro-USD
+            
+            console.log(`[STEP2] Payment calculation:`);
+            console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury} tokens (${whiskeyToTreasuryLamports} lamports)`);
+            console.log(`  - USDC to vault: ${usdcToVault} USDC (${usdcToVaultLamports} lamports)`);
+            console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
 
-            // Prepare accounts object with Jupiter CPI accounts
-            const accounts = {
-                payer: walletAdapter.publicKey,
-                collectionConfig: collectionConfigPda,
-                walletNftCounter: walletNftCounterPda, // Add the wallet NFT counter
-                collectionMintAccount: collectionMintAccountPk,
-                nftMint: nftMintKeypair.publicKey,
-                nftMetadataAccount: metadataPda,
-                nftMasterEditionAccount: masterEditionPda,
-                nftTokenAccount: nftTokenAccountPk,
-                collectionAuthorityReceiver: collectionAuthorityReceiverPk,
-                globalMarket: globalMarketPda,
-                whiskeyTokenMint: WHISKEY_TOKEN_MINT_PK,
-                payerWhiskeyTokenAccount: payerWhiskeyTokenAccount,
-                // MAINNET: Jupiter CPI accounts for WHISKEY → USDC swaps
-                lendingPoolConfig: lendingPoolConfigPda,
-                lendingPoolWhiskeyVault: lendingPoolWhiskeyVaultPda,
-                lendingPoolUsdcVault: lendingPoolUsdcVaultPda,
-                lendingCapitalVault: lendingCapitalVaultPda, // Add missing capital vault
-                treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
-                treasuryWallet: TREASURY_WALLET,
-                usdcMint: USDC_MINT, // MAINNET: Real USDC mint
-                jupiterProgram: JUPITER_PROGRAM_ID, // MAINNET: Jupiter program for swaps
-                // System programs
+            // Create secure mint instruction using new function
+            // Convert numbers to BN for proper Anchor serialization
+            const anchor = await import('@coral-xyz/anchor');
+            const currentWhiskeyPriceUsdMicroBN = new anchor.BN(currentWhiskeyPriceUsdMicro);
+            const whiskeyToTreasuryLamportsBN = new anchor.BN(whiskeyToTreasuryLamports);
+            const usdcToVaultLamportsBN = new anchor.BN(usdcToVaultLamports);
+            
+            console.log(`[STEP2] BN conversion complete:`);
+            console.log(`  - currentWhiskeyPriceUsdMicroBN: ${currentWhiskeyPriceUsdMicroBN.toString()}`);
+            console.log(`  - whiskeyToTreasuryLamportsBN: ${whiskeyToTreasuryLamportsBN.toString()}`);
+            console.log(`  - usdcToVaultLamportsBN: ${usdcToVaultLamportsBN.toString()}`);
+            
+            const mintInstruction = await program.methods
+            .mintWithPaymentValidation(
+                nftMetadata.name,
+                nftMetadata.symbol,
+                nftMetadata.uri,
+                currentWhiskeyPriceUsdMicroBN,
+                whiskeyToTreasuryLamportsBN,
+                usdcToVaultLamportsBN
+            )
+            .accounts({
+                user: publicKey,
+                    collectionConfig: collectionConfigPda,
+                nftMint: nftMint.publicKey,
+                nftTokenAccount,
+                nftMetadataAccount,
+                nftMasterEditionAccount,
+                userUsdcAccount,
+                userWhiskeyAccount,
+                capitalVault,
+                treasuryWhiskeyAccount,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 rent: SYSVAR_RENT_PUBKEY,
-            };
+            })
+            .instruction();
             
-            // Create the transaction - for whiskey-gated collections, pass 0 amounts (free mint)
-            const transaction = await program.methods
-                .mintNftWithSwap(
-                    nftName, // Use the properly formatted name: "Collection Name #1"
-                    nftSymbol,
-                    nftUri,
-                    new BN(isWhiskeyGated ? 0 : currentWhiskeyPrice), // Free for gated, paid for regular
-                    new BN(isWhiskeyGated ? 0 : whiskeyRate! * 1_000_000), // Pass rate only for regular collections
-                )
-                .accounts(accounts)
-                .signers([nftMintKeypair])
-                .transaction();
-
-            // Add account creation instructions if needed
-            if (createPayerAccountIx) {
-                console.log('🪙 Adding payer WHISKEY token account creation instruction');
-                transaction.instructions.unshift(createPayerAccountIx);
+            // Create and send mint transaction
+            const mintTransaction = new Transaction();
+            
+            // Add ATA creation instructions if accounts don't exist
+            if (usdcAccountInfo === null) {
+                console.log(`[STEP2] Creating USDC ATA for user...`);
+                const createUsdcAtaIx = createAssociatedTokenAccountInstruction(
+                    publicKey, // payer
+                    userUsdcAccount, // ata
+                    publicKey, // owner
+                    USDC_MINT // mint
+                );
+                mintTransaction.add(createUsdcAtaIx);
             }
-            if (createTreasuryAccountIx) {
-                console.log('🏦 Adding treasury WHISKEY token account creation instruction');
-                transaction.instructions.unshift(createTreasuryAccountIx);
+            
+            if (whiskeyAccountInfo === null) {
+                console.log(`[STEP2] Creating WHISKEY ATA for user...`);
+                const createWhiskeyAtaIx = createAssociatedTokenAccountInstruction(
+                    publicKey, // payer
+                    userWhiskeyAccount, // ata
+                    publicKey, // owner
+                    new PublicKey(WHISKEY_MINT) // mint
+                );
+                mintTransaction.add(createWhiskeyAtaIx);
             }
-
-            // Add compute budget instructions to increase computational limit
-            const computeUnitLimitIx = ComputeBudgetProgram.setComputeUnitLimit({
-                units: 400_000, // Increase from default ~200k to 400k
+            
+            mintTransaction.add(mintInstruction);
+            mintTransaction.feePayer = publicKey;
+            mintTransaction.recentBlockhash = blockhash;
+            
+            // Log transaction details BEFORE signing
+            console.log(`[STEP2] NFT Mint transaction created (Legacy, ${mintTransaction.instructions.length} instructions)`);
+            
+            // Log instruction breakdown for detailed analysis
+            console.log(`[STEP2] Transaction instruction breakdown:`);
+            mintTransaction.instructions.forEach((ix, index) => {
+                console.log(`  Instruction ${index + 1}: Program ${ix.programId.toString()}, ${ix.keys.length} accounts, ${ix.data.length} data bytes`);
             });
-
-            const computeUnitPriceIx = ComputeBudgetProgram.setComputeUnitPrice({
-                microLamports: 1, // Small priority fee
-            });
-
-            // Add compute budget instructions at the beginning (after treasury account if needed)
-            transaction.instructions.unshift(computeUnitLimitIx, computeUnitPriceIx);
-
-            // Get fresh blockhash and fee payer
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-            transaction.recentBlockhash = blockhash;
-            transaction.feePayer = publicKey;
-
-            // Sign the transaction
-            transaction.partialSign(nftMintKeypair);
-            const signedTransaction = await signTransaction(transaction);
-
-            // Send the transaction with unique signature
-            const tx = await connection.sendRawTransaction(signedTransaction.serialize(), {
-                skipPreflight: false,
-                preflightCommitment: 'confirmed',
-                maxRetries: 2, // Reduced retries to avoid duplicate transaction issues
-            });
-
-            // Confirm the transaction
-            const confirmation = await connection.confirmTransaction({
-                signature: tx,
-                blockhash,
-                lastValidBlockHeight,
-            }, 'confirmed');
-
-            if (confirmation.value.err) {
-                throw new Error(`Transaction failed: ${confirmation.value.err}`);
-            }
-
-            setMintMessage(`Mint successful! NFT: ${nftMintKeypair.publicKey.toBase58()}. Recording purchase...`);
-            console.log("Mint successful:", nftMintKeypair.publicKey.toBase58(), "Tx:", tx);
-
-            const recordResponse = await fetch('/api/mints/record-purchase', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    walletAddress: publicKey.toBase58(),
-                    nftMintAddress: nftMintKeypair.publicKey.toBase58(),
-                    collectionMintAddress: collectionMintAccountPk.toBase58(),
-                    transactionSignature: tx,
-                }),
-            });
-
-            if (!recordResponse.ok) {
-                const recordError = await recordResponse.json();
-                throw new Error(`Failed to record purchase: ${recordError.message || recordResponse.statusText}`);
-            }
-
-            setMintMessage("Purchase recorded. Your NFT should appear in your wallet shortly.");
-            setDisplayItemsMinted(currentItemsMinted + 1);
             
-            // Update wallet NFT count after successful mint
-            if (walletNftCount !== null) {
-                setWalletNftCount(walletNftCount + 1);
-            }
-            
-            if (onMintSuccess) {
-                onMintSuccess(); 
-            }
-            setTimeout(() => setMintMessage(null), 7000);
-
-        } catch (error: any) {
-            console.error("Minting failed:", error);
-            console.error("Error type:", typeof error);
-            console.error("Error keys:", Object.keys(error));
-            if (error.code) console.error("Error code:", error.code);
-            if (error.name) console.error("Error name:", error.name);
-            
-            let errorMsg = error.message;
-            
-            // Handle specific duplicate transaction error
-            if (errorMsg.includes("This transaction has already been processed") || 
-                errorMsg.includes("already been processed") ||
-                errorMsg.includes("duplicate transaction")) {
-                errorMsg = "⚠️ Transaction already submitted. Please wait for the previous transaction to complete and check your wallet.";
-                // Don't log this as an error since it's likely a user double-click
-                console.warn("Duplicate transaction detected - user may have clicked mint multiple times");
-            }
-            
-            if (error.logs) { // Anchor errors often have logs
-                error.logs.forEach((log: string) => console.log(log));
-                
-                // Check for specific error types
-                const walletLimitLog = error.logs.find((log: string) => log.includes("WalletNftLimitExceeded"));
-                const whiskeyGatedLimitLog = error.logs.find((log: string) => log.includes("WhiskeyGatedCollectionLimitExceeded"));
-                const collectionFullLog = error.logs.find((log: string) => log.includes("CollectionFull"));
-                const anchorErrorLog = error.logs.find((log: string) => log.startsWith("Program log: AnchorError"));
-                
-                if (whiskeyGatedLimitLog) {
-                    errorMsg = "❌ Wallet limit exceeded! You can only mint 1 NFT per wallet from whiskey-gated collections.";
-                    // Refresh wallet count to ensure UI is in sync
-                    if (walletNftCount !== null) {
-                        setWalletNftCount(1);
+            // Log all signers required for this transaction
+            console.log(`[STEP2] Transaction signers required:`);
+            mintTransaction.instructions.forEach(ix => {
+                ix.keys.forEach((key, index) => {
+                    if (key.isSigner) {
+                        console.log(`  Signer ${index + 1}: ${key.pubkey.toString()} (${key.pubkey.equals(publicKey) ? 'USER' : key.pubkey.equals(nftMint.publicKey) ? 'NFT_MINT' : 'UNKNOWN'})`);
                     }
-                } else if (walletLimitLog) {
-                    errorMsg = "❌ Wallet limit exceeded! You can only mint 5 NFTs total per wallet.";
-                    // Refresh wallet count to ensure UI is in sync
-                    if (walletNftCount !== null) {
-                        setWalletNftCount(5);
-                    }
-                } else if (collectionFullLog) {
-                    errorMsg = "❌ Collection is sold out! No more NFTs can be minted from this collection.";
-                } else if (anchorErrorLog) {
-                    errorMsg = anchorErrorLog;
-                }
+                });
+            });
+            
+            // Sign with NFT mint keypair first
+            console.log(`[STEP2] Signing transaction with NFT mint keypair: ${nftMint.publicKey.toString()}`);
+            mintTransaction.partialSign(nftMint);
+            console.log(`[STEP2] ✅ NFT mint keypair signature added`);
+            
+            // Now request wallet signature
+            console.log(`[STEP2] Requesting wallet signature for transaction...`);
+            console.log(`[STEP2] Wallet connected: ${connected}`);
+            console.log(`[STEP2] Public key: ${publicKey?.toString()}`);
+            console.log(`[STEP2] signTransaction available: ${!!signTransaction}`);
+            
+            if (!signTransaction) {
+                throw new Error('Wallet signTransaction method not available');
             }
             
-            // Check for insufficient SOL balance
-            if (errorMsg.toLowerCase().includes('insufficient funds') || 
-                errorMsg.toLowerCase().includes('insufficient balance') ||
-                errorMsg.toLowerCase().includes('not enough sol') ||
-                errorMsg.toLowerCase().includes('insufficient lamports')) {
+            const signedMintTx = await signTransaction(mintTransaction);
+            console.log(`[STEP2] ✅ Transaction signed by wallet`);
+            
+            // Log final transaction size
+            const finalSerialized = signedMintTx.serialize();
+            console.log(`[STEP2] Final signed transaction size: ${finalSerialized.length} bytes`);
+            
+            if (finalSerialized.length > 1000) {
+                console.warn(`[STEP2] ⚠️ NFT mint transaction is large: ${finalSerialized.length} bytes (limit: ~1232 bytes)`);
+            }
+            
+                console.log(`[STEP2] Submitting mint transaction (${finalSerialized.length} bytes) to Helius...`);
+                const signature = await connection.sendRawTransaction(signedMintTx.serialize());
                 
-                // Check if it's about SOL or tokens
-                if (errorMsg.toLowerCase().includes('whiskey') || errorMsg.toLowerCase().includes('token')) {
-                    errorMsg = "❌ Insufficient WHISKEY tokens! Please ensure you have enough tokens to purchase this NFT.";
-                } else {
-                    errorMsg = "❌ Insufficient SOL! You need at least 0.02 SOL for account creation and transaction fees. Please add more SOL to your wallet.";
+                console.log(`[STEP2] Mint transaction sent: ${signature}`);
+                console.log('[STEP2] Waiting for mint confirmation...');
+                await connection.confirmTransaction(signature, 'confirmed');
+                console.log('[STEP2] ✅ NFT mint transaction confirmed!');
+                
+                // 🔍 VALIDATE MINT: Check if on-chain metadata was created properly
+                console.log('[STEP2] 🔍 Validating mint completed properly...');
+                setMintMessage('Validating NFT creation...');
+                
+                try {
+                    // Check if the metadata account exists
+                    const metadataAccountInfo = await connection.getAccountInfo(nftMetadataAccount);
+                    
+                    if (!metadataAccountInfo) {
+                        console.error(`[STEP2] ❌ MINT VALIDATION FAILED: Metadata account not created`);
+                        console.error(`[STEP2] Expected metadata PDA: ${nftMetadataAccount.toString()}`);
+                        console.error(`[STEP2] NFT mint: ${nftMint.publicKey.toString()}`);
+                        
+                        throw new Error('NFT was created but metadata account is missing. This NFT cannot be used for lending. Please contact support.');
+                    }
+                    
+                    console.log(`[STEP2] ✅ Metadata account verified: ${metadataAccountInfo.data.length} bytes`);
+                    
+                    // Try to verify with Metaplex as well
+                    try {
+                        const { Metaplex } = await import('@metaplex-foundation/js');
+                        const metaplex = Metaplex.make(connection);
+                        const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint.publicKey });
+                        
+                        console.log(`[STEP2] ✅ Metaplex validation passed:`, {
+                            name: nft.name,
+                            uri: nft.uri,
+                            hasCollection: !!nft.collection
+                        });
+                        
+                    } catch (metaplexError) {
+                        console.warn(`[STEP2] ⚠️ Metaplex validation failed but metadata account exists:`, metaplexError);
+                        // Continue anyway since the account exists
+                    }
+                    
+                    console.log('[STEP2] 🎉 MINT VALIDATION PASSED: NFT created successfully and can be used for lending!');
+                    
+                } catch (validationError) {
+                    console.error('[STEP2] ❌ MINT VALIDATION FAILED:', validationError);
+                    
+                    // Show specific error message about broken NFT
+                    setMintMessage('⚠️ NFT created but incomplete - cannot be used for lending. Please try minting again.');
+                    
+                    // Keep the popup open for user to see the warning
+                    setTimeout(() => {
+                        setShowSuccessPopup(false);
+                        setIsMinting(false);
+                        setStep1Complete(false);
+                        setStep2Complete(false);
+                        setMintMessage('');
+                    }, 10000); // Show warning for 10 seconds
+                    
+                    return; // Don't proceed to success
                 }
+                
+            } catch (error) {
+                console.error('[STEP2] Error minting NFT:', error);
+                throw error;
             }
-            
-            setMintMessage(`Minting failed: ${errorMsg}`);
-        } finally {
-            // Add a brief delay before enabling the button again to prevent rapid clicking
-            setTimeout(() => {
-                setIsMinting(false);
-            }, 1000);
+    };
+
+    // Legacy function for backwards compatibility (now simplified)
+
+    // New handler for Step 1: Swap & Deposit
+    const handleStep1 = async () => {
+        // Pre-mint validation
+        if (!connected || !publicKey) {
+            setMintMessage('❌ Please connect your wallet first');
+            return;
         }
-    }, [
-        publicKey, connected, signTransaction, signAllTransactions, connection, 
-        collectionOnChainAddress, walletNftCount,
-        onMintSuccess
-    ]);
+
+        // Check WHISKEY balance
+        if (userWhiskeyBalance < displayMintPriceWhiskeyTokens) {
+            setMintMessage(`❌ Insufficient WHISKEY balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} WHISKEY`);
+            return;
+        }
+
+        // Check wallet NFT limit (max 5 per collection)
+        if (walletNftCount >= 5) {
+            setMintMessage('❌ Wallet limit reached (5 NFTs max per collection)');
+            return;
+        }
+
+        // For whiskey-gated collections, check if user has required amount
+        if (isWhiskeyGated && !hasRequiredWhiskey) {
+            setMintMessage(`❌ Need ${requiredWhiskeyAmount} WHISKEY tokens to mint from this collection`);
+            return;
+        }
+
+        // Check collection limit
+        if (displayItemsMinted >= displayItemLimit) {
+            setMintMessage('❌ Collection is sold out');
+            return;
+        }
+
+            setIsMinting(true);
+        setMintMessage('🔄 Step 1: Swapping WHISKEY to USDC and depositing to vault...');
+        
+        try {
+            await handleStep1SwapAndDeposit();
+            setStep1Complete(true);
+            setShowSuccessPopup(true);
+            setMintMessage('✅ Step 1 Complete: USDC deposited to vault! Ready to mint NFT.');
+        } catch (error) {
+            console.error('Step 1 failed:', error);
+            setMintMessage(`❌ Step 1 failed: ${error}`);
+        } finally {
+            setIsMinting(false);
+        }
+    };
+
+    // New handler for Step 2: Mint NFT
+    const handleStep2 = async () => {
+        if (!step1Complete) {
+            setMintMessage('❌ Please complete Step 1 first');
+            return;
+        }
+        
+        setIsMinting(true);
+        setMintMessage('🔄 Step 2: Minting your NFT...');
+        
+        try {
+            await handleStep2MintNft();
+            setStep2Complete(true);
+            setMintMessage('🎉 Success! Your NFT has been minted and the vault deposit is complete!');
+            
+            // Only close popup on success
+            setTimeout(() => {
+                setShowSuccessPopup(false);
+            }, 3000); // Show success message for 3 seconds before closing
+            
+            // Trigger success callback
+            if (onMintSuccess) {
+                onMintSuccess();
+            }
+        } catch (error) {
+            console.error('Step 2 failed:', error);
+            setMintMessage(`❌ Step 2 failed: ${error.message || error}. Click "Mint NFT" to retry.`);
+            // Keep popup open on failure - don't call setShowSuccessPopup(false)
+        } finally {
+            setIsMinting(false);
+        }
+    };
+
+    // Legacy handler - now just calls Step 1
+    const handleMint = async () => {
+        handleStep1();
+    };
 
     const supplyRemaining = displayItemLimit - displayItemsMinted;
 
@@ -941,338 +769,174 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 {/* Image Aspect Ratio Container */}
                 <div className="aspect-w-1 aspect-h-1 w-full h-full">
                     <MediaWithFallback 
-                        src={imageUrl || '/placeholder-image.svg'} 
-                        alt={`${initialName} collection media`} 
-                        className="w-full h-full object-cover"
+                        src={imageUrl}
+                        alt={`${displayName} Collection`}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        autoPlay={true}
+                        loop={true}
+                        muted={true}
+                        controls={false}
                     />
                 </div>
-
-            </div>
-
-            <div className="p-6 flex flex-col flex-grow">
-                <h3 className="mb-3 text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500 font-serif truncate" title={initialName}>{initialName}</h3>
-                
-                {/* Stats Section */}
-                <div className="font-sans text-sm text-gray-300 space-y-2 mb-6 flex-grow">
-                    <div className="flex justify-between items-center">
-                        <span className="font-medium text-gray-400">Symbol:</span> 
-                        <span className="font-bold text-amber-200">{initialSymbol}</span>
-                    </div>
-                    {/* Price Section - Made More Obvious */}
-                    <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4 space-y-3">
-                        <div className="text-center">
-                            <h4 className="text-sm font-bold text-amber-200 uppercase tracking-wide mb-3">NFT Price</h4>
-                            
-                            {/* USD Price - Primary Display (hidden for whiskey-gated collections) */}
-                            {!isWhiskeyGated && (
-                                <div className="mb-3">
-                                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in USD</div>
-                                    <div className="text-2xl font-black text-white">
-                                        ${mintPriceUsd || 'Not Set'}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* WHISKEY Price - Secondary Display */}
-                            <div className="mb-3">
-                                {isWhiskeyGated && requiredWhiskeyAmount ? (
-                                    <>
-                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Qualification Required</div>
-                                        <div className="text-lg font-bold text-green-300 mb-1">FREE MINT</div>
-                                        <div className="text-sm text-amber-300">
-                                            Must hold {requiredWhiskeyAmount.toLocaleString()} WHISKEY
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Price in WHISKEY</div>
-                                        <div className="text-xl font-bold text-amber-300">
-                                            {mintPriceUsd && whiskeyRate ? (
-                                                formatWhiskeyTokens(mintPriceUsd / whiskeyRate)
-                                            ) : (
-                                                'Calculating...'
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            
-                            {/* Live Price Indicator */}
-                            <div className="flex items-center justify-center space-x-2">
-                                {priceLoading && (
-                                    <span className="text-xs text-green-400 animate-pulse">🔄 Live Price</span>
-                                )}
-                                {priceError && (
-                                    <span className="text-xs text-red-400">❌ Price Error</span>
-                                )}
-                                {whiskeyPriceData && !priceLoading && (
-                                    <span className="text-xs text-green-400">✅ Live Price</span>
-                                )}
-                            </div>
-                            
-                            {/* Helpful Note */}
-                            <div className="text-center pt-2 border-t border-amber-700/30">
-                                <p className="text-xs text-amber-200/80">
-                                    💡 You need WHISKEY tokens to mint this NFT
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* WHISKEY Price Display - Same as admin dashboard */}
-                    <div className="flex justify-between items-center">
-                        <span className="font-medium text-gray-400">WHISKEY Price:</span> 
-                        <div className="flex items-center space-x-2">
-                            {priceLoading ? (
-                                <span className="text-xs text-gray-400">Loading...</span>
-                            ) : priceError ? (
-                                <span className="text-xs text-red-400">Error</span>
-                            ) : whiskeyPriceData?.usd ? (
-                                <span className="font-bold text-green-400">${whiskeyPriceData.usd.toFixed(6)}</span>
-                            ) : (
-                                <span className="text-xs text-gray-400">No data</span>
-                            )}
-                        </div>
-                    </div>
-                    {/* Supply Section with Clear Visual */}
-                    <div className="bg-slate-800/30 rounded-xl p-4 space-y-3">
-                        {/* Progress Bar */}
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Minting Progress</span>
-                                <span className="text-xs text-amber-300">
-                                    {displayItemLimit > 0 ? Math.round((displayItemsMinted / displayItemLimit) * 100) : 0}%
-                                </span>
-                            </div>
-                            <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                                <div 
-                                    className="bg-gradient-to-r from-amber-400 to-amber-600 h-full rounded-full transition-all duration-500" 
-                                    style={{ width: `${displayItemLimit > 0 ? (displayItemsMinted / displayItemLimit) * 100 : 0}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                        
-                        {/* Supply Stats */}
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                                <div className="text-lg font-bold text-amber-400">{displayItemsMinted}</div>
-                                <div className="text-xs text-gray-400 uppercase">Minted</div>
-                            </div>
-                            <div>
-                                <div className={`text-lg font-bold ${supplyRemaining > 0 ? "text-green-400" : "text-red-400"}`}>
-                                    {supplyRemaining > 0 ? supplyRemaining : "0"}
-                                </div>
-                                <div className="text-xs text-gray-400 uppercase">Left</div>
-                            </div>
-                            <div>
-                                <div className="text-lg font-bold text-white">{displayItemLimit}</div>
-                                <div className="text-xs text-gray-400 uppercase">Total</div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                {/* Payment Information */}
-                <div className="mb-6">
-                    <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4 text-center">
-                        <p className="font-bold text-amber-200 text-sm mb-2">Payment Method</p>
-                        <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg py-2 px-4 inline-flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5,4V7H10.5V19H13.5V7H19V4H5Z"/></svg>
-                            <span className="font-bold">WHISKEY TOKENS ONLY</span>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">NFTs can only be purchased with WHISKEY tokens</p>
-                    </div>
+            {/* Collection Info */}
+            <div className="flex-1 p-6 space-y-4">
+                {/* Header */}
+                <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-white truncate">
+                        {displayName}
+                    </h3>
+                    <p className="text-sm text-amber-400 font-medium">
+                        {displaySymbol}
+                    </p>
                 </div>
 
-                {/* Wallet Limit Information */}
-                {connected && publicKey && !isWhiskeyGated && (
-                    <div className="mb-6">
-                        <div className={`border rounded-xl p-4 text-center ${
-                            walletNftCount !== null && walletNftCount >= 5 
-                                ? 'bg-red-900/20 border-red-700/40' 
-                                : 'bg-blue-900/20 border-blue-700/40'
-                        }`}>
-                            <div className="flex items-center justify-center space-x-2 mb-2">
-                                <svg className="w-4 h-4 text-blue-300" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17M11,9H13V7H11V9Z"/>
-                                </svg>
-                                <p className="font-bold text-blue-200 text-sm">Wallet Limit</p>
-                            </div>
-                            {isCheckingWalletLimit ? (
-                                <div className="text-sm text-gray-400">Checking wallet limit...</div>
-                            ) : walletNftCount !== null ? (
+                {/* Price & Stats */}
+                <div className="space-y-3">
+                    {isWhiskeyGated ? (
                                 <div className="space-y-2">
-                                    <div className={`text-lg font-bold ${
-                                        walletNftCount >= 5 ? 'text-red-400' : 'text-green-400'
-                                    }`}>
-                                        {walletNftCount}/5 NFTs Minted
+                            <div className="flex items-center justify-between">
+                                <span className="text-amber-400 text-sm font-medium">Master Distiller Collection</span>
+                                <span className="text-xs bg-amber-900/20 text-amber-400 px-2 py-1 rounded-full border border-amber-700/40">
+                                    🥃 WHISKEY GATED
+                                </span>
                                     </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-2">
-                                        <div 
-                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                walletNftCount >= 5 ? 'bg-red-500' : 'bg-blue-500'
-                                            }`}
-                                            style={{ width: `${(walletNftCount / 5) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                    <p className="text-xs text-gray-400">
-                                        {walletNftCount >= 5 
-                                            ? '🚫 Maximum limit reached across all collections'
-                                            : `You can mint ${5 - walletNftCount} more NFTs total`
-                                        }
+                            <div className="text-white">
+                                <p className="text-lg font-bold">
+                                    {requiredWhiskeyAmount?.toLocaleString()} WHISKEY Required
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                    Must hold tokens to mint • 1 NFT per wallet
                                     </p>
                                 </div>
-                            ) : (
-                                <div className="text-sm text-gray-400">Unable to check wallet limit</div>
-                            )}
                         </div>
-                    </div>
-                )}
-
-                {/* Whiskey-Gated Collection Information */}
-                {isWhiskeyGated && (
-                    <div className="mb-6">
-                        <div className="bg-amber-900/30 border border-amber-600/50 rounded-xl p-4 text-center">
-                            <div className="flex items-center justify-center space-x-2 mb-3">
-                                <svg className="w-5 h-5 text-amber-300" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9Z"/>
-                                </svg>
-                                <p className="font-bold text-amber-200 text-sm">🥃 WHISKEY-GATED COLLECTION</p>
-                            </div>
-                            
-                            <div className="bg-amber-800/40 rounded-lg p-3 mb-3">
-                                <p className="text-amber-100 font-semibold text-sm">FREE TO MINT</p>
-                                <p className="text-amber-200 text-xs">For qualified WHISKEY holders only</p>
-                            </div>
-
+                    ) : (
                             <div className="space-y-2">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-amber-200">Required WHISKEY:</span>
-                                    <span className="font-bold text-amber-100">
-                                        {requiredWhiskeyAmount.toLocaleString()} tokens
+                            <div className="flex items-center justify-between">
+                                <span className="text-amber-400 text-sm font-medium">Mint Price</span>
+                                <div className="text-right">
+                                    {whiskeyPriceData && (
+                                        <div className="text-xs text-slate-400">
+                                            ${whiskeyPriceData.usd.toFixed(4)} 
+                                            <span className={`ml-1 ${getPriceChangeColor(whiskeyPriceData.usd_24h_change)}`}>
+                                                {formatPercentageChange(whiskeyPriceData.usd_24h_change)}
                                     </span>
                                 </div>
-
-                                {connected && publicKey && (
-                                    <>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="text-amber-200">Your Balance:</span>
-                                            <span className={`font-bold ${
-                                                isCheckingWhiskeyBalance ? 'text-gray-400' :
-                                                userWhiskeyBalance === null ? 'text-gray-400' :
-                                                userWhiskeyBalance >= requiredWhiskeyAmount ? 'text-green-400' : 'text-red-400'
-                                            }`}>
-                                                {isCheckingWhiskeyBalance ? 'Checking...' :
-                                                 userWhiskeyBalance === null ? 'Unable to check' :
-                                                 `${userWhiskeyBalance.toLocaleString()} tokens`
-                                                }
-                                            </span>
+                                    )}
                                         </div>
-
-                                        {userWhiskeyBalance !== null && !isCheckingWhiskeyBalance && (
-                                            <div className="mt-2">
-                                                {userWhiskeyBalance >= requiredWhiskeyAmount ? (
-                                                    <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-2">
-                                                        <div className="flex items-center justify-center space-x-2">
-                                                            <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
-                                                            </svg>
-                                                            <span className="text-green-300 text-sm font-medium">✅ Eligible to mint!</span>
                                                         </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-2">
-                                                        <div className="flex items-center justify-center space-x-2 mb-1">
-                                                            <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                                                            </svg>
-                                                            <span className="text-red-300 text-sm font-medium">❌ Insufficient WHISKEY</span>
-                                                        </div>
-                                                        <p className="text-red-200 text-xs">
-                                                            Need {(requiredWhiskeyAmount - userWhiskeyBalance).toLocaleString()} more tokens
-                                                        </p>
-                                                    </div>
+                            <div className="text-white">
+                                <p className="text-2xl font-bold">
+                                    {priceLoadingState || !whiskeyRate || displayMintPriceWhiskeyTokens === 0 ? (
+                                        <span className="text-slate-400">Loading... WHISKEY</span>
+                                    ) : (
+                                        `${formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY`
+                                    )}
+                                </p>
+                                {mintPriceUsd && (
+                                    <p className="text-sm text-slate-400">
+                                        ≈ ${formatUsdAmount(mintPriceUsd)}
+                                    </p>
                                                 )}
                                             </div>
-                                        )}
-                                    </>
-                                )}
-
-                                {(!connected || !publicKey) && (
-                                    <div className="bg-gray-800/40 rounded-lg p-2">
-                                        <p className="text-gray-300 text-xs">Connect wallet to check eligibility</p>
                                     </div>
                                 )}
-                            </div>
-                        </div>
-                    </div>
-                )}
 
-                {/* Collection Supply Warning */}
-                {supplyRemaining <= 5 && supplyRemaining > 0 && (
-                    <div className="mb-6">
-                        <div className="bg-orange-900/20 border border-orange-700/40 rounded-xl p-3 text-center">
-                            <div className="flex items-center justify-center space-x-2 mb-1">
-                                <svg className="w-4 h-4 text-orange-300" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2Z"/>
-                                </svg>
-                                <p className="font-bold text-orange-200 text-sm">Almost Sold Out!</p>
+                    {/* Supply Info */}
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Supply</span>
+                        <span className="text-white font-medium">
+                            {displayItemsMinted.toLocaleString()} / {displayItemLimit.toLocaleString()}
+                        </span>
                             </div>
-                            <p className="text-xs text-orange-300">Only {supplyRemaining} NFTs left in this collection!</p>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div 
+                            className="bg-gradient-to-r from-amber-500 to-amber-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min((displayItemsMinted / displayItemLimit) * 100, 100)}%` }}
+                        />
                         </div>
+
+                    <div className="text-center">
+                        <span className="text-xs text-slate-400">
+                            {supplyRemaining > 0 ? `${supplyRemaining.toLocaleString()} remaining` : 'SOLD OUT'}
+                        </span>
                     </div>
-                )}
+                </div>
                 
-                {/* Action Button and Status */}
-                <div className="mt-auto">
+                {/* Mint Button */}
+                <div className="space-y-2">
+                    {!connected || !publicKey ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-slate-700 text-slate-400 rounded-xl font-bold cursor-not-allowed"
+                        >
+                            Connect Wallet to Mint
+                        </button>
+                    ) : supplyRemaining <= 0 ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-slate-700 text-slate-400 rounded-xl font-bold cursor-not-allowed"
+                        >
+                            SOLD OUT
+                        </button>
+                    ) : isWhiskeyGated && walletNftCount >= 1 ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Already minted from this collection
+                        </button>
+                    ) : userWhiskeyBalance === 0 ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-amber-800/50 text-amber-400 rounded-xl font-bold cursor-not-allowed border border-amber-700/50"
+                        >
+                            Checking WHISKEY balance...
+                        </button>
+                    ) : !isWhiskeyGated && displayMintPriceWhiskeyTokens > 0 && userWhiskeyBalance < displayMintPriceWhiskeyTokens ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Insufficient WHISKEY ({formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} required)
+                        </button>
+                    ) : isWhiskeyGated && !hasRequiredWhiskey ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Insufficient WHISKEY tokens ({requiredWhiskeyAmount?.toLocaleString()} required)
+                        </button>
+                    ) : (
                     <button 
-                        onClick={handleMint}
-                        disabled={
-                            isMinting || 
-                            supplyRemaining <= 0 || 
-                            !publicKey || 
-                            (!isWhiskeyGated && walletNftCount !== null && walletNftCount >= 5) ||
-                            (!isWhiskeyGated && isCheckingWalletLimit) ||
-                            (isWhiskeyGated && isCheckingWhiskeyBalance) ||
-                            (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) ||
-                            (!isWhiskeyGated && (!whiskeyRate || priceLoading))
-                        }
-                        className={`w-full font-sans font-black text-lg py-4 px-5 rounded-2xl transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-lg hover:shadow-2xl 
-                            ${isMinting || supplyRemaining <= 0 || !publicKey || (!isWhiskeyGated && walletNftCount !== null && walletNftCount >= 5) || (!isWhiskeyGated && isCheckingWalletLimit) || (isWhiskeyGated && isCheckingWhiskeyBalance) || (isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount) || (!isWhiskeyGated && (!whiskeyRate || priceLoading))
-                                ? 'bg-slate-700 text-gray-500 cursor-not-allowed'
-                                : isWhiskeyGated 
-                                    ? 'text-black bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
-                                    : 'text-black bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 hover:scale-105 hover:shadow-amber-400/30 focus:ring-amber-300'
+                        onClick={handleStep1}
+                            disabled={isMinting || step1Complete}
+                            className={`w-full py-3 px-4 rounded-xl font-bold transition-all duration-300 ${
+                                isMinting || step1Complete
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-lg hover:shadow-xl transform hover:scale-105'
                             }`}
-                    >
-                        {isMinting ? "Processing..." : 
-                         !isWhiskeyGated && isCheckingWalletLimit ? "Checking Limits..." :
-                         isWhiskeyGated && isCheckingWhiskeyBalance ? "Checking WHISKEY Balance..." :
-                         isWhiskeyGated && userWhiskeyBalance !== null && userWhiskeyBalance < requiredWhiskeyAmount ? `Need ${(requiredWhiskeyAmount - userWhiskeyBalance).toLocaleString()} More WHISKEY` :
-                         !isWhiskeyGated && priceLoading ? "Loading Price..." :
-                         !isWhiskeyGated && !whiskeyRate ? "Price Unavailable" :
-                         !isWhiskeyGated && (walletNftCount !== null && walletNftCount >= 5) ? "Wallet Limit Reached (5/5)" :
-                         (supplyRemaining <= 0 && displayItemLimit > 0) ? "Collection Sold Out" : 
-                         isWhiskeyGated ? "🎉 Mint FREE NFT" : "Mint NFT"}
+                        >
+                            {isMinting ? (
+                                <div className="flex items-center justify-center space-x-2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-400"></div>
+                                    <span>Step 1: Swapping & Depositing...</span>
+                                </div>
+                            ) : step1Complete ? (
+                                '✅ Step 1 Complete'
+                            ) : (
+                                `💰 Deposit & Mint ${isWhiskeyGated ? '(WHISKEY Gated)' : ''}`
+                            )}
                     </button>
-                    {mintMessage && (
-                        <p className={`mt-3 text-xs font-sans text-center h-4
-                            ${mintMessage.toLowerCase().includes("failed") || mintMessage.toLowerCase().includes("error") 
-                                ? 'text-red-400'
-                                : mintMessage.toLowerCase().includes("success") || mintMessage.toLowerCase().includes("shortly")
-                                    ? 'text-green-400'
-                                    : 'text-gray-400'}`}>
-                            {mintMessage}
-                        </p>
                     )}
-                    {!mintMessage && <div className="h-4 mt-3"></div>} {/* Placeholder to prevent layout shift */}
-                    
-                    {/* Helpful Info for Non-Connected Wallets */}
-                    {!connected && (
-                        <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                            <p className="text-xs text-gray-400 text-center">
-                                💡 <strong>Connect your wallet</strong> to {isWhiskeyGated ? 'qualify with WHISKEY tokens and mint NFTs (⚠️ 1 NFT max per wallet)' : 'see your minting limits (5 NFTs max per wallet) and purchase NFTs with WHISKEY tokens'}
-                            </p>
+
+                    {/* Mint Status Message */}
+                    {mintMessage && (
+                        <div className="mt-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                            <p className="text-sm text-center text-amber-400">{mintMessage}</p>
                         </div>
                     )}
                     
@@ -1284,8 +948,166 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             </p>
                         </div>
                     )}
+                    
+                    {/* Two-step process info */}
+                    {connected && !isWhiskeyGated && (
+                        <div className="mt-4 p-3 bg-green-900/20 rounded-lg border border-green-700/40">
+                            <p className="text-xs text-green-400 text-center">
+                                🔄 <strong>Two-Step Process:</strong> 1) Direct WHISKEY→USDC swap + vault deposit → 2) NFT mint
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Success Popup for Step 1 Complete */}
+            {showSuccessPopup && step1Complete && !step2Complete && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900/95 backdrop-blur-xl border border-amber-500/30 rounded-3xl shadow-2xl p-8 max-w-md w-full mx-4 transform animate-fade-in-up">
+                        <div className="text-center">
+                            {/* Dynamic Icon based on state */}
+                            <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+                                mintMessage.includes('⚠️') 
+                                    ? 'bg-yellow-500/20' 
+                                    : mintMessage.includes('❌') 
+                                        ? 'bg-red-500/20' 
+                                        : step2Complete 
+                                            ? 'bg-green-500/20' 
+                                            : 'bg-green-500/20'
+                            }`}>
+                                {mintMessage.includes('⚠️') ? (
+                                    <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                ) : mintMessage.includes('❌') ? (
+                                    <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                ) : step2Complete ? (
+                                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                )}
+                            </div>
+
+                            {/* Dynamic Title */}
+                            <h3 className={`text-xl font-bold mb-3 ${
+                                mintMessage.includes('⚠️') 
+                                    ? 'text-yellow-400' 
+                                    : mintMessage.includes('❌') 
+                                        ? 'text-red-400' 
+                                        : step2Complete 
+                                            ? 'text-green-400' 
+                                            : 'text-amber-400'
+                            }`}>
+                                {mintMessage.includes('⚠️') 
+                                    ? '⚠️ Incomplete NFT' 
+                                    : mintMessage.includes('❌') 
+                                        ? '❌ Mint Failed' 
+                                        : step2Complete 
+                                            ? '🎉 NFT Minted!' 
+                                            : '💰 Deposit Successful!'
+                                }
+                            </h3>
+
+                            {/* Dynamic Message */}
+                            <p className="text-slate-300 mb-4 text-sm leading-relaxed">
+                                {mintMessage.includes('⚠️ NFT created but incomplete') ? (
+                                    <>⚠️ Your NFT was created in your wallet but is missing on-chain metadata. This NFT cannot be used for lending. Please try minting a new NFT.</>
+                                ) : mintMessage.includes('❌') ? (
+                                    <>The NFT mint failed, but your deposit is safe in the vault. You can retry minting your NFT.</>
+                                ) : step2Complete ? (
+                                    <>🎉 Congratulations! Your NFT has been successfully minted with complete on-chain metadata and can be used for lending!</>
+                                ) : mintMessage.includes('Validating') ? (
+                                    <>Verifying that your NFT was created properly with all required on-chain data...</>
+                                ) : (
+                                    <>Your WHISKEY has been swapped to USDC and deposited to the vault. You're now ready to receive your NFT!</>
+                                )}
+                            </p>
+                            
+                            {/* Show detailed error/warning message */}
+                            {(mintMessage.includes('❌') || mintMessage.includes('⚠️')) && (
+                                <div className={`border rounded-lg p-3 mb-4 ${
+                                    mintMessage.includes('⚠️') 
+                                        ? 'bg-yellow-900/20 border-yellow-500/30' 
+                                        : 'bg-red-900/20 border-red-500/30'
+                                }`}>
+                                    <p className={`text-xs font-mono break-words ${
+                                        mintMessage.includes('⚠️') 
+                                            ? 'text-yellow-300' 
+                                            : 'text-red-300'
+                                    }`}>
+                                        {mintMessage}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="space-y-3">
+                                {mintMessage.includes('⚠️') ? (
+                                    <button
+                                        onClick={() => {
+                                            // Reset everything and allow user to try again
+                                            setShowSuccessPopup(false);
+                                            setIsMinting(false);
+                                            setStep1Complete(false);
+                                            setStep2Complete(false);
+                                            setMintMessage('');
+                                        }}
+                                        className="w-full py-3 px-6 rounded-xl font-bold transition-all duration-300 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black shadow-lg hover:shadow-xl transform hover:scale-105"
+                                    >
+                                        🔄 Try Minting New NFT
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleStep2}
+                                        disabled={isMinting}
+                                        className={`w-full py-3 px-6 rounded-xl font-bold transition-all duration-300 ${
+                                            isMinting
+                                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-black shadow-lg hover:shadow-xl transform hover:scale-105'
+                                        }`}
+                                    >
+                                        {isMinting ? (
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-400"></div>
+                                                <span>Minting NFT...</span>
+                                            </div>
+                                        ) : mintMessage.includes('❌') ? (
+                                            '🔄 Retry Mint NFT'
+                                        ) : (
+                                            '🎨 Receive Your NFT'
+                                        )}
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setShowSuccessPopup(false);
+                                        // Reset error message when closing
+                                        if (mintMessage.includes('❌') || mintMessage.includes('⚠️')) {
+                                            setMintMessage('');
+                                        }
+                                    }}
+                                    disabled={isMinting}
+                                    className="w-full py-2 px-4 text-slate-400 hover:text-slate-200 transition-colors duration-200 text-sm"
+                                >
+                                    {mintMessage.includes('⚠️') 
+                                        ? 'Close (NFT in wallet but broken)' 
+                                        : mintMessage.includes('❌') 
+                                            ? 'Close (Your deposit is safe)' 
+                                            : 'Close (You can mint later)'
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

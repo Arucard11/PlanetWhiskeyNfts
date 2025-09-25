@@ -8,7 +8,7 @@ import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { Wallet, TrendingUp, RefreshCw, DollarSign, Send } from 'lucide-react';
 import { useRealTimeWhiskeyPrice, formatWhiskeyTokens, formatUsdAmount, getPriceChangeColor, formatPercentageChange } from '@/lib/coingeckoPricing';
 
-const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT || "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");
+const WHISKEY_TOKEN_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
 const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET || "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 const CAPITAL_VAULT = new PublicKey(process.env.NEXT_PUBLIC_CAPITAL_VAULT_PDA || "6tCuvX7wx47jT9wWMxRF4yBC8RsnW3VwbMunThoUH9kg");

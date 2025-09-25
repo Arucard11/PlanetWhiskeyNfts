@@ -159,17 +159,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               
               if (nft.uri) {
                 console.log(`🔍 [lending-user-data] Found metadata URI for deposited NFT: ${nft.uri}`);
+                console.log(`🔍 [lending-user-data] NFT name: ${nft.name}, mint: ${nftMint.toString()}`);
                 
-                // Use the robust metadata fetching API
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-                const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(nft.uri)}`;
-                const metadataResponse = await fetch(apiUrl);
+                // Fetch metadata directly (same approach as minting page) instead of using proxy API
+                let metadataUrl = nft.uri;
+                if (nft.uri.startsWith('ipfs://')) {
+                  const ipfsHash = nft.uri.replace('ipfs://', '');
+                  const pinataGateway = 'https://pink-obvious-bee-185.mypinata.cloud';
+                  metadataUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
+                }
+                
+                console.log(`🔍 [lending-user-data] Fetching metadata directly from: ${metadataUrl}`);
+                const metadataResponse = await fetch(metadataUrl);
                 
                 if (metadataResponse.ok) {
-                  const result = await metadataResponse.json();
-                  if (result.success && result.data) {
-                    const metadata = result.data;
-                    const imageUrl = metadata.image;
+                  const metadata = await metadataResponse.json();
+                  console.log(`🔍 [lending-user-data] Direct metadata response:`, metadata);
+                  
+                  if (metadata && metadata.image) {
+                    let imageUrl = metadata.image;
+                    
+                    // Convert IPFS URLs to direct Pinata gateway URLs (same as minting page)
+                    if (imageUrl && imageUrl.startsWith('ipfs://')) {
+                      const ipfsHash = imageUrl.replace('ipfs://', '');
+                      const pinataGateway = 'https://pink-obvious-bee-185.mypinata.cloud';
+                      imageUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
+                      console.log(`🔄 [lending-user-data] Converted IPFS to Pinata gateway: ${imageUrl}`);
+                    }
+                    
                     const nftName = metadata.name || nft.name || 'Deposited NFT';
                     
                     if (!imageUrl) {
@@ -193,8 +210,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     
                     console.log(`📊 Deposited NFT (fetched): ${nftName} = $${collectionValue}`);
                     continue; // Skip the fallback below
+                  } else {
+                    console.warn(`🔥 [lending-user-data] Metadata found but no image field for NFT ${nftMint.toString()}`);
                   }
+                } else {
+                  console.warn(`🔥 [lending-user-data] Failed to fetch metadata directly: ${metadataResponse.status} ${metadataResponse.statusText}`);
                 }
+              } else {
+                console.warn(`🔥 [lending-user-data] NFT has no metadata URI: ${nftMint.toString()}`);
               }
             } catch (metadataError) {
               console.warn(`Failed to fetch metadata for deposited NFT ${nftMint.toString()}:`, metadataError);
@@ -276,7 +299,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // SECURITY FIX: Only show borrowing power if user has deposited NFTs
       const safeBorrowingPower = depositedNfts.length > 0 ? totalBorrowingPower : 0;
-      const safeAvailableToBorrow = depositedNfts.length > 0 ? Math.max(0, totalBorrowingPower - totalDebt) : 0;
+      
+      // Calculate available to borrow with transaction fee deducted
+      const grossAvailableToBorrow = depositedNfts.length > 0 ? Math.max(0, totalBorrowingPower - totalDebt) : 0;
+      const transactionFeeBps = globalMarketAccount.transactionFeeBps;
+      const transactionFeeDecimal = transactionFeeBps / 10000; // Convert from basis points to decimal
+      const safeAvailableToBorrow = grossAvailableToBorrow * (1 - transactionFeeDecimal);
 
       userLendingData = {
         totalBorrowingPower: safeBorrowingPower,

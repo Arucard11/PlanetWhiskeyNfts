@@ -6,6 +6,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { Transaction, Connection } from '@solana/web3.js';
+import MediaWithFallback from '../../../components/MediaWithFallback';
 
 interface UserNft {
   mintAddress: string;
@@ -25,6 +26,7 @@ interface BorrowingStats {
   availableToBorrow: number;
   depositedNfts: number;
   collectionValues: { [collectionMint: string]: number }; // Individual collection values
+  transactionFeeBps: number; // Transaction fee in basis points (e.g., 200 = 2%)
 }
 
 export default function BorrowPage() {
@@ -46,14 +48,30 @@ export default function BorrowPage() {
         const data = await response.json();
         console.log('✅ User NFTs fetched:', data);
         
-        const nfts = data.ownedCollectionNfts?.map((nft: any) => ({
-          mintAddress: nft.address,
-          name: nft.name,
-          imageUrl: nft.json?.image || '/placeholder-image.svg',
-          collectionName: nft.collectionName,
-          collectionMintAddress: nft.collectionMintAddress,
-          isEligible: true // Will be updated after checking collection approval
-        })) || [];
+        const nfts = data.ownedCollectionNfts?.map((nft: any) => {
+          console.log(`🔍 [borrow-page] Processing NFT: ${nft.name}`);
+          console.log(`🔍 [borrow-page] NFT data:`, {
+            address: nft.address,
+            name: nft.name,
+            uri: nft.uri,
+            hasJson: !!nft.json,
+            jsonImage: nft.json?.image,
+            collectionName: nft.collectionName,
+            collectionMintAddress: nft.collectionMintAddress
+          });
+          
+          const imageUrl = nft.json?.image || '/placeholder-image.svg';
+          console.log(`🔍 [borrow-page] Final imageUrl for ${nft.name}: "${imageUrl}"`);
+          
+          return {
+            mintAddress: nft.address,
+            name: nft.name,
+            imageUrl: imageUrl,
+            collectionName: nft.collectionName,
+            collectionMintAddress: nft.collectionMintAddress,
+            isEligible: true // Will be updated after checking collection approval
+          };
+        }) || [];
         
         // Check collection approval status for all unique collections
         if (nfts.length > 0) {
@@ -426,11 +444,11 @@ export default function BorrowPage() {
     }
   };
   
-  const calculateBorrowingPower = () => {
+  const calculateGrossBorrowingPower = () => {
     if (!borrowingStats) return 0;
     const ltv = borrowingStats.ltvRatio / 10000;
     
-    // Calculate borrowing power based on individual NFT collection values
+    // Calculate gross borrowing power based on individual NFT collection values (before fees)
     let totalValue = 0;
     selectedNfts.forEach(nftMintAddress => {
       const nft = userNfts.find(n => n.mintAddress === nftMintAddress);
@@ -443,6 +461,17 @@ export default function BorrowPage() {
     });
     
     return totalValue * ltv;
+  };
+
+  const calculateBorrowingPower = () => {
+    if (!borrowingStats) return 0;
+    const transactionFee = borrowingStats.transactionFeeBps / 10000; // Convert from basis points to decimal
+    
+    const grossBorrowingPower = calculateGrossBorrowingPower();
+    // Subtract transaction fee from the borrowable amount
+    const netBorrowingPower = grossBorrowingPower * (1 - transactionFee);
+    
+    return netBorrowingPower;
   };
 
   const calculateTotalValue = () => {
@@ -522,7 +551,21 @@ export default function BorrowPage() {
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h3 className="text-lg font-semibold text-gray-300 mb-2">Available to Borrow</h3>
-              <p className="text-3xl font-bold text-purple-400">${borrowingStats.availableToBorrow}</p>
+              <div className="text-right">
+                <p className="text-lg font-medium text-gray-400">
+                  Gross: ${borrowingStats.availableToBorrow.toFixed(2)}
+                </p>
+                <p className="text-3xl font-bold text-purple-400">
+                  ${(() => {
+                    const transactionFee = borrowingStats.transactionFeeBps / 10000;
+                    const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
+                    return Math.max(0, netAvailable).toFixed(2);
+                  })()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                </p>
+              </div>
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h3 className="text-lg font-semibold text-gray-300 mb-2">Deposited NFTs</h3>
@@ -552,9 +595,17 @@ export default function BorrowPage() {
               </div>
               <div>
                 <p className="text-gray-300">Borrowing Power</p>
-                <p className="text-2xl font-bold text-purple-400">
-                  ${calculateBorrowingPower()}
-                </p>
+                <div className="text-right">
+                  <p className="text-sm text-gray-400">
+                    Gross: ${calculateGrossBorrowingPower().toFixed(2)}
+                  </p>
+                  <p className="text-2xl font-bold text-purple-400">
+                    ${calculateBorrowingPower()}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                  </p>
+                </div>
               </div>
             </div>
             <button
@@ -610,13 +661,10 @@ export default function BorrowPage() {
                   onClick={() => nft.isEligible && handleNftSelection(nft.mintAddress)}
                 >
                   <div className="aspect-square rounded-lg overflow-hidden mb-4">
-                    <img
+                    <MediaWithFallback
                       src={nft.imageUrl}
                       alt={nft.name}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/placeholder-image.svg';
-                      }}
                     />
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1">{nft.name}</h3>
@@ -681,9 +729,16 @@ export default function BorrowPage() {
                     step="0.01"
                     className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
-                  <p className="text-sm text-gray-400 mt-2">
-                    Available to borrow: ${borrowingStats.availableToBorrow.toFixed(2)}
-                  </p>
+                  <div className="text-sm text-gray-400 mt-2">
+                    <p>Gross available: ${borrowingStats.availableToBorrow.toFixed(2)}</p>
+                    <p className="font-bold text-green-400">
+                      Net available: ${(() => {
+                        const transactionFee = borrowingStats.transactionFeeBps / 10000;
+                        const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
+                        return Math.max(0, netAvailable).toFixed(2);
+                      })()} (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -731,16 +786,51 @@ export default function BorrowPage() {
                 <h3 className="text-lg font-bold text-white mb-4">Loan Details</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Borrowing Power:</span>
-                    <span className="text-white font-medium">${borrowingStats.availableToBorrow.toFixed(2)}</span>
+                    <span className="text-gray-400">
+                      {selectedNfts.size > 0 ? 'Selected NFTs Power:' : 'Current Borrowing Power:'}
+                    </span>
+                    <div className="text-right">
+                      <span className="text-white font-medium">
+                        ${selectedNfts.size > 0 
+                          ? calculateGrossBorrowingPower().toFixed(2) 
+                          : borrowingStats.currentBorrowingPower.toFixed(2)
+                        }
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        (before fees)
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Current Debt:</span>
                     <span className="text-white font-medium">${borrowingStats.currentDebt.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Available to Borrow:</span>
-                    <span className="text-green-400 font-medium">${borrowingStats.availableToBorrow.toFixed(2)}</span>
+                    <span className="text-gray-400">
+                      {selectedNfts.size > 0 ? 'Available from Selection:' : 'Available to Borrow:'}
+                    </span>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-400">
+                        Gross: ${selectedNfts.size > 0 
+                          ? calculateGrossBorrowingPower().toFixed(2)
+                          : borrowingStats.availableToBorrow.toFixed(2)
+                        }
+                      </div>
+                      <span className="text-green-400 font-medium">
+                        ${selectedNfts.size > 0 
+                          ? calculateBorrowingPower().toFixed(2)
+                          : (() => {
+                              // Calculate available amount after fees from current borrowing stats
+                              const transactionFee = borrowingStats.transactionFeeBps / 10000;
+                              const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
+                              return Math.max(0, netAvailable).toFixed(2);
+                            })()
+                        }
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Deposited NFTs:</span>

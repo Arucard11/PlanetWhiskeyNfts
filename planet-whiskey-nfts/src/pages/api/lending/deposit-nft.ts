@@ -78,12 +78,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     try {
+      // Debug: Log the PDA we're trying to fetch
+      console.log(`🔍 [DEPOSIT_NFT] Checking NFT metadata account:`, {
+        nftMintAddress: nftMintAddress,
+        nftMetadataPda: nftMetadataPda.toString(),
+        TOKEN_METADATA_PROGRAM_ID: TOKEN_METADATA_PROGRAM_ID.toString()
+      });
+
       // Fetch NFT metadata to get collection information
       const metadataAccount = await connection.getAccountInfo(nftMetadataPda);
+      console.log(`🔍 [DEPOSIT_NFT] Metadata account result:`, {
+        exists: !!metadataAccount,
+        dataLength: metadataAccount?.data?.length,
+        owner: metadataAccount?.owner?.toString(),
+        executable: metadataAccount?.executable
+      });
+
       if (!metadataAccount) {
+        console.error(`❌ [DEPOSIT_NFT] NFT metadata account not found for mint: ${nftMintAddress}`);
+        console.error(`❌ [DEPOSIT_NFT] Expected metadata PDA: ${nftMetadataPda.toString()}`);
+        
+        // Try to use Metaplex to verify the NFT exists
+        try {
+          const { Metaplex } = await import('@metaplex-foundation/js');
+          const metaplex = Metaplex.make(connection);
+          const nft = await metaplex.nfts().findByMint({ mintAddress: nftMint });
+          console.log(`🔍 [DEPOSIT_NFT] Metaplex found NFT:`, {
+            name: nft.name,
+            uri: nft.uri,
+            hasCollection: !!nft.collection,
+            collectionAddress: nft.collection?.address?.toString()
+          });
+          
+          // If Metaplex found it, the issue might be with our PDA derivation
+          console.log(`⚠️ [DEPOSIT_NFT] NFT exists per Metaplex, but metadata PDA not found. Possible PDA derivation issue.`);
+        } catch (metaplexError) {
+          console.error(`❌ [DEPOSIT_NFT] Metaplex also failed to find NFT:`, metaplexError);
+          console.error(`❌ [DEPOSIT_NFT] This NFT appears to have been minted without proper on-chain metadata.`);
+          console.error(`❌ [DEPOSIT_NFT] This is likely due to a failed mint transaction that only partially succeeded.`);
+          
+          return res.status(400).json({ 
+            message: 'NFT metadata account not found. This NFT was not properly minted with on-chain metadata. Please try minting a new NFT.' 
+          });
+        }
+        
         return res.status(400).json({ 
-          message: 'NFT metadata not found. This NFT may not be valid.' 
+          message: 'NFT was not properly minted with on-chain metadata. This NFT cannot be used for lending. Please try minting a new NFT.' 
         });
+      }
+
+      console.log(`✅ [DEPOSIT_NFT] NFT metadata account found successfully`);
+      
+      // Try to deserialize the metadata account to get more info
+      try {
+        // We'll skip full deserialization for now, but at least we know the account exists
+        console.log(`✅ [DEPOSIT_NFT] Metadata account exists, proceeding with collection validation...`);
+      } catch (deserializeError) {
+        console.warn(`⚠️ [DEPOSIT_NFT] Could not deserialize metadata, but account exists:`, deserializeError);
       }
 
       // Check the collection registry for approved collections

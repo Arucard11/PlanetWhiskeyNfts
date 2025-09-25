@@ -37,6 +37,7 @@ interface UserLendingData {
   availableToBorrow: number;
   depositedNfts: CollateralNft[];
   activeLoans: LoanInfo[];
+  transactionFeeBps?: number; // Transaction fee in basis points
 }
 
 export default function MyLoansPage() {
@@ -113,7 +114,7 @@ export default function MyLoansPage() {
   };
 
   const handleBorrow = async () => {
-    if (!borrowAmount || parseFloat(borrowAmount) <= 0) {
+    if (!connected || !publicKey || !borrowAmount || parseFloat(borrowAmount) <= 0) {
       toast.error('Please enter a valid borrow amount');
       return;
     }
@@ -125,31 +126,67 @@ export default function MyLoansPage() {
     }
 
     try {
+      console.log('🏦 Taking loan...', {
+        amount: borrowAmount,
+        duration: borrowDuration,
+        wallet: publicKey.toString()
+      });
+
       const response = await fetch('/api/lending/take-loan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          walletAddress: publicKey?.toString(),
+          walletAddress: publicKey.toString(),
           loanAmount: amount,
           duration: parseInt(borrowDuration),
           asset: borrowAsset,
         }),
       });
 
-      if (response.ok) {
-        toast.success(`Successfully borrowed $${amount} ${borrowAsset}`);
-        setShowBorrowModal(false);
-        setBorrowAmount('');
-        await fetchUserLendingData();
-      } else {
+      if (!response.ok) {
         const error = await response.json();
-        toast.error(error.message || 'Failed to take loan');
+        throw new Error(error.message || 'Failed to create loan');
       }
+
+      const data = await response.json();
+      console.log('✅ Loan transaction created:', data);
+
+      // Deserialize and send transaction
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
+      const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      
+      console.log('🔍 Transaction details:', {
+        instructions: transaction.instructions.length,
+        feePayer: transaction.feePayer?.toString(),
+        recentBlockhash: transaction.recentBlockhash
+      });
+
+      // Send transaction through wallet
+      const signature = await sendTransaction(transaction, connection);
+      console.log('📝 Transaction signature:', signature);
+
+      // Wait for confirmation
+      const confirmation = await connection.confirmTransaction({
+        signature,
+        blockhash: data.blockhash,
+        lastValidBlockHeight: data.lastValidBlockHeight
+      });
+
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+      }
+
+      console.log('✅ Loan transaction confirmed');
+      toast.success(`Successfully borrowed $${amount} ${borrowAsset}!`);
+      setShowBorrowModal(false);
+      setBorrowAmount('');
+      await fetchUserLendingData();
+
     } catch (error) {
-      console.error('Error taking loan:', error);
-      toast.error('Failed to take loan');
+      console.error('❌ Error taking loan:', error);
+      toast.error(error.message || 'Failed to take loan');
     }
   };
 
@@ -443,7 +480,17 @@ export default function MyLoansPage() {
               </div>
               <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <h3 className="text-lg font-semibold text-gray-300 mb-2">Available to Borrow</h3>
-                <p className="text-3xl font-bold text-purple-400">${lendingData.availableToBorrow}</p>
+                <div className="text-right">
+                  <p className="text-lg font-medium text-gray-400">
+                    Gross: ${Math.max(0, lendingData.totalBorrowingPower - lendingData.totalDebt).toFixed(2)}
+                  </p>
+                  <p className="text-3xl font-bold text-purple-400">
+                    ${lendingData.availableToBorrow.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    (after {((lendingData.transactionFeeBps || 250) / 100).toFixed(1)}% fee)
+                  </p>
+                </div>
               </div>
             </motion.div>
 
@@ -662,9 +709,15 @@ export default function MyLoansPage() {
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                     placeholder="Enter amount to borrow"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Available: ${lendingData?.availableToBorrow || 0}
-                  </p>
+                  <div className="text-xs text-gray-400 mt-1">
+                    <p>Gross: ${(() => {
+                      if (!lendingData) return '0.00';
+                      return Math.max(0, lendingData.totalBorrowingPower - lendingData.totalDebt).toFixed(2);
+                    })()}</p>
+                    <p className="font-bold text-purple-400">
+                      Net: ${lendingData?.availableToBorrow?.toFixed(2) || '0.00'} (after {((lendingData?.transactionFeeBps || 250) / 100).toFixed(1)}% fee)
+                    </p>
+                  </div>
                 </div>
 
                 <div>

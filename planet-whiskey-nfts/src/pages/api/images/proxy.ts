@@ -53,10 +53,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (imageUrl.startsWith('ipfs://')) {
       hash = imageUrl.substring(7);
     } else if (imageUrl.includes('/ipfs/')) {
-      // Extract hash from gateway URL like https://gateway.pinata.cloud/ipfs/QmHash
-      const match = imageUrl.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-      if (match) {
-        hash = match[1];
+      // Extract hash from gateway URL (handles all gateways including new Pinata)
+      const parts = imageUrl.split('/ipfs/');
+      if (parts.length > 1) {
+        hash = parts[parts.length - 1]; // Get the last part after /ipfs/
       } else {
         return res.status(422).json({ message: 'Invalid IPFS URL format' });
       }

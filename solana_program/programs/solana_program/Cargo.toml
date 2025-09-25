@@ -18,7 +18,9 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
-anchor-spl = { version = "0.31.1", features = ["metadata"] }
-# Jupiter CPI for mainnet token swaps - using manual implementation to avoid dependency conflicts
+anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-spl = { version = "0.31.0", features = ["metadata"] }
+# Raydium CPI for AMM swaps - official crate with Anchor 0.31.0
+raydium-amm-cpi = { git = "https://github.com/raydium-io/raydium-cpi", package = "raydium-amm-cpi", branch = "anchor-0.31.0" }
+# Jupiter CPI for mainnet token swaps - using manual implementation for compatibility
 

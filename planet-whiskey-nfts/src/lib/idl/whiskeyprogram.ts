@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8",
+  "address": "3GbJdAjF6Sqic84sXJHargXXQjknXVAADeKyRGv8FN2N",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -15,6 +15,9 @@ export type Whiskeyprogram = {
   "instructions": [
     {
       "name": "createCollection",
+      "docs": [
+        "✅ EXISTING COLLECTION CREATION FUNCTIONS (Keep unchanged for backwards compatibility)"
+      ],
       "discriminator": [
         156,
         251,
@@ -215,149 +218,76 @@ export type Whiskeyprogram = {
       ]
     },
     {
-      "name": "createV2Vaults",
+      "name": "createPaymentProof",
+      "docs": [
+        "✅ INSTRUCTION 1: Create Payment Proof (Track payment intent with validation)"
+      ],
       "discriminator": [
-        144,
-        219,
-        251,
-        43,
-        217,
-        172,
-        18,
-        249
+        64,
+        29,
+        140,
+        235,
+        87,
+        243,
+        128,
+        32
       ],
       "accounts": [
         {
-          "name": "admin",
+          "name": "user",
           "writable": true,
-          "signer": true,
-          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+          "signer": true
         },
         {
-          "name": "lendingPoolConfig",
+          "name": "paymentRecord",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
                   112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "whiskeyVaultV2",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  104,
-                  105,
-                  115,
-                  107,
-                  101,
+                  97,
                   121,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
+                  109,
+                  101,
+                  110,
+                  116
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
               }
             ]
           }
         },
         {
-          "name": "usdcVaultV2",
-          "writable": true,
+          "name": "collectionConfig",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  99,
+                  111,
+                  108,
                   108,
                   101,
-                  110,
-                  100,
+                  99,
+                  116,
                   105,
-                  110,
-                  103,
-                  95,
-                  112,
                   111,
-                  111,
-                  108
+                  110
                 ]
               },
               {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  100,
-                  99,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
+                "kind": "account",
+                "path": "collection_config.name",
+                "account": "collectionConfig"
               }
             ]
           }
-        },
-        {
-          "name": "whiskeyTokenMint",
-          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
-        },
-        {
-          "name": "usdcMint",
-          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
           "name": "systemProgram",
@@ -368,13 +298,27 @@ export type Whiskeyprogram = {
           "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "collectionKey",
+          "type": "pubkey"
+        },
+        {
+          "name": "expectedUsdAmount",
+          "type": "u64"
+        },
+        {
+          "name": "whiskeyAmount",
+          "type": "u64"
+        },
+        {
+          "name": "whiskeyPriceUsd",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "createWhiskeyGatedCollection",
-      "docs": [
-        "Create a whiskey-gated collection (requires WHISKEY tokens to mint, free to mint if requirements met)"
-      ],
       "discriminator": [
         216,
         61,
@@ -582,237 +526,58 @@ export type Whiskeyprogram = {
       "args": []
     },
     {
-      "name": "initializeLendingPool",
+      "name": "mintNftAndCleanup",
+      "docs": [
+        "✅ INSTRUCTION 3: Mint NFT + Cleanup (Combined atomic operation)"
+      ],
       "discriminator": [
-        236,
-        76,
-        136,
-        68,
-        196,
-        14,
-        9,
-        177
+        125,
+        248,
+        240,
+        1,
+        0,
+        219,
+        173,
+        19
       ],
       "accounts": [
         {
-          "name": "admin",
-          "writable": true,
-          "signer": true,
-          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
-        },
-        {
-          "name": "lendingPoolConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "whiskeyVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  104,
-                  105,
-                  115,
-                  107,
-                  101,
-                  121,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "usdcVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  100,
-                  99,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "whiskeyTokenMint",
-          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
-        },
-        {
-          "name": "usdcMint",
-          "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "rent",
-          "address": "SysvarRent111111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "mintNftWithSwap",
-      "discriminator": [
-        218,
-        165,
-        34,
-        83,
-        34,
-        24,
-        247,
-        95
-      ],
-      "accounts": [
-        {
-          "name": "payer",
+          "name": "user",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "paymentRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  121,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
         },
         {
           "name": "collectionConfig",
           "writable": true
         },
         {
-          "name": "walletNftCounter",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  97,
-                  108,
-                  108,
-                  101,
-                  116,
-                  95,
-                  110,
-                  102,
-                  116,
-                  95,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "account",
-                "path": "collectionConfig"
-              }
-            ]
-          }
-        },
-        {
-          "name": "collectionMintAccount"
-        },
-        {
           "name": "nftMint",
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "nftMetadataAccount",
-          "writable": true
-        },
-        {
-          "name": "nftMasterEditionAccount",
-          "writable": true
         },
         {
           "name": "nftTokenAccount",
@@ -821,7 +586,7 @@ export type Whiskeyprogram = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "user"
               },
               {
                 "kind": "const",
@@ -905,227 +670,11 @@ export type Whiskeyprogram = {
           }
         },
         {
-          "name": "collectionAuthorityReceiver",
+          "name": "nftMetadataAccount",
           "writable": true
         },
         {
-          "name": "globalMarket",
-          "writable": true
-        },
-        {
-          "name": "whiskeyTokenMint",
-          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
-        },
-        {
-          "name": "payerWhiskeyTokenAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "whiskeyTokenMint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "lendingPoolConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "lendingPoolWhiskeyVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  104,
-                  105,
-                  115,
-                  107,
-                  101,
-                  121,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "lendingPoolUsdcVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  100,
-                  99,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "treasuryWhiskeyTokenAccount",
-          "writable": true
-        },
-        {
-          "name": "treasuryWallet",
+          "name": "nftMasterEditionAccount",
           "writable": true
         },
         {
@@ -1161,108 +710,72 @@ export type Whiskeyprogram = {
         {
           "name": "nftUri",
           "type": "string"
-        },
-        {
-          "name": "whiskeyAmount",
-          "type": "u64"
-        },
-        {
-          "name": "currentWhiskeyRate",
-          "type": "u64"
         }
       ]
     },
     {
-      "name": "transferToLendingVault",
+      "name": "processPaymentsAndFees",
       "docs": [
-        "Transfer USDC from whiskey program's vault to lending program's capital vault"
+        "✅ INSTRUCTION 2: Process All Payments & Transfers (Combined atomic operation)"
       ],
       "discriminator": [
-        53,
-        174,
-        193,
-        213,
-        58,
-        214,
-        62,
-        211
+        164,
+        158,
+        223,
+        95,
+        80,
+        44,
+        65,
+        156
       ],
       "accounts": [
         {
-          "name": "admin",
+          "name": "user",
           "writable": true,
           "signer": true
         },
         {
-          "name": "lendingPoolConfig",
+          "name": "paymentRecord",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  108,
+                  112,
+                  97,
+                  121,
+                  109,
                   101,
                   110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "whiskeyUsdcVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103,
-                  95,
-                  112,
-                  111,
-                  111,
-                  108
+                  116
                 ]
               },
               {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  100,
-                  99,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  118,
-                  50
-                ]
+                "kind": "account",
+                "path": "user"
               }
             ]
           }
         },
         {
+          "name": "globalMarket",
+          "writable": true
+        },
+        {
+          "name": "userUsdcAccount",
+          "writable": true
+        },
+        {
+          "name": "userWhiskeyAccount",
+          "writable": true
+        },
+        {
           "name": "lendingCapitalVault",
+          "writable": true
+        },
+        {
+          "name": "treasuryWhiskeyAccount",
           "writable": true
         },
         {
@@ -1270,12 +783,7 @@ export type Whiskeyprogram = {
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
+      "args": []
     }
   ],
   "accounts": [
@@ -1293,29 +801,16 @@ export type Whiskeyprogram = {
       ]
     },
     {
-      "name": "lendingPoolConfig",
+      "name": "paymentRecord",
       "discriminator": [
-        123,
-        213,
-        219,
-        71,
-        186,
-        88,
-        225,
-        239
-      ]
-    },
-    {
-      "name": "walletNftCounter",
-      "discriminator": [
-        43,
-        236,
-        244,
-        4,
-        66,
-        57,
-        133,
-        11
+        202,
+        168,
+        56,
+        249,
+        127,
+        226,
+        86,
+        226
       ]
     }
   ],
@@ -1382,23 +877,63 @@ export type Whiskeyprogram = {
     },
     {
       "code": 6012,
+      "name": "invalidWhiskeyPrice",
+      "msg": "Invalid WHISKEY price: Price must be between $0.10 and $100."
+    },
+    {
+      "code": 6013,
       "name": "invalidAmount",
       "msg": "Invalid amount specified"
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "insufficientFunds",
       "msg": "Insufficient funds in vault"
     },
     {
-      "code": 6014,
+      "code": 6015,
       "name": "invalidVault",
       "msg": "Invalid vault address"
     },
     {
-      "code": 6015,
+      "code": 6016,
       "name": "arithmeticOverflow",
       "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6017,
+      "name": "invalidTokenMint",
+      "msg": "Invalid token mint - expected USDC"
+    },
+    {
+      "code": 6018,
+      "name": "invalidVaultOwner",
+      "msg": "Invalid vault owner - must be owned by global market PDA"
+    },
+    {
+      "code": 6019,
+      "name": "insufficientSwapOutput",
+      "msg": "Insufficient swap output"
+    },
+    {
+      "code": 6020,
+      "name": "paymentNotConfirmed",
+      "msg": "Payment not confirmed"
+    },
+    {
+      "code": 6021,
+      "name": "unauthorizedUser",
+      "msg": "Unauthorized user"
+    },
+    {
+      "code": 6022,
+      "name": "wrongCollection",
+      "msg": "Wrong collection"
+    },
+    {
+      "code": 6023,
+      "name": "insufficientPayment",
+      "msg": "Insufficient payment"
     }
   ],
   "types": [
@@ -1463,33 +998,33 @@ export type Whiskeyprogram = {
       }
     },
     {
-      "name": "lendingPoolConfig",
+      "name": "paymentRecord",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "authority",
+            "name": "user",
             "type": "pubkey"
           },
           {
-            "name": "whiskeyVault",
-            "type": "pubkey"
-          },
-          {
-            "name": "usdcVault",
-            "type": "pubkey"
-          },
-          {
-            "name": "totalWhiskeyReceived",
+            "name": "usdcAmount",
             "type": "u64"
           },
           {
-            "name": "totalUsdcSwapped",
-            "type": "u64"
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "paymentStatus"
+              }
+            }
           },
           {
-            "name": "lastSwapTimestamp",
+            "name": "timestamp",
             "type": "i64"
+          },
+          {
+            "name": "collectionKey",
+            "type": "pubkey"
           },
           {
             "name": "bump",
@@ -1499,21 +1034,18 @@ export type Whiskeyprogram = {
       }
     },
     {
-      "name": "walletNftCounter",
+      "name": "paymentStatus",
       "type": {
-        "kind": "struct",
-        "fields": [
+        "kind": "enum",
+        "variants": [
           {
-            "name": "wallet",
-            "type": "pubkey"
+            "name": "paid"
           },
           {
-            "name": "nftCount",
-            "type": "u8"
+            "name": "processed"
           },
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "refunded"
           }
         ]
       }

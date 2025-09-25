@@ -85,11 +85,20 @@ export default function MyNftsPage() {
         const result = await response.json();
 
         if (result.success) {
-          const owned = result.data.filter((nft: SerializableNft) => nft.isOwnedCollection);
+          // Debug logging to see what we get from API
+          console.log('[my-nfts-page] Full API response:', {
+            totalNfts: result.data.length,
+            ownedCollectionNfts: result.ownedCollectionNfts?.length || 0,
+            unknownCollectionNfts: result.unknownCollectionNfts?.length || 0
+          });
+
+          // Use the already categorized ownedCollectionNfts from API response
+          const owned = result.ownedCollectionNfts || [];
           
           // Debug logging to see what image URLs we're getting
-          console.log('[my-nfts-page] Owned collection NFTs:', owned.map(nft => ({
+          console.log('[my-nfts-page] Owned collection NFTs:', owned.map((nft: SerializableNft) => ({
             name: nft.name,
+            collectionName: nft.collectionName,
             imageUrl: nft.json?.image,
             hasImage: !!nft.json?.image
           })));
@@ -337,8 +346,6 @@ export default function MyNftsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {ownedCollectionNfts.map((nft) => {
                     const imageUrl = nft.json?.image || '/placeholder-image.svg';
-                    console.log(`[my-nfts-page] Rendering MyNftCard for ${nft.name} with imageUrl:`, imageUrl);
-                    console.log(`[my-nfts-page] NFT URI for ${nft.name}:`, nft.uri);
                     return (
                       <MyNftCard
                         key={nft.address}

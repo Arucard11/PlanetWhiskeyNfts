@@ -187,7 +187,7 @@ export function getLendingProgram(provider: AnchorProvider) {
   console.log("DEBUG: Instructions:", patchedIdl.instructions?.map((i: any) => i.name));
 
   // Use the lending program ID from environment variables
-  const programId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || "25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ");
+  const programId = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
   // Override the IDL address with the program ID
   patchedIdl.address = programId.toBase58();
   

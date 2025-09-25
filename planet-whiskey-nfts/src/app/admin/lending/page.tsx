@@ -179,7 +179,7 @@ export default function LendingAdminPage() {
   const loadDeploymentInfo = async () => {
     try {
       // Set the deployment info with the program ID from environment variables
-      const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ';
+      const lendingProgramId = process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!;
       
       // Derive the GlobalMarket PDA (this matches what the API does)
       const globalMarketSeed = Buffer.from('global_market');
@@ -197,7 +197,7 @@ export default function LendingAdminPage() {
       console.error('Error loading deployment info:', error);
       // Set fallback deployment info
       setDeploymentInfo({
-        lendingProgramId: '25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ',
+        lendingProgramId: lendingProgramId,
         globalMarketPda: 'Deriving...',
         network: 'Devnet'
       });

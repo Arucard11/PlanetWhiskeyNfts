@@ -1,5 +1,5 @@
 [toolchain]
-anchor_version = "0.31.1"
+anchor_version = "0.31.0"
 package_manager = "yarn"
 
 [features]
@@ -9,12 +9,12 @@ skip-lint = false
 [programs.devnet]
 lendingprogram = "4WbpwjHn44TZmcd6m8Ee2hktgEgVNBx6imCqfjZyxNg6"
 marketplaceprogram = "E9rdfVCukatP1LxyMun3mnw28pprwpTJtzkqtw1YVQ7n"
-whiskeyprogram = "Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM"
+whiskeyprogram = "GPFBomrtSWuJdMEbijKwZPz7u2HqoxYAzQYNPMpF8XiS"
 
 [programs.mainnet]
-lendingprogram = "HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK"
+lendingprogram = "48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3"
 marketplaceprogram = "BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT"
-whiskeyprogram = "3sNM6w7GBRs41o4a9X6RuECLR5ZZUsADvxpsZXM1kBU8"
+whiskeyprogram = "3GbJdAjF6Sqic84sXJHargXXQjknXVAADeKyRGv8FN2N"
 
 [registry]
 url = "https://api.apr.dev"

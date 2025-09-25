@@ -12,6 +12,7 @@ interface BorrowingStats {
   availableToBorrow: number;
   depositedNfts: number;
   collectionValues: { [collectionMint: string]: number }; // New: individual collection values
+  transactionFeeBps: number; // Transaction fee in basis points (e.g., 200 = 2%)
 }
 
 function loadLendingProgram() {
@@ -113,6 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Calculate stats from on-chain data
       const ltvRatio = globalMarketAccount.loanToValueRatioBps;
+      const transactionFeeBps = globalMarketAccount.transactionFeeBps;
       const depositedNftsCount = borrowerAccount.depositedNfts.length;
       
       // Fix: Convert borrowing power from micro-dollars to dollars
@@ -136,7 +138,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         currentDebt: totalDebt,
         availableToBorrow: safeAvailableToBorrow,
         depositedNfts: depositedNftsCount,
-        collectionValues // Include individual collection values
+        collectionValues, // Include individual collection values
+        transactionFeeBps // Include transaction fee
       };
 
       console.log(`✅ Fetched real lending stats for wallet: ${walletAddress}`, {
@@ -151,6 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`No borrower account found for wallet: ${walletAddress}, returning default stats`);
       
       const ltvRatio = globalMarketAccount.loanToValueRatioBps;
+      const transactionFeeBps = globalMarketAccount.transactionFeeBps;
       
       userBorrowingStats = {
         perNftValue: averageNftValue, // Use calculated average
@@ -160,7 +164,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         currentDebt: 0,
         availableToBorrow: 0,
         depositedNfts: 0,
-        collectionValues // Include individual collection values
+        collectionValues, // Include individual collection values
+        transactionFeeBps // Include transaction fee
       };
     }
     

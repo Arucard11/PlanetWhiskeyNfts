@@ -1,0 +1,22 @@
+{
+  "solUsdcPool": {
+    "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+    "programId": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+    "authority": "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
+    "openOrders": "HRk9CMrpq7Jn9sh7mzxE8CChHG8dneX9p475QKz4Fsfc",
+    "targetOrders": "CZza3Ej4Mc58MnxWA385itCC9jCo3L1D7zc3LKy1bZMR",
+    "baseVault": "EPHD6BKtTjEqzKKWZ1GrTCJTkp5FGrPqCPRGrfCgYDv5",
+    "quoteVault": "4SqVFtKUWgvPqDCJsrw5v3ZYJwwkYRgAHGJdEPrBBpPc",
+    "lpMint": "8HoQnePLqPj4M7PUDzfw8e3Ymdwgc7NLGnaTUapubyvu",
+    "marketId": "9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT",
+    "marketProgramId": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+    "marketBids": "14ivtgssEBoBjuZJtSAPKYgpUK7DmnSwuPMqJoVTSgKJ",
+    "marketAsks": "CEQdAFKdycHugujbcS9pHecSLANv9KV9SEEDoAH4TR6q",
+    "marketEventQueue": "5KKsLVU6TcbVDK4BS6K1DGDxnh4Q9xjYJ8XaDCG5t8ht",
+    "marketCoinVault": "36c6YqAwyGKQG66XEp2dJc5JqjaBNv7sVghEtJv4c7u6",
+    "marketPcVault": "8CFo8bL8mZQK8abbFyypFMwEDd8tVJjHTTojMLgQTUSZ",
+    "marketVaultSigner": "F8Vyqk3unwxkXukZFQeYyGmFfTG3CAX4v24iyrjEYBJV"
+  },
+  "generatedAt": "2025-09-19T17:40:36.587Z",
+  "note": "WHISKEY/SOL pool may not exist on Raydium - consider Jupiter for WHISKEY->SOL step"
+}

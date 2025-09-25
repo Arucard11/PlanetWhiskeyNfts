@@ -64,7 +64,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('collection_registry_v2')],
+      [Buffer.from('collection_registry')],
       LENDING_PROGRAM_ID
     );
 

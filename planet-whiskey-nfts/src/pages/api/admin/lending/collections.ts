@@ -8,8 +8,8 @@ import dbConnect from '@/lib/mongodb';
 import NftCollection from '@/models/NftCollection';
 
 // Program IDs from environment variables
-const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID || '25HNJoG1kZpLHT7B94LHbpGjV2BtBPcSfQgCkLSrxYVZ');
-const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || 'Y5ZTxmgfR51njNPjHRm9WYzbmvoG4uptaQnHupdKbFM');
+const LENDING_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!);
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
 
 // Collection Registry PDA seed (unified registry)
 const COLLECTION_REGISTRY_SEED = 'collection_registry';
@@ -210,7 +210,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           )
           .accounts({
             collectionRegistry: collectionRegistryPda,
-            admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
+            admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET!), // Admin wallet
           })
           .instruction();
 
@@ -269,7 +269,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             .toggleCollectionApproval(new PublicKey(collectionMint))
             .accounts({
               collectionRegistry: collectionRegistryPda,
-              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
+              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET!), // Admin wallet
             })
             .instruction();
         } else if (newValueUsd) {
@@ -281,7 +281,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             )
             .accounts({
               collectionRegistry: collectionRegistryPda,
-              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET || 'F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X'), // Admin wallet
+              admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_WALLET!), // Admin wallet
             })
             .instruction();
         } else {

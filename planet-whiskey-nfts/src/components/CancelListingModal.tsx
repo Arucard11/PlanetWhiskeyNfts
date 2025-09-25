@@ -91,12 +91,38 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
         maxRetries: 2, // Reduced retries to prevent duplicate issues
       });
 
-      // Confirm the transaction
-      await connection.confirmTransaction({ 
-        signature, 
-        blockhash, 
-        lastValidBlockHeight 
-      }, 'confirmed');
+      // Fast confirmation with aggressive polling
+      console.log('[CANCEL_MODAL] 🚀 Starting fast confirmation polling...');
+      let confirmed = false;
+      const maxAttempts = 30; // 30 attempts over ~15 seconds
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const status = await connection.getSignatureStatus(signature);
+          console.log(`[CANCEL_MODAL] 📊 Attempt ${attempt}: Status = ${status.value?.confirmationStatus || 'pending'}`);
+          
+          if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
+            console.log(`[CANCEL_MODAL] ✅ Transaction confirmed on attempt ${attempt}!`);
+            confirmed = true;
+            break;
+          } else if (status.value?.err) {
+            throw new Error(`Transaction failed: ${status.value.err}`);
+          }
+          
+          // Wait 500ms between checks for fast confirmation
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (statusError) {
+          console.log(`[CANCEL_MODAL] ⚠️ Status check ${attempt} failed:`, statusError);
+          if (attempt === maxAttempts) {
+            throw new Error('Failed to confirm transaction after multiple attempts');
+          }
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      if (!confirmed) {
+        console.log(`[CANCEL_MODAL] ⏰ Timeout after ${maxAttempts} attempts, but proceeding...`);
+      }
 
       // Update the database to mark as cancelled
       const updateResponse = await fetch('/api/marketplace/cancel', {
