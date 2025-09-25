@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   console.log('📥 Received request body:', req.body);
   
-  const { walletAddress, loanId } = req.body;
+  const { walletAddress, loanId, repaymentAmountUsd } = req.body;
 
   if (!walletAddress || !loanId) {
     console.error('❌ Missing required fields:', { walletAddress, loanId });
@@ -27,6 +27,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'All fields are required: walletAddress, loanId' 
     });
   }
+
+  console.log('💰 Repayment request details:', { walletAddress, loanId, repaymentAmountUsd });
 
   console.log('✅ Request validation passed:', { walletAddress, loanId });
 
@@ -98,17 +100,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const principalAmountUsd = Number(principalAmountMicro) / 1_000_000;
     const remainingInterestUsd = Number(remainingInterestMicro) / 1_000_000;
 
-    // Calculate WHISKEY amount needed for interest (with 6 decimals)
-    const whiskeyAmountNeeded = (remainingInterestUsd / currentWhiskeyRate) * 1_000_000;
+    // Determine repayment amount to use
+    let actualRepaymentAmountUsd = remainingInterestUsd;
+    if (repaymentAmountUsd && repaymentAmountUsd > 0) {
+      // Use the amount specified by the frontend
+      actualRepaymentAmountUsd = repaymentAmountUsd;
+      console.log('💡 Using frontend-specified repayment amount:', actualRepaymentAmountUsd);
+    } else {
+      // Default to remaining interest only
+      console.log('💡 No repayment amount specified, using remaining interest only:', actualRepaymentAmountUsd);
+    }
+
+    // Calculate WHISKEY amount needed for the FULL repayment amount (with 6 decimals)
+    const whiskeyAmountNeeded = (actualRepaymentAmountUsd / currentWhiskeyRate) * 1_000_000;
     // Add 1% buffer to account for price fluctuations
     const whiskeyAmountWithBuffer = Math.ceil(whiskeyAmountNeeded * 1.01);
 
     console.log('💰 Dual Payment Calculations:');
     console.log('  🔵 Principal (USDC to Capital Vault): $', principalAmountUsd);
-    console.log('  🟡 Interest (WHISKEY to Treasury): $', remainingInterestUsd);
+    console.log('  🟡 Interest remaining: $', remainingInterestUsd);
+    console.log('  💵 ACTUAL Repayment Amount (WHISKEY): $', actualRepaymentAmountUsd);
     console.log('  🥃 WHISKEY tokens needed:', whiskeyAmountWithBuffer / 1_000_000);
     console.log('  📊 Current WHISKEY rate: $', currentWhiskeyRate);
-    console.log('  ⚡ This is a DUAL PAYMENT: USDC for principal + WHISKEY for interest');
+    console.log('  ⚡ This is a DUAL PAYMENT: USDC for principal + WHISKEY for repayment');
 
     // Derive PDAs
     const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
@@ -182,10 +196,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Dual payment transaction prepared successfully',
       paymentDetails: {
         principalUSDC: principalAmountUsd,
-        interestWhiskey: whiskeyAmountWithBuffer / 1_000_000,
-        interestUSDValue: remainingInterestUsd,
+        repaymentWhiskey: whiskeyAmountWithBuffer / 1_000_000,
+        repaymentUSDValue: actualRepaymentAmountUsd,
         whiskeyPrice: currentWhiskeyRate,
-        totalUSDValue: principalAmountUsd + remainingInterestUsd
+        totalUSDValue: principalAmountUsd + actualRepaymentAmountUsd
       },
       paymentBreakdown: {
         type: 'DUAL_PAYMENT',
@@ -194,8 +208,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           currency: 'USDC',
           destination: 'Capital Vault'
         },
-        interest: {
-          amountUSD: remainingInterestUsd,
+        repayment: {
+          amountUSD: actualRepaymentAmountUsd,
           amountWhiskey: whiskeyAmountWithBuffer / 1_000_000,
           currency: 'WHISKEY',
           destination: 'Treasury Wallet',

@@ -120,7 +120,9 @@ export default function MyLoansPage() {
     }
 
     const amount = parseFloat(borrowAmount);
-    if (lendingData && amount > lendingData.availableToBorrow) {
+    // Calculate gross available amount (before fees)
+    const grossAvailable = lendingData ? Math.max(0, lendingData.totalBorrowingPower - lendingData.totalDebt) : 0;
+    if (lendingData && amount > grossAvailable) {
       toast.error('Amount exceeds available borrowing power');
       return;
     }
@@ -705,7 +707,7 @@ export default function MyLoansPage() {
                       setBorrowAmount(e.target.value);
                       fetchLoanPreview(e.target.value, borrowDuration);
                     }}
-                    max={lendingData?.availableToBorrow || 0}
+                    max={lendingData ? Math.max(0, lendingData.totalBorrowingPower - lendingData.totalDebt) : 0}
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                     placeholder="Enter amount to borrow"
                   />
