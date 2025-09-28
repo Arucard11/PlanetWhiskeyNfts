@@ -107,7 +107,7 @@ export default function MyLoansPage() {
       }
     } catch (error) {
       console.error('Error fetching lending data:', error);
-      toast.error('Failed to fetch lending data');
+      toast.error('Could not load your loan data.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export default function MyLoansPage() {
 
   const handleBorrow = async () => {
     if (!connected || !publicKey || !borrowAmount || parseFloat(borrowAmount) <= 0) {
-      toast.error('Please enter a valid borrow amount');
+      toast.error('Enter a borrow amount.');
       return;
     }
 

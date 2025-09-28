@@ -124,11 +124,11 @@ export default function BorrowPage() {
       } else {
         // If the request fails, clear the NFTs
         setUserNfts([]);
-        toast.error('Could not fetch your NFTs.');
+        toast.error('Could not load your NFTs.');
       }
     } catch (error) {
       console.error('❌ Error fetching user NFTs:', error);
-      toast.error('Failed to fetch your NFTs');
+      toast.error('Could not load your NFTs.');
       setUserNfts([]);
     }
   }, []);
@@ -181,7 +181,7 @@ export default function BorrowPage() {
     
     // Check if NFT is eligible for lending
     if (!nft?.isEligible) {
-      toast.error('This NFT is not from an approved collection and cannot be used as collateral.', {
+      toast.error('This NFT cannot be used as collateral.', {
         duration: 5000,
         style: {
           background: '#dc2626',
@@ -200,7 +200,7 @@ export default function BorrowPage() {
       if (newSelected.size < 5) { // Max 5 NFTs per user
         newSelected.add(mintAddress);
       } else {
-        toast.error('Maximum 5 NFTs can be used as collateral');
+        toast.error('You can only use 5 NFTs max.');
       }
     }
     setSelectedNfts(newSelected);
@@ -208,12 +208,12 @@ export default function BorrowPage() {
 
   const handleTakeLoan = async () => {
     if (!connected || !publicKey || !loanAmount || parseFloat(loanAmount) <= 0) {
-      toast.error('Please enter a valid loan amount');
+      toast.error('Enter a loan amount.');
       return;
     }
 
     if (!borrowingStats || borrowingStats.availableToBorrow < parseFloat(loanAmount)) {
-      toast.error('Loan amount exceeds available borrowing power');
+      toast.error('Amount too high. Lower the loan amount.');
       return;
     }
 
@@ -294,10 +294,10 @@ export default function BorrowPage() {
       // Check for specific wallet errors
       if (error?.toString().includes('WalletSendTransactionError')) {
         console.error('❌ Wallet transaction error detected');
-        toast.error('Wallet transaction failed. Please check your wallet connection and try again.');
+        toast.error('Wallet problem. Check connection and try again.');
       } else if (error?.toString().includes('simulation failed')) {
         console.error('❌ Transaction simulation failed');
-        toast.error('Transaction would fail on-chain. Please check account balances and permissions.');
+        toast.error('Not enough funds or permissions.');
       } else {
         toast.error(error instanceof Error ? error.message : 'Failed to take loan');
       }
@@ -308,12 +308,12 @@ export default function BorrowPage() {
 
   const handleDepositNfts = async () => {
     if (selectedNfts.size === 0) {
-      toast.error('Please select at least one NFT to deposit');
+      toast.error('Select at least 1 NFT.');
       return;
     }
 
     if (!sendTransaction) {
-      toast.error('Wallet not connected properly');
+      toast.error('Wallet not connected.');
       return;
     }
 
@@ -438,7 +438,7 @@ export default function BorrowPage() {
 
     } catch (error) {
       console.error('Error in deposit process:', error);
-      toast.error('An unexpected error occurred during the deposit process.');
+      toast.error('Something went wrong. Try again.');
     } finally {
       setDepositing(false);
     }
@@ -727,7 +727,7 @@ export default function BorrowPage() {
                     max={borrowingStats.availableToBorrow}
                     min="1"
                     step="0.01"
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 force-white-text"
                   />
                   <div className="text-sm text-gray-400 mt-2">
                     <p>Gross available: ${borrowingStats.availableToBorrow.toFixed(2)}</p>

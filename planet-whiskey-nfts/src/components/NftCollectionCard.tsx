@@ -812,7 +812,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     body: JSON.stringify({
                         walletAddress: publicKey.toString(),
                         nftMintAddress: mintResult.nftMint,
-                        collectionMintAddress: collectionMintAddress,
+                        collectionMintAddress: collectionOnChainAddress,
                         transactionSignature: signature,
                     }),
                 });
@@ -835,7 +835,28 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
         } catch (error) {
             console.error('[WHISKEY-GATED] Error minting NFT:', error);
-            setMintMessage(`❌ Mint failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            
+            // Create user-friendly error message
+            let userMessage = 'Mint failed: ';
+            const errorStr = error instanceof Error ? error.message : error?.toString() || '';
+            
+            if (errorStr.includes('Insufficient funds') || errorStr.includes('insufficient funds') || errorStr.includes('InsufficientFunds')) {
+                userMessage += 'Not enough SOL. Add more SOL to your wallet.';
+            } else if (errorStr.includes('Insufficient balance') || errorStr.includes('insufficient balance') || errorStr.includes('InsufficientBalance')) {
+                userMessage += 'Not enough WHISKEY tokens. Get more WHISKEY to mint.';
+            } else if (errorStr.includes('User rejected') || errorStr.includes('user rejected') || errorStr.includes('User cancelled')) {
+                userMessage += 'You cancelled the transaction.';
+            } else if (errorStr.includes('Collection is full') || errorStr.includes('collection is full')) {
+                userMessage += 'SOLD OUT!';
+            } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
+                userMessage += 'Internet problem. Try again.';
+            } else if (errorStr.includes('Wallet has already minted') || errorStr.includes('limit exceeded')) {
+                userMessage += 'You already minted from this collection. Only 1 per wallet.';
+            } else {
+                userMessage += 'Something went wrong. Try again.';
+            }
+            
+            setMintMessage(`❌ ${userMessage}`);
         } finally {
             setIsMinting(false);
         }
@@ -885,7 +906,26 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage('✅ Step 1 Complete: USDC deposited to vault! Ready to mint NFT.');
         } catch (error) {
             console.error('Step 1 failed:', error);
-            setMintMessage(`❌ Step 1 failed: ${error}`);
+            
+            // Create user-friendly error message
+            let userMessage = 'Step 1 failed: ';
+            const errorStr = error?.toString() || '';
+            
+            if (errorStr.includes('Insufficient funds') || errorStr.includes('insufficient funds') || errorStr.includes('InsufficientFunds')) {
+                userMessage += 'Not enough SOL. Add more SOL to your wallet.';
+            } else if (errorStr.includes('Insufficient balance') || errorStr.includes('insufficient balance') || errorStr.includes('InsufficientBalance')) {
+                userMessage += 'Not enough WHISKEY tokens. Get more WHISKEY to mint.';
+            } else if (errorStr.includes('User rejected') || errorStr.includes('user rejected') || errorStr.includes('User cancelled')) {
+                userMessage += 'You cancelled the transaction.';
+            } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
+                userMessage += 'Internet problem. Try again.';
+            } else if (errorStr.includes('Slippage') || errorStr.includes('slippage')) {
+                userMessage += 'Price changed too fast. Try again.';
+            } else {
+                userMessage += 'Something went wrong. Try again.';
+            }
+            
+            setMintMessage(`❌ ${userMessage}`);
         } finally {
             setIsMinting(false);
         }
@@ -917,7 +957,26 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             }
         } catch (error) {
             console.error('Step 2 failed:', error);
-            setMintMessage(`❌ Step 2 failed: ${error.message || error}. Click "Mint NFT" to retry.`);
+            
+            // Create user-friendly error message
+            let userMessage = 'Step 2 failed: ';
+            const errorStr = error?.message || error?.toString() || '';
+            
+            if (errorStr.includes('Insufficient funds') || errorStr.includes('insufficient funds') || errorStr.includes('InsufficientFunds')) {
+                userMessage += 'Not enough SOL. Add more SOL to your wallet.';
+            } else if (errorStr.includes('User rejected') || errorStr.includes('user rejected') || errorStr.includes('User cancelled')) {
+                userMessage += 'You cancelled the transaction.';
+            } else if (errorStr.includes('Collection is full') || errorStr.includes('collection is full')) {
+                userMessage += 'SOLD OUT!';
+            } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
+                userMessage += 'Internet problem. Try again.';
+            } else if (errorStr.includes('Wallet has reached the maximum NFT limit') || errorStr.includes('limit exceeded')) {
+                userMessage += 'You already have 5 NFTs from this collection.';
+            } else {
+                userMessage += 'Something went wrong. Try again.';
+            }
+            
+            setMintMessage(`❌ ${userMessage} Click "Mint NFT" to retry.`);
             // Keep popup open on failure - don't call setShowSuccessPopup(false)
         } finally {
             setIsMinting(false);
@@ -1055,28 +1114,28 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Already minted from this collection
+                            You already minted from this collection
                         </button>
                     ) : userWhiskeyBalance === 0 ? (
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-amber-800/50 text-amber-400 rounded-xl font-bold cursor-not-allowed border border-amber-700/50"
                         >
-                            Checking WHISKEY balance...
+                            Loading...
                         </button>
                     ) : !isWhiskeyGated && displayMintPriceWhiskeyTokens > 0 && userWhiskeyBalance < displayMintPriceWhiskeyTokens ? (
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Insufficient WHISKEY ({formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} required)
+                            Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY
                         </button>
                     ) : isWhiskeyGated && !hasRequiredWhiskey ? (
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Insufficient WHISKEY tokens ({requiredWhiskeyAmount?.toLocaleString()} required)
+                            Need {requiredWhiskeyAmount?.toLocaleString()} WHISKEY
                         </button>
                     ) : isWhiskeyGated ? (
                         // Whiskey-gated collections: Simple one-click mint (free if you have WHISKEY)
@@ -1140,10 +1199,21 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     
                     {/* Two-step process info for regular collections */}
                     {connected && !isWhiskeyGated && (
-                        <div className="mt-4 p-3 bg-green-900/20 rounded-lg border border-green-700/40">
-                            <p className="text-xs text-green-400 text-center">
-                                🔄 <strong>Two-Step Process:</strong> 1) Direct WHISKEY→USDC swap + vault deposit → 2) NFT mint
-                            </p>
+                        <div className="mt-4 space-y-2">
+                            <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/40">
+                                <p className="text-xs text-green-400 text-center">
+                                    🔄 <strong>Two-Step Process:</strong> 1) Direct WHISKEY→USDC swap + vault deposit → 2) NFT mint
+                                </p>
+                            </div>
+                            {/* 5 NFT Limit Warning */}
+                            <div className="p-3 bg-yellow-900/30 rounded-lg border border-yellow-600/50">
+                                <p className="text-sm text-yellow-300 text-center font-bold">
+                                    ⚠️ LIMIT: 5 NFTs per wallet maximum
+                                </p>
+                                <p className="text-xs text-yellow-400 text-center mt-1">
+                                    You can mint up to 5 NFTs from this collection
+                                </p>
+                            </div>
                         </div>
                     )}
                 </div>
