@@ -1,0 +1,3108 @@
+{
+  "address": "48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3",
+  "metadata": {
+    "name": "lendingprogram",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Lending and Borrowing Protocol for Planet Whiskey NFTs"
+  },
+  "instructions": [
+    {
+      "name": "add_collection",
+      "docs": [
+        "Add a collection to the registry"
+      ],
+      "discriminator": [
+        79,
+        172,
+        225,
+        142,
+        219,
+        192,
+        171,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "collection_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "value_usd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "add_liquidity",
+      "docs": [
+        "Add liquidity to the protocol (admin only)"
+      ],
+      "discriminator": [
+        181,
+        157,
+        89,
+        67,
+        143,
+        182,
+        52,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "liquidity_amount_usd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "close_collection_registry",
+      "docs": [
+        "Close Collection Registry (Emergency Admin Function)"
+      ],
+      "discriminator": [
+        107,
+        212,
+        98,
+        37,
+        246,
+        112,
+        213,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit_nft",
+      "docs": [
+        "Deposit NFT to increase borrowing power"
+      ],
+      "discriminator": [
+        93,
+        226,
+        132,
+        166,
+        141,
+        9,
+        48,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "collection_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "borrower_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nft_mint"
+        },
+        {
+          "name": "user_nft_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "nft_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "nft_metadata"
+        },
+        {
+          "name": "token_metadata_program"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "collection_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "initialize_capital_vault",
+      "docs": [
+        "Initialize the lending program's capital vault"
+      ],
+      "discriminator": [
+        168,
+        123,
+        174,
+        219,
+        245,
+        182,
+        124,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "capital_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  112,
+                  105,
+                  116,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  117,
+                  115,
+                  100,
+                  99
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_collection_registry",
+      "docs": [
+        "Manage approved NFT collections with their USD values (only treasury wallet can call)",
+        "Initialize the main collection registry"
+      ],
+      "discriminator": [
+        67,
+        46,
+        195,
+        231,
+        11,
+        87,
+        70,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_collection_registry_v2",
+      "docs": [
+        "Initialize Collection Registry V2 (with different seeds)"
+      ],
+      "discriminator": [
+        36,
+        5,
+        148,
+        143,
+        175,
+        68,
+        134,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_global_market",
+      "docs": [
+        "Initialize the global market (Project Constellation Master Setup)"
+      ],
+      "discriminator": [
+        67,
+        173,
+        52,
+        201,
+        74,
+        169,
+        150,
+        163
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "capital_vault_usdc"
+        },
+        {
+          "name": "treasury_wallet"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "max_staked_nfts",
+          "type": "u32"
+        },
+        {
+          "name": "per_nft_value_usd",
+          "type": "u64"
+        },
+        {
+          "name": "liquidation_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "liquidate_expired_loan",
+      "docs": [
+        "Liquidate expired loan by burning NFT collateral"
+      ],
+      "discriminator": [
+        223,
+        184,
+        236,
+        246,
+        161,
+        150,
+        32,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "borrower_account",
+          "writable": true
+        },
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "nft_mint"
+        },
+        {
+          "name": "nft_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "borrower_account.owner",
+                "account": "BorrowerAccount"
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "liquidator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "loan_id",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "make_interest_payment",
+      "docs": [
+        "Make interest payment (WHISKEY TOKENS ONLY - goes to treasury)"
+      ],
+      "discriminator": [
+        220,
+        2,
+        56,
+        126,
+        239,
+        204,
+        9,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "borrower_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "borrower"
+              }
+            ]
+          }
+        },
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "borrower_whiskey_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  125,
+                  224,
+                  223,
+                  149,
+                  155,
+                  55,
+                  104,
+                  221,
+                  33,
+                  58,
+                  177,
+                  99,
+                  44,
+                  101,
+                  4,
+                  229,
+                  62,
+                  187,
+                  132,
+                  134,
+                  194,
+                  242,
+                  168,
+                  68,
+                  193,
+                  156,
+                  231,
+                  189,
+                  212,
+                  44,
+                  160,
+                  116
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_whiskey_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasury_wallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  125,
+                  224,
+                  223,
+                  149,
+                  155,
+                  55,
+                  104,
+                  221,
+                  33,
+                  58,
+                  177,
+                  99,
+                  44,
+                  101,
+                  4,
+                  229,
+                  62,
+                  187,
+                  132,
+                  134,
+                  194,
+                  242,
+                  168,
+                  68,
+                  193,
+                  156,
+                  231,
+                  189,
+                  212,
+                  44,
+                  160,
+                  116
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_wallet",
+          "writable": true
+        },
+        {
+          "name": "borrower",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "payment_amount_whiskey",
+          "type": "u64"
+        },
+        {
+          "name": "current_whiskey_price_usd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "process_mint_revenue",
+      "docs": [
+        "Process mint revenue split (80% to lending, 20% to treasury)"
+      ],
+      "discriminator": [
+        26,
+        190,
+        106,
+        52,
+        66,
+        86,
+        75,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "global_market"
+        },
+        {
+          "name": "revenue_source",
+          "writable": true
+        },
+        {
+          "name": "capital_vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "treasury_whiskey_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasury_wallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  125,
+                  224,
+                  223,
+                  149,
+                  155,
+                  55,
+                  104,
+                  221,
+                  33,
+                  58,
+                  177,
+                  99,
+                  44,
+                  101,
+                  4,
+                  229,
+                  62,
+                  187,
+                  132,
+                  134,
+                  194,
+                  242,
+                  168,
+                  68,
+                  193,
+                  156,
+                  231,
+                  189,
+                  212,
+                  44,
+                  160,
+                  116
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_wallet",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_revenue_whiskey",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "repay_loan_dual_payment",
+      "docs": [
+        "Repay loan with dual payment: USDC for principal, WHISKEY for interest"
+      ],
+      "discriminator": [
+        209,
+        246,
+        53,
+        120,
+        53,
+        238,
+        121,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "borrower_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "borrower"
+              }
+            ]
+          }
+        },
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "capital_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  112,
+                  105,
+                  116,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  117,
+                  115,
+                  100,
+                  99
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "borrower_usdc_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  198,
+                  250,
+                  122,
+                  243,
+                  190,
+                  219,
+                  173,
+                  58,
+                  61,
+                  101,
+                  243,
+                  106,
+                  171,
+                  201,
+                  116,
+                  49,
+                  177,
+                  187,
+                  228,
+                  194,
+                  210,
+                  246,
+                  224,
+                  228,
+                  124,
+                  166,
+                  2,
+                  3,
+                  69,
+                  47,
+                  93,
+                  97
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "borrower_whiskey_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  125,
+                  224,
+                  223,
+                  149,
+                  155,
+                  55,
+                  104,
+                  221,
+                  33,
+                  58,
+                  177,
+                  99,
+                  44,
+                  101,
+                  4,
+                  229,
+                  62,
+                  187,
+                  132,
+                  134,
+                  194,
+                  242,
+                  168,
+                  68,
+                  193,
+                  156,
+                  231,
+                  189,
+                  212,
+                  44,
+                  160,
+                  116
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_whiskey_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasury_wallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  125,
+                  224,
+                  223,
+                  149,
+                  155,
+                  55,
+                  104,
+                  221,
+                  33,
+                  58,
+                  177,
+                  99,
+                  44,
+                  101,
+                  4,
+                  229,
+                  62,
+                  187,
+                  132,
+                  134,
+                  194,
+                  242,
+                  168,
+                  68,
+                  193,
+                  156,
+                  231,
+                  189,
+                  212,
+                  44,
+                  160,
+                  116
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_wallet",
+          "writable": true
+        },
+        {
+          "name": "borrower",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "usdc_principal_amount",
+          "type": "u64"
+        },
+        {
+          "name": "whiskey_interest_amount",
+          "type": "u64"
+        },
+        {
+          "name": "current_whiskey_price_usd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "take_loan",
+      "docs": [
+        "Take a loan against deposited NFTs"
+      ],
+      "discriminator": [
+        153,
+        53,
+        51,
+        59,
+        222,
+        102,
+        52,
+        131
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "borrower_account",
+          "writable": true
+        },
+        {
+          "name": "loan",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  111,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "account",
+                "path": "borrower_account.loan_counter",
+                "account": "BorrowerAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_mint"
+        },
+        {
+          "name": "capital_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  112,
+                  105,
+                  116,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  117,
+                  115,
+                  100,
+                  99
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "treasury_wallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_wallet",
+          "writable": true
+        },
+        {
+          "name": "borrower_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "borrower"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "borrower",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "loan_amount_usd",
+          "type": "u64"
+        },
+        {
+          "name": "duration_secs",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "toggle_collection_approval",
+      "docs": [
+        "Toggle collection approval status"
+      ],
+      "discriminator": [
+        108,
+        203,
+        227,
+        188,
+        221,
+        211,
+        231,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "collection_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_admin_settings",
+      "docs": [
+        "Update admin settings (only treasury wallet can call)",
+        "Now includes ALL configurable GlobalMarket parameters"
+      ],
+      "discriminator": [
+        10,
+        27,
+        52,
+        103,
+        217,
+        27,
+        114,
+        12
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_base_interest_rate_1_month_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_base_interest_rate_2_month_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_base_interest_rate_3_month_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_optimal_utilization_rate_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_max_interest_rate_multiplier_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_utilization_slope_1_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_utilization_slope_2_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_loan_to_value_ratio_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_transaction_fee_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_lending_wallet_share_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_treasury_wallet_share_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "new_max_staked_nfts",
+          "type": {
+            "option": "u32"
+          }
+        },
+        {
+          "name": "new_per_nft_value_usd",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_collection_value",
+      "docs": [
+        "Update a collection's USD value"
+      ],
+      "discriminator": [
+        68,
+        167,
+        164,
+        239,
+        233,
+        122,
+        76,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "collection_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "collection_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "new_value_usd",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_nft",
+      "docs": [
+        "Withdraw NFT after full loan repayment"
+      ],
+      "discriminator": [
+        142,
+        181,
+        191,
+        149,
+        82,
+        175,
+        216,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "global_market",
+          "writable": true
+        },
+        {
+          "name": "collection_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "borrower_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  101,
+                  114,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nft_mint"
+        },
+        {
+          "name": "user_nft_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "nft_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "BorrowerAccount",
+      "discriminator": [
+        36,
+        64,
+        147,
+        86,
+        52,
+        110,
+        151,
+        126
+      ]
+    },
+    {
+      "name": "CollectionRegistry",
+      "discriminator": [
+        103,
+        157,
+        231,
+        9,
+        181,
+        43,
+        15,
+        106
+      ]
+    },
+    {
+      "name": "GlobalMarket",
+      "discriminator": [
+        21,
+        240,
+        53,
+        82,
+        138,
+        209,
+        110,
+        149
+      ]
+    },
+    {
+      "name": "Loan",
+      "discriminator": [
+        20,
+        195,
+        70,
+        117,
+        165,
+        227,
+        182,
+        1
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "UnauthorizedTreasuryAccess",
+      "msg": "Unauthorized treasury wallet access"
+    },
+    {
+      "code": 6001,
+      "name": "UnauthorizedLiquidator",
+      "msg": "Unauthorized liquidator - only designated liquidation authority can liquidate loans"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidStakedNftsLimit",
+      "msg": "Invalid staked NFTs limit (must be 500-10,000)"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidInterestRate",
+      "msg": "Invalid interest rate (must be 2.5%-25%)"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidTransactionFee",
+      "msg": "Invalid transaction fee (must be 1%-5%)"
+    },
+    {
+      "code": 6005,
+      "name": "MaxStakedNftsTooLow",
+      "msg": "Max staked NFTs too low (below current staked)"
+    },
+    {
+      "code": 6006,
+      "name": "GlobalCollateralLimitReached",
+      "msg": "Global collateral limit reached"
+    },
+    {
+      "code": 6007,
+      "name": "UserNftLimitReached",
+      "msg": "User NFT limit reached (max 5)"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidNftOwnership",
+      "msg": "Invalid NFT ownership"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidLoanDuration",
+      "msg": "Invalid loan duration"
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientBorrowingPower",
+      "msg": "Insufficient borrowing power"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientProtocolLiquidity",
+      "msg": "Insufficient protocol liquidity"
+    },
+    {
+      "code": 6012,
+      "name": "LoanNotActive",
+      "msg": "Loan not active"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPaymentAmount",
+      "msg": "Invalid payment amount"
+    },
+    {
+      "code": 6014,
+      "name": "ExcessivePaymentAmount",
+      "msg": "Excessive payment amount"
+    },
+    {
+      "code": 6015,
+      "name": "LoanNotDefaultable",
+      "msg": "Loan not defaultable"
+    },
+    {
+      "code": 6016,
+      "name": "CollateralValueSufficient",
+      "msg": "Collateral value sufficient"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidUtilizationRate",
+      "msg": "Invalid utilization rate (must be 50%-95%)"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidRateMultiplier",
+      "msg": "Invalid rate multiplier (must be 1x-5x)"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidLtvRatio",
+      "msg": "Invalid LTV ratio (must be 40%-90%)"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidNftValue",
+      "msg": "Invalid NFT value (must be greater than 0)"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidNftMetadata",
+      "msg": "Invalid NFT metadata account"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidNftCollection",
+      "msg": "NFT is not from an approved collection"
+    },
+    {
+      "code": 6023,
+      "name": "TooManyCollections",
+      "msg": "Too many collections (max 10)"
+    },
+    {
+      "code": 6024,
+      "name": "NoCollectionsProvided",
+      "msg": "No collections provided"
+    },
+    {
+      "code": 6025,
+      "name": "UnauthorizedAdmin",
+      "msg": "Unauthorized: Caller is not the admin wallet"
+    },
+    {
+      "code": 6026,
+      "name": "CollectionAlreadyExists",
+      "msg": "Collection already exists in registry"
+    },
+    {
+      "code": 6027,
+      "name": "CollectionNotFound",
+      "msg": "Collection not found in registry"
+    },
+    {
+      "code": 6028,
+      "name": "RegistryFull",
+      "msg": "Registry is full (max 100 collections per registry)"
+    },
+    {
+      "code": 6029,
+      "name": "InvalidUtilizationSlope",
+      "msg": "Invalid utilization slope (must be <= 100% for slope1, <= 200% for slope2)"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidRevenueSplit",
+      "msg": "Invalid revenue split percentage (must be <= 100%)"
+    },
+    {
+      "code": 6031,
+      "name": "InvalidRevenueSplitTotal",
+      "msg": "Revenue split percentages must add up to exactly 100%"
+    },
+    {
+      "code": 6032,
+      "name": "OutstandingDebtExists",
+      "msg": "Outstanding debt exists - cannot withdraw NFT"
+    },
+    {
+      "code": 6033,
+      "name": "NftNotDeposited",
+      "msg": "NFT not found in deposited collateral"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidWhiskeyPrice",
+      "msg": "Invalid WHISKEY price (must be greater than 0)"
+    },
+    {
+      "code": 6035,
+      "name": "InsufficientPaymentAmount",
+      "msg": "Insufficient payment amount (WHISKEY value less than debt)"
+    },
+    {
+      "code": 6036,
+      "name": "InvalidAssetMint",
+      "msg": "Invalid asset mint for capital vault"
+    },
+    {
+      "code": 6037,
+      "name": "InvalidVaultAuthority",
+      "msg": "Invalid vault authority - must be global market PDA"
+    }
+  ],
+  "types": [
+    {
+      "name": "BorrowerAccount",
+      "docs": [
+        "Borrower Account - Consolidates each user's position (Project Constellation)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "global_market",
+            "type": "pubkey"
+          },
+          {
+            "name": "deposited_nfts",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "active_loans",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "total_borrowing_power_usd",
+            "type": "u128"
+          },
+          {
+            "name": "total_debt_usd",
+            "type": "u128"
+          },
+          {
+            "name": "loan_counter",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectionEntry",
+      "docs": [
+        "Individual Collection Entry"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "value_usd",
+            "type": "u64"
+          },
+          {
+            "name": "is_approved",
+            "type": "bool"
+          },
+          {
+            "name": "added_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectionRegistry",
+      "docs": [
+        "Collection Registry - Scalable collection management (Option 2: Multiple Registry Accounts)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "collections",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "CollectionEntry"
+                }
+              }
+            }
+          },
+          {
+            "name": "next_registry",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GlobalMarket",
+      "docs": [
+        "Global Market State - Project Constellation Master Account"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "liquidation_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "capital_vault_usdc",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "collection_registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_staked_nfts",
+            "type": "u32"
+          },
+          {
+            "name": "current_staked_nfts",
+            "type": "u32"
+          },
+          {
+            "name": "per_nft_value_usd",
+            "type": "u64"
+          },
+          {
+            "name": "base_interest_rate_1_month_bps",
+            "type": "u16"
+          },
+          {
+            "name": "base_interest_rate_2_month_bps",
+            "type": "u16"
+          },
+          {
+            "name": "base_interest_rate_3_month_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_interest_rate_multiplier_bps",
+            "type": "u16"
+          },
+          {
+            "name": "optimal_utilization_rate_bps",
+            "type": "u16"
+          },
+          {
+            "name": "utilization_slope_1_bps",
+            "type": "u16"
+          },
+          {
+            "name": "utilization_slope_2_bps",
+            "type": "u16"
+          },
+          {
+            "name": "total_liquidity_available_usd",
+            "type": "u128"
+          },
+          {
+            "name": "total_liquidity_borrowed_usd",
+            "type": "u128"
+          },
+          {
+            "name": "transaction_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "lending_wallet_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "treasury_wallet_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "loan_to_value_ratio_bps",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Loan",
+      "docs": [
+        "Individual Loan Account - Links to BorrowerAccount"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "borrower_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "principal_amount_usd",
+            "type": "u64"
+          },
+          {
+            "name": "borrowed_asset_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "start_ts",
+            "type": "i64"
+          },
+          {
+            "name": "duration_secs",
+            "type": "u32"
+          },
+          {
+            "name": "grace_period_ends_ts",
+            "type": "i64"
+          },
+          {
+            "name": "interest_rate_at_origination_bps",
+            "type": "u16"
+          },
+          {
+            "name": "interest_paid_usd",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "LoanStatus"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LoanStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Defaulted"
+          },
+          {
+            "name": "Repaid"
+          }
+        ]
+      }
+    }
+  ]
+}

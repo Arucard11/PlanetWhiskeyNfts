@@ -328,7 +328,12 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
                         required
                         min="0.01"
                         step="0.01"
-                        className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 pl-10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-amber-500 force-white-text"
+                        style={{ 
+                            color: 'white !important',
+                            WebkitTextFillColor: 'white',
+                            textFillColor: 'white'
+                        }}
                     />
                 </div>
               </div>

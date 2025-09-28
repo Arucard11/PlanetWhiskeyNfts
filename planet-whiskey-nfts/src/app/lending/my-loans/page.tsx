@@ -564,7 +564,7 @@ export default function MyLoansPage() {
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <p className="text-gray-400">Interest Rate</p>
-                            <p className="text-white font-bold">{loan.interestRate}% APY</p>
+                            <p className="text-white font-bold">{loan.interestRate}% per month</p>
                           </div>
                           <div>
                             <p className="text-gray-400">Duration</p>

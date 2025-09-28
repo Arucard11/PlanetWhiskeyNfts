@@ -25,7 +25,7 @@ const Footer = () => {
   ];
 
   const footerLinks = [
-    { name: 'Assets', href: '/#assets' },
+    { name: 'Collections', href: '/#assets' },
     { name: 'FAQ', href: '/faq' },
     { name: 'Terms of Service', href: '/terms' },
     { name: 'Distiller\'s Guide', href: '/#how-it-works' },

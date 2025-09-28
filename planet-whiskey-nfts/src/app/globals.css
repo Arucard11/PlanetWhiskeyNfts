@@ -458,4 +458,19 @@ select {
 /* Custom container */
 .container-whiskey {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Force white text for input fields */
+.force-white-text {
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+}
+
+.force-white-text:focus {
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+}
+
+.force-white-text::placeholder {
+  color: #9ca3af !important;
 } 
