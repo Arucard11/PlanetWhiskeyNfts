@@ -203,12 +203,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Calculate swap amount (only the lending portion that needs to be USDC)
             const lendingShareBps = 8000; // 80% to lending
             const lendingPercentage = lendingShareBps / 10000; // e.g., 8000/10000 = 0.80
-            const whiskeyToSwap = displayMintPriceWhiskeyTokens * lendingPercentage;
+            const baseWhiskeyToSwap = displayMintPriceWhiskeyTokens * lendingPercentage;
+            // Add 2% buffer to account for swap fees and slippage
+            const whiskeyToSwap = baseWhiskeyToSwap * 1.02;
             const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * (1 - lendingPercentage);
             
             console.log(`[STEP1] Payment breakdown:`);
             console.log(`  - Total WHISKEY payment: ${displayMintPriceWhiskeyTokens} WHISKEY`);
-            console.log(`  - Lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
+            console.log(`  - Base lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${baseWhiskeyToSwap} WHISKEY`);
+            console.log(`  - Lending portion + 2% fee buffer: ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
             console.log(`  - Treasury portion (${((1 - lendingPercentage) * 100).toFixed(1)}%): ${whiskeyToKeepForTreasury} WHISKEY → Treasury (Step 2)`);
             
             // Import the direct swap function
