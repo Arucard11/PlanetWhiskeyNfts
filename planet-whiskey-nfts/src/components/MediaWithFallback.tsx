@@ -38,6 +38,13 @@ const convertIpfsToProxy = (uri: string): string => {
         return proxyUrl;
     }
     
+    // For mobile compatibility: Always use proxy for external URLs to avoid CORS and network issues
+    if (uri.startsWith('http') && typeof window !== 'undefined' && !uri.includes(window.location.hostname)) {
+        const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
+        console.log(`[MediaWithFallback] Converting external URL to proxy for mobile compatibility: ${uri} -> ${proxyUrl}`);
+        return proxyUrl;
+    }
+    
     return uri;
 };
 
@@ -143,7 +150,13 @@ const MediaWithFallback: React.FC<MediaWithFallbackProps> = ({
             className={className}
             onError={handleMediaError}
             onLoad={handleMediaLoad}
-            style={isGif ? { objectFit: 'cover' } : undefined}
+            loading="lazy"
+            decoding="async"
+            style={{
+                maxWidth: '100%',
+                height: 'auto',
+                objectFit: 'cover'
+            }}
         />
     );
 };

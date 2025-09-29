@@ -75,29 +75,36 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const gatewayUrl = gateway + hash;
       console.log(`[image-proxy] Trying gateway: ${gatewayUrl}`);
       
-              try {
-          response = await fetch(gatewayUrl, {
-            signal: AbortSignal.timeout(10000), // 10 second timeout per gateway
-          });
-        
-        if (response.ok) {
-          successfulGateway = gateway;
-          console.log(`[image-proxy] Success with gateway: ${gateway}`);
-          break; // Success, exit gateway loop
-        }
-        
-        if (response.status === 429) {
-          console.log(`[image-proxy] Rate limited by ${gateway}, trying next gateway`);
-          continue; // Try next gateway
-        }
-        
-        console.log(`[image-proxy] Failed with ${gateway}: ${response.status} ${response.statusText}`);
-        
-      } catch (error) {
-        console.log(`[image-proxy] Error with ${gateway}:`, error.message);
-        lastError = error;
+      try {
+        // Mobile-friendly fetch with longer timeout for slower connections
+        response = await fetch(gatewayUrl, {
+          signal: AbortSignal.timeout(15000), // 15 second timeout for mobile
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; NFT-Image-Proxy/1.0)',
+            'Accept': 'image/*,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive'
+          }
+        });
+      
+      if (response.ok) {
+        successfulGateway = gateway;
+        console.log(`[image-proxy] Success with gateway: ${gateway}`);
+        break; // Success, exit gateway loop
+      }
+      
+      if (response.status === 429) {
+        console.log(`[image-proxy] Rate limited by ${gateway}, trying next gateway`);
         continue; // Try next gateway
       }
+      
+      console.log(`[image-proxy] Failed with ${gateway}: ${response.status} ${response.statusText}`);
+      
+    } catch (error) {
+      console.log(`[image-proxy] Error with ${gateway}:`, error.message);
+      lastError = error;
+      continue; // Try next gateway
+    }
     }
     
     if (!response || !response.ok) {
@@ -119,12 +126,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       timestamp: Date.now() 
     });
 
-    // Set appropriate headers
+    // Set appropriate headers with mobile optimization
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=600'); // 10 minutes
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Mobile-specific headers for better compatibility
+    res.setHeader('Vary', 'Accept-Encoding, User-Agent');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
     res.status(200).send(Buffer.from(imageBuffer));
 
