@@ -22,6 +22,9 @@ export default function Home() {
   const y2 = useTransform(scrollY, [0, 300], [0, -100]);
 
   useEffect(() => {
+    // Only add mouse listener on client side
+    if (typeof window === 'undefined') return;
+    
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
     };

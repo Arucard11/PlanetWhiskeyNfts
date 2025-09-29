@@ -17,14 +17,20 @@ const MobileImageDebugPanel: React.FC = () => {
   const [testUrl, setTestUrl] = useState('');
   const [testResult, setTestResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Handle SSR - only render on client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isClient) {
       // Get debug summary when panel opens
       const debugSummary = mobileImageDebugger.getDebugSummary();
       setSummary(debugSummary);
     }
-  }, [isOpen]);
+  }, [isOpen, isClient]);
 
   const handleTestUrl = async () => {
     if (!testUrl) return;
@@ -52,6 +58,11 @@ const MobileImageDebugPanel: React.FC = () => {
       console.error('Error clearing debug log:', error);
     }
   };
+
+  // Don't render on server side
+  if (!isClient) {
+    return null;
+  }
 
   // Only show in development or if explicitly enabled
   if (process.env.NODE_ENV === 'production' && !window.location.search.includes('debug=true')) {

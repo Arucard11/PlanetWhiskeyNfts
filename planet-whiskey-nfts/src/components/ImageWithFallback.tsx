@@ -36,10 +36,17 @@ const convertIpfsToProxy = (uri: string): string => {
     }
     
     // For mobile compatibility: Always use proxy for external URLs to avoid CORS and network issues
-    if (uri.startsWith('http') && typeof window !== 'undefined' && !uri.includes(window.location.hostname)) {
-        const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
-        console.log(`[ImageWithFallback] Converting external URL to proxy for mobile compatibility: ${uri} -> ${proxyUrl}`);
-        return proxyUrl;
+    if (uri.startsWith('http')) {
+        // Check if it's an external URL (not from current domain)
+        const isExternal = typeof window !== 'undefined' ? 
+            !uri.includes(window.location.hostname) : 
+            !uri.includes('localhost') && !uri.includes('127.0.0.1'); // Fallback for SSR
+            
+        if (isExternal) {
+            const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
+            console.log(`[ImageWithFallback] Converting external URL to proxy for mobile compatibility: ${uri} -> ${proxyUrl}`);
+            return proxyUrl;
+        }
     }
     
     return uri;

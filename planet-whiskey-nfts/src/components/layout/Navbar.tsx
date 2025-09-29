@@ -36,6 +36,9 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => {
+    // Only add scroll listener on client side
+    if (typeof window === 'undefined') return;
+    
     const handleScroll = () => {
       if (isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
