@@ -6,6 +6,7 @@ import WalletContextProvider from "@/contexts/WalletContextProvider"; // Added W
 import Footer from "@/components/Footer"; // Corrected Import the Footer
 import Navbar from "@/components/layout/Navbar"; // Added Navbar import
 import { Toaster } from 'react-hot-toast';
+import MobileImageDebugPanel from '@/components/MobileImageDebugPanel';
 
 const playfairDisplay = Playfair_Display({
   variable: "--font-playfair-display",
@@ -63,6 +64,7 @@ export default function RootLayout({
           <Navbar />
           {children}
           <Footer />
+          <MobileImageDebugPanel />
         </WalletContextProvider>
       </body>
     </html>

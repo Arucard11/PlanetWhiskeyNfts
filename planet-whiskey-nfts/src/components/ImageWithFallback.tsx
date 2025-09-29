@@ -55,6 +55,9 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     const [imageSrc, setImageSrc] = useState<string>('');
     const [hasErrored, setHasErrored] = useState(false);
     const [debugLogId, setDebugLogId] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const maxRetries = 5; // More aggressive retries for mobile
 
     useEffect(() => {
         if (!src) {
@@ -76,19 +79,38 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     }, [src]);
 
     const handleImageError = () => {
-        console.warn(`[ImageWithFallback] Failed to load image from: ${imageSrc}`);
+        console.warn(`[ImageWithFallback] Failed to load image from: ${imageSrc} (attempt ${retryCount + 1}/${maxRetries})`);
         
-        // Log debug info
-        if (debugLogId) {
-            mobileImageDebugger.logImageLoadError(debugLogId, `Failed to load: ${imageSrc}`);
+        // On mobile, retry more aggressively instead of showing fallback
+        if (retryCount < maxRetries) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+            console.log(`[ImageWithFallback] Retrying in ${delay}ms...`);
+            
+            setTimeout(() => {
+                setRetryCount(prev => prev + 1);
+                // Force reload by adding cache buster
+                const cacheBuster = `?retry=${Date.now()}`;
+                const newSrc = imageSrc.includes('?') ? `${imageSrc}&retry=${Date.now()}` : `${imageSrc}${cacheBuster}`;
+                setImageSrc(newSrc);
+                setHasErrored(false);
+            }, delay);
+        } else {
+            // Only show error after all retries exhausted
+            console.error(`[ImageWithFallback] All ${maxRetries} retry attempts failed for: ${imageSrc}`);
+            
+            // Log debug info
+            if (debugLogId) {
+                mobileImageDebugger.logImageLoadError(debugLogId, `Failed after ${maxRetries} retries: ${imageSrc}`);
+            }
+            
+            setHasErrored(true);
+            setIsLoading(false);
+            if (onError) onError();
         }
-        
-        setHasErrored(true);
-        if (onError) onError();
     };
 
     const handleImageLoad = () => {
-        console.log(`[ImageWithFallback] Successfully loaded image: ${imageSrc}`);
+        console.log(`[ImageWithFallback] Successfully loaded image: ${imageSrc} (after ${retryCount} retries)`);
         
         // Log debug success
         if (debugLogId) {
@@ -96,15 +118,76 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
         }
         
         setHasErrored(false);
+        setIsLoading(false);
+        setRetryCount(0); // Reset retry count on success
         if (onLoad) onLoad();
     };
 
-    // If there's no valid image source or it has errored, show placeholder
-    if (!imageSrc || hasErrored) {
-        console.log(`[ImageWithFallback] Showing placeholder - imageSrc: "${imageSrc}", hasErrored: ${hasErrored}`);
+    // Never show placeholder - either show loading or keep trying
+    if (!imageSrc) {
+        console.log(`[ImageWithFallback] No image source provided, showing loading state`);
         return (
-            <div className={`${className} flex items-center justify-center bg-slate-800 text-amber-200`}>
-                <span>No Image Available</span>
+            <div className={`${className} flex items-center justify-center bg-slate-800/50 text-amber-200`}>
+                <div className="animate-pulse">
+                    <div className="w-8 h-8 bg-amber-400 rounded-full animate-bounce"></div>
+                </div>
+            </div>
+        );
+    }
+
+    // If loading or retrying, show loading state instead of error
+    if (isLoading || (hasErrored && retryCount < maxRetries)) {
+        return (
+            <div className={`${className} relative`}>
+                <img
+                    src={imageSrc}
+                    alt={alt}
+                    className={`${className} ${isLoading ? 'opacity-50' : ''}`}
+                    onError={handleImageError}
+                    onLoad={handleImageLoad}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                        maxWidth: '100%',
+                        height: 'auto',
+                        objectFit: 'cover'
+                    }}
+                />
+                {(isLoading || retryCount > 0) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-800/50">
+                        <div className="flex flex-col items-center text-amber-200 text-sm">
+                            <div className="w-6 h-6 bg-amber-400 rounded-full animate-bounce mb-2"></div>
+                            {retryCount > 0 && <span>Retrying... ({retryCount}/{maxRetries})</span>}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Only show error state after all retries exhausted, but still show the image attempt
+    if (hasErrored && retryCount >= maxRetries) {
+        console.log(`[ImageWithFallback] All retries exhausted, but still showing image element`);
+        return (
+            <div className={`${className} relative`}>
+                <img
+                    src={imageSrc}
+                    alt={alt}
+                    className={className}
+                    onError={handleImageError}
+                    onLoad={handleImageLoad}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                        maxWidth: '100%',
+                        height: 'auto',
+                        objectFit: 'cover',
+                        filter: 'grayscale(50%)' // Indicate error state
+                    }}
+                />
+                <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
+                    Loading...
+                </div>
             </div>
         );
     }

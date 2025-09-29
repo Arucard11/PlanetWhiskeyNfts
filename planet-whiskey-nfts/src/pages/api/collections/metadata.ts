@@ -180,15 +180,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const metadata = await response.json();
     console.log(`[metadata-api] Successfully fetched metadata:`, metadata);
 
-    // Convert any IPFS image URLs in the metadata to our proxy URLs to avoid CORS issues
-    if (metadata.image && metadata.image.startsWith('ipfs://')) {
-      const hash = metadata.image.substring(7);
-      metadata.image = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-      console.log(`[metadata-api] Converted image URL to proxy: ${metadata.image}`);
-    } else if (metadata.image && metadata.image.includes('gateway.pinata.cloud/ipfs/')) {
-      // If it's already a Pinata gateway URL, convert it to use our proxy
-      metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
-      console.log(`[metadata-api] Converted Pinata URL to proxy: ${metadata.image}`);
+    // Convert any image URLs to use our proxy for mobile compatibility
+    if (metadata.image) {
+      if (metadata.image.startsWith('ipfs://')) {
+        const hash = metadata.image.substring(7);
+        metadata.image = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+        console.log(`[metadata-api] Converted IPFS URL to proxy: ${metadata.image}`);
+      } else if (metadata.image.includes('/ipfs/') || metadata.image.includes('gateway.pinata.cloud') || metadata.image.includes('pink-obvious-bee-185.mypinata.cloud')) {
+        // Convert any IPFS gateway URL to use our proxy for mobile compatibility
+        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
+        console.log(`[metadata-api] Converted gateway URL to proxy: ${metadata.image}`);
+      } else if (metadata.image.startsWith('http') && !metadata.image.includes(req.headers.host || '')) {
+        // Convert external URLs to use proxy for mobile compatibility
+        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
+        console.log(`[metadata-api] Converted external URL to proxy for mobile: ${metadata.image}`);
+      }
     }
 
     // Cache the result

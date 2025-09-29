@@ -113,28 +113,32 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             try {
                 setImageLoading(true);
                 
-                let metadataUrl = metadataUri;
-                if (metadataUri.startsWith('ipfs://')) {
-                    const ipfsHash = metadataUri.replace('ipfs://', '');
-                    const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-                    metadataUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
+                // Use metadata API for better mobile compatibility
+                console.log(`[NftCollectionCard] Using metadata API for mobile compatibility`);
+                const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    console.warn(`[NftCollectionCard] Failed to fetch metadata via API: ${response.status} ${response.statusText}`);
+                    return;
                 }
 
-                const response = await fetch(metadataUrl);
-                const metadata = await response.json();
+                const result = await response.json();
+                if (!result.success) {
+                    console.warn(`[NftCollectionCard] API returned error: ${result.message}`);
+                    return;
+                }
+
+                const metadata = result.data;
+                console.log(`[NftCollectionCard] Successfully fetched metadata via API for ${name}:`, metadata);
                 
                 if (metadata.image) {
-                    let imageUrl = metadata.image;
-                    if (metadata.image.startsWith('ipfs://')) {
-                        const ipfsHash = metadata.image.replace('ipfs://', '');
-                        const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-                        imageUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
-                    }
-                    setImageUrl(imageUrl);
+                    console.log(`[NftCollectionCard] Setting image URL for ${name}:`, metadata.image);
+                    setImageUrl(metadata.image);
                 }
-                    } catch (error) {
+                } catch (error) {
                 console.error('Error fetching collection metadata:', error);
-                    } finally {
+                } finally {
                 setImageLoading(false);
             }
         };

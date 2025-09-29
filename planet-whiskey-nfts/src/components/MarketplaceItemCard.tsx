@@ -30,14 +30,14 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
   onPurchaseSuccess,
 }) => {
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState(initialImageUrl || '/placeholder-image.svg');
+  const [imageUrl, setImageUrl] = useState(initialImageUrl || '');
 
   // Fetch metadata using the robust endpoint like NftCollectionCard
   React.useEffect(() => {
     const fetchMetadata = async () => {
       if (!nftMetadataUri) {
         console.log(`[MarketplaceItemCard] No metadataUri for ${nftName}, using initial imageUrl:`, initialImageUrl);
-        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        setImageUrl(initialImageUrl || '');
         return;
       }
 
@@ -49,14 +49,14 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
         
         if (!response.ok) {
           console.warn(`[MarketplaceItemCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
-          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          setImageUrl(initialImageUrl || '');
           return;
         }
 
         const result = await response.json();
         if (!result.success) {
           console.warn(`[MarketplaceItemCard] API returned error: ${result.message}`);
-          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          setImageUrl(initialImageUrl || '');
           return;
         }
 
@@ -67,12 +67,12 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
           console.log(`[MarketplaceItemCard] Setting robust image URL for ${nftName}:`, metadata.image);
           setImageUrl(metadata.image);
         } else {
-          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          setImageUrl(initialImageUrl || '');
         }
         
       } catch (error) {
         console.error(`[MarketplaceItemCard] Error fetching metadata for ${nftName}:`, error);
-        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        setImageUrl(initialImageUrl || '');
       }
     };
 

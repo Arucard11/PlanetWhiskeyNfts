@@ -28,7 +28,7 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
   onList,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [imageUrl, setImageUrl] = useState(initialImageUrl || '/placeholder-image.svg');
+  const [imageUrl, setImageUrl] = useState(initialImageUrl || '');
   
 
   // Fetch metadata using the robust endpoint like NftCollectionCard
@@ -37,53 +37,48 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
     const fetchMetadata = async () => {
       if (!metadataUri) {
         console.log(`[MyNftCard] No metadataUri for ${name}, using initial imageUrl:`, initialImageUrl);
-        setImageUrl(initialImageUrl || '/placeholder-image.svg');
+        setImageUrl(initialImageUrl || '');
         return;
       }
 
       try {
         console.log(`[MyNftCard] Fetching metadata DIRECTLY for ${name} from:`, metadataUri);
         
-        // EXACT SAME APPROACH AS NftCollectionCard.tsx - DIRECT FETCH
-        let metadataUrl = metadataUri;
-        if (metadataUri.startsWith('ipfs://')) {
-          const ipfsHash = metadataUri.replace('ipfs://', '');
-          const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-          metadataUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
-          console.log(`[MyNftCard] Converted IPFS to gateway: ${metadataUrl}`);
-        }
-
-        const response = await fetch(metadataUrl);
+        // Use metadata API for better mobile compatibility
+        console.log(`[MyNftCard] Using metadata API for mobile compatibility`);
+        const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+        const response = await fetch(apiUrl);
         
         if (!response.ok) {
-          console.warn(`[MyNftCard] Failed to fetch metadata directly: ${response.status} ${response.statusText}`);
-          setImageUrl(initialImageUrl || '/placeholder-image.svg');
+          console.warn(`[MyNftCard] Failed to fetch metadata via API: ${response.status} ${response.statusText}`);
+          // Don't set placeholder, keep trying with initialImageUrl or empty
+          setImageUrl(initialImageUrl || '');
           return;
         }
 
-        const metadata = await response.json();
-        console.log(`[MyNftCard] Successfully fetched metadata DIRECTLY for ${name}:`, metadata);
+        const result = await response.json();
+        if (!result.success) {
+          console.warn(`[MyNftCard] API returned error: ${result.message}`);
+          // Don't set placeholder, keep trying with initialImageUrl or empty
+          setImageUrl(initialImageUrl || '');
+          return;
+        }
+
+        const metadata = result.data;
+        console.log(`[MyNftCard] Successfully fetched metadata via API for ${name}:`, metadata);
 
         if (metadata.image) {
-          let imageUrl = metadata.image;
-          // Convert IPFS image URLs to gateway URLs (same as NftCollectionCard)
-          if (metadata.image.startsWith('ipfs://')) {
-            const ipfsHash = metadata.image.replace('ipfs://', '');
-            const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
-            imageUrl = `${pinataGateway}/ipfs/${ipfsHash}`;
-            console.log(`[MyNftCard] Converted image IPFS to gateway: ${imageUrl}`);
-          }
-          console.log(`[MyNftCard] Setting REAL image URL for ${name}:`, imageUrl);
-          setImageUrl(imageUrl);
+          console.log(`[MyNftCard] Setting image URL for ${name}:`, metadata.image);
+          setImageUrl(metadata.image);
         } else {
-          console.log(`[MyNftCard] No image in metadata for ${name}, using placeholder`);
-          setImageUrl('/placeholder-image.svg');
+          console.log(`[MyNftCard] No image in metadata for ${name}, keeping initial imageUrl`);
+          setImageUrl(initialImageUrl || '');
         }
         
       } catch (error) {
         console.error(`[MyNftCard] Error fetching metadata for ${name}:`, error);
-        console.log(`[MyNftCard] Falling back to placeholder for ${name}`);
-        setImageUrl('/placeholder-image.svg');
+        console.log(`[MyNftCard] Falling back to initial imageUrl for ${name}`);
+        setImageUrl(initialImageUrl || '');
       }
     };
 
