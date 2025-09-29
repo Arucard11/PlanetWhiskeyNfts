@@ -145,20 +145,37 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     // Check wallet NFT count for whiskey-gated collections
     useEffect(() => {
         const checkWalletNftCount = async () => {
-            if (!connected || !publicKey || !isWhiskeyGated) return;
+            if (!connected || !publicKey || !isWhiskeyGated) {
+                setWalletNftCount(0);
+                return;
+            }
 
             try {
-                // TODO: Implement wallet NFT counter check when program supports it
-                // For now, allow minting (set to 0)
-                     setWalletNftCount(0);
+                console.log('[WALLET_CHECK] Checking NFT count for whiskey-gated collection...');
+                const response = await fetch(`/api/wallet/nft-count?walletAddress=${publicKey.toString()}&collectionMintAddress=${collectionOnChainAddress}`);
+                
+                if (!response.ok) {
+                    console.error('[WALLET_CHECK] Failed to fetch wallet NFT count:', response.status);
+                    setWalletNftCount(0);
+                    return;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    console.log(`[WALLET_CHECK] Wallet has ${data.nftCount} NFTs from this collection`);
+                    setWalletNftCount(data.nftCount);
+                } else {
+                    console.error('[WALLET_CHECK] API returned error:', data.message);
+                    setWalletNftCount(0);
+                }
             } catch (error) {
-                console.error('Error checking wallet NFT count:', error);
+                console.error('[WALLET_CHECK] Error checking wallet NFT count:', error);
                 setWalletNftCount(0);
             }
         };
 
         checkWalletNftCount();
-    }, [connected, publicKey, connection, isWhiskeyGated]);
+    }, [connected, publicKey, isWhiskeyGated, collectionOnChainAddress]);
 
     // Check user WHISKEY balance
     useEffect(() => {
@@ -424,19 +441,32 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 });
 
                 if (!metadataResponse.ok) {
-                    throw new Error(`Failed to create NFT metadata: ${metadataResponse.statusText}`);
+                    const errorData = await metadataResponse.json().catch(() => ({}));
+                    const errorMessage = errorData.message || metadataResponse.statusText || 'Image storage failed';
+                    throw new Error(errorMessage);
                 }
 
                 const metadataResult = await metadataResponse.json();
                 if (!metadataResult.success) {
-                    throw new Error(`Failed to create NFT metadata: ${metadataResult.message}`);
+                    throw new Error(metadataResult.message || 'Image storage failed');
                 }
 
                 nftMetadataUri = metadataResult.metadataUri;
                 console.log(`[STEP2] ✅ NFT metadata created: ${nftMetadataUri}`);
             } catch (metadataError) {
                 console.error('[STEP2] Error creating NFT metadata:', metadataError);
-                throw new Error(`Failed to create NFT metadata: ${metadataError.message}`);
+                
+                // Try to get more specific error from API response
+                let specificError = 'Image storage failed';
+                if (metadataError?.message?.includes('storage service unavailable')) {
+                    specificError = 'Image storage service unavailable';
+                } else if (metadataError?.message?.includes('Network error')) {
+                    specificError = 'Network error - check connection';
+                } else if (metadataError?.message?.includes('timeout')) {
+                    specificError = 'Upload timeout - try again';
+                }
+                
+                throw new Error(specificError);
             }
 
             // Create NFT metadata for the mint instruction
@@ -747,12 +777,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             });
 
             if (!metadataResponse.ok) {
-                throw new Error(`Failed to create NFT metadata: ${metadataResponse.statusText}`);
+                const errorData = await metadataResponse.json().catch(() => ({}));
+                const errorMessage = errorData.message || metadataResponse.statusText || 'Image storage failed';
+                throw new Error(errorMessage);
             }
 
             const metadataResult = await metadataResponse.json();
             if (!metadataResult.success) {
-                throw new Error(`Failed to create NFT metadata: ${metadataResult.message}`);
+                throw new Error(metadataResult.message || 'Image storage failed');
             }
 
             const nftMetadataUri = metadataResult.metadataUri;
@@ -767,6 +799,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 body: JSON.stringify({
                     walletAddress: publicKey.toString(),
                     collectionName: displayName,
+                    collectionMintAddress: collectionOnChainAddress,
                     nftName,
                     nftSymbol: displaySymbol,
                     nftUri: nftMetadataUri,
@@ -816,9 +849,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         transactionSignature: signature,
                     }),
                 });
+                
+                // Update wallet NFT count to reflect the new mint
+                setWalletNftCount(prev => prev + 1);
+                console.log('[WHISKEY-GATED] ✅ Updated wallet NFT count');
+                
             } catch (recordError) {
                 console.warn('[WHISKEY-GATED] Failed to record purchase:', recordError);
-                // Don't fail the mint for this
+                // Don't fail the mint for this, but still update the count
+                setWalletNftCount(prev => prev + 1);
             }
 
             setMintMessage('🎉 Success! Your whiskey-gated NFT has been minted!');
@@ -848,9 +887,17 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 userMessage += 'You cancelled the transaction.';
             } else if (errorStr.includes('Collection is full') || errorStr.includes('collection is full')) {
                 userMessage += 'SOLD OUT!';
+            } else if (errorStr.includes('usage limits') || errorStr.includes('Account blocked')) {
+                userMessage += 'Minting temporarily unavailable due to storage limits. Please try again later.';
+            } else if (errorStr.includes('Image storage service not configured') || errorStr.includes('storage service unavailable')) {
+                userMessage += 'Image storage service unavailable. Please try again later.';
+            } else if (errorStr.includes('Image storage failed')) {
+                userMessage += 'Image storage failed. Try again in a moment.';
             } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
                 userMessage += 'Internet problem. Try again.';
-            } else if (errorStr.includes('Wallet has already minted') || errorStr.includes('limit exceeded')) {
+            } else if (errorStr.includes('Upload timeout') || errorStr.includes('timeout')) {
+                userMessage += 'Upload took too long. Try again.';
+            } else if (errorStr.includes('Wallet has already minted') || errorStr.includes('limit exceeded') || errorStr.includes('Only 1 NFT per wallet allowed')) {
                 userMessage += 'You already minted from this collection. Only 1 per wallet.';
             } else {
                 userMessage += 'Something went wrong. Try again.';
@@ -968,8 +1015,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 userMessage += 'You cancelled the transaction.';
             } else if (errorStr.includes('Collection is full') || errorStr.includes('collection is full')) {
                 userMessage += 'SOLD OUT!';
-            } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
+            } else if (errorStr.includes('usage limits') || errorStr.includes('Account blocked')) {
+                userMessage += 'Minting temporarily unavailable due to storage limits. Please try again later.';
+            } else if (errorStr.includes('Image storage service not configured') || errorStr.includes('storage service unavailable')) {
+                userMessage += 'Image storage service unavailable. Please try again later.';
+            } else if (errorStr.includes('Image storage failed')) {
+                userMessage += 'Image storage failed. Try again in a moment.';
+            } else if (errorStr.includes('Network error') || errorStr.includes('network') || errorStr.includes('RPC')) {
                 userMessage += 'Internet problem. Try again.';
+            } else if (errorStr.includes('Upload timeout') || errorStr.includes('timeout')) {
+                userMessage += 'Upload took too long. Try again.';
             } else if (errorStr.includes('Wallet has reached the maximum NFT limit') || errorStr.includes('limit exceeded')) {
                 userMessage += 'You already have 5 NFTs from this collection.';
             } else {

@@ -22,16 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const {
             walletAddress,
             collectionName,
+            collectionMintAddress,
             nftName,
             nftSymbol,
             nftUri,
             requiredWhiskeyAmount
         } = req.body;
 
-        if (!walletAddress || !collectionName || !nftName || !nftSymbol || !nftUri || !requiredWhiskeyAmount) {
+        if (!walletAddress || !collectionName || !collectionMintAddress || !nftName || !nftSymbol || !nftUri || !requiredWhiskeyAmount) {
             return res.status(400).json({ 
                 error: 'Missing required fields',
-                required: ['walletAddress', 'collectionName', 'nftName', 'nftSymbol', 'nftUri', 'requiredWhiskeyAmount']
+                required: ['walletAddress', 'collectionName', 'collectionMintAddress', 'nftName', 'nftSymbol', 'nftUri', 'requiredWhiskeyAmount']
             });
         }
 
@@ -41,6 +42,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const connection = getSolanaConnection();
         const userPublicKey = new PublicKey(walletAddress);
+
+        // Check if wallet has already minted from this collection (whiskey-gated limit: 1 per wallet)
+        console.log('🔍 Checking if wallet has already minted from this collection...');
+        try {
+            const { default: dbConnect } = await import('../../../lib/mongodb');
+            const { default: WalletNftPurchase } = await import('../../../models/WalletNftPurchase');
+            
+            await dbConnect();
+            
+            // Check by exact collection mint address for accurate validation
+            const existingMintCount = await WalletNftPurchase.countDocuments({
+                walletAddress: walletAddress,
+                collectionMintAddress: collectionMintAddress
+            });
+            
+            if (existingMintCount > 0) {
+                console.log(`❌ Wallet has already minted ${existingMintCount} NFT(s) from this whiskey-gated collection`);
+                return res.status(400).json({
+                    error: 'Wallet has already minted from this collection. Only 1 NFT per wallet allowed for whiskey-gated collections.'
+                });
+            }
+            
+            console.log('✅ Wallet has not minted from this collection yet');
+            
+        } catch (dbError) {
+            console.error('⚠️ Database check failed, proceeding with mint:', dbError);
+            // Continue with mint if DB check fails - don't block legitimate mints
+        }
 
         // Check user's WHISKEY balance
         const userWhiskeyAccountForBalance = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), userPublicKey);
