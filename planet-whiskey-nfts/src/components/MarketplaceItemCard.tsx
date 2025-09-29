@@ -34,29 +34,55 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
 
   // Fetch metadata using the robust endpoint like NftCollectionCard
   React.useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchMetadata = async (retryCount = 0) => {
+      const maxRetries = 3;
+      
       if (!nftMetadataUri) {
         console.log(`[MarketplaceItemCard] No metadataUri for ${nftName}, using initial imageUrl:`, initialImageUrl);
-        setImageUrl(initialImageUrl || '');
+        if (initialImageUrl) {
+          setImageUrl(initialImageUrl);
+        }
         return;
       }
 
       try {
-        console.log(`[MarketplaceItemCard] Fetching metadata for ${nftName} from:`, nftMetadataUri);
+        console.log(`[MarketplaceItemCard] Fetching metadata for ${nftName} (attempt ${retryCount + 1}/${maxRetries + 1})`);
         
         const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(nftMetadataUri)}`;
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
-          console.warn(`[MarketplaceItemCard] Failed to fetch metadata: ${response.status} ${response.statusText}`);
-          setImageUrl(initialImageUrl || '');
+          console.warn(`[MarketplaceItemCard] API request failed: ${response.status} ${response.statusText}`);
+          if (retryCount < maxRetries) {
+            console.log(`[MarketplaceItemCard] Retrying in ${(retryCount + 1) * 1000}ms...`);
+            setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+            return;
+          }
+          // Final fallback - use initial image if available
+          if (initialImageUrl) {
+            console.log(`[MarketplaceItemCard] Using initial image URL as final fallback: ${initialImageUrl}`);
+            setImageUrl(initialImageUrl);
+          }
           return;
         }
 
         const result = await response.json();
         if (!result.success) {
           console.warn(`[MarketplaceItemCard] API returned error: ${result.message}`);
-          setImageUrl(initialImageUrl || '');
+          if (retryCount < maxRetries) {
+            console.log(`[MarketplaceItemCard] Retrying due to API error...`);
+            setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+            return;
+          }
+          // Final fallback
+          if (initialImageUrl) {
+            setImageUrl(initialImageUrl);
+          }
           return;
         }
 
@@ -64,15 +90,25 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
         console.log(`[MarketplaceItemCard] Successfully fetched metadata for ${nftName}:`, metadata);
 
         if (metadata.image) {
-          console.log(`[MarketplaceItemCard] Setting robust image URL for ${nftName}:`, metadata.image);
+          console.log(`[MarketplaceItemCard] Setting image URL for ${nftName}:`, metadata.image);
           setImageUrl(metadata.image);
-        } else {
-          setImageUrl(initialImageUrl || '');
+        } else if (initialImageUrl) {
+          console.log(`[MarketplaceItemCard] No image in metadata, using initial imageUrl for ${nftName}`);
+          setImageUrl(initialImageUrl);
         }
         
       } catch (error) {
         console.error(`[MarketplaceItemCard] Error fetching metadata for ${nftName}:`, error);
-        setImageUrl(initialImageUrl || '');
+        if (retryCount < maxRetries) {
+          console.log(`[MarketplaceItemCard] Retrying due to network error...`);
+          setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+          return;
+        }
+        // Final fallback
+        if (initialImageUrl) {
+          console.log(`[MarketplaceItemCard] Using initial image URL after all retries failed`);
+          setImageUrl(initialImageUrl);
+        }
       }
     };
 

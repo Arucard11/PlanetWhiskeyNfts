@@ -77,9 +77,6 @@ const MediaWithFallback: React.FC<MediaWithFallbackProps> = ({
     const [hasErrored, setHasErrored] = useState(false);
     const [isVideo, setIsVideo] = useState(false);
     const [isGif, setIsGif] = useState(false);
-    const [retryCount, setRetryCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(true);
-    const maxRetries = 5;
 
     useEffect(() => {
         if (!src) {
@@ -101,92 +98,23 @@ const MediaWithFallback: React.FC<MediaWithFallbackProps> = ({
     }, [src]);
 
     const handleMediaError = () => {
-        console.warn(`[MediaWithFallback] Failed to load media from: ${mediaSrc} (attempt ${retryCount + 1}/${maxRetries})`);
-        
-        // Retry logic for mobile
-        if (retryCount < maxRetries) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-            console.log(`[MediaWithFallback] Retrying in ${delay}ms...`);
-            
-            setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-                const cacheBuster = `?retry=${Date.now()}`;
-                const newSrc = mediaSrc.includes('?') ? `${mediaSrc}&retry=${Date.now()}` : `${mediaSrc}${cacheBuster}`;
-                setMediaSrc(newSrc);
-                setHasErrored(false);
-            }, delay);
-        } else {
-            console.error(`[MediaWithFallback] All ${maxRetries} retry attempts failed for: ${mediaSrc}`);
-            setHasErrored(true);
-            setIsLoading(false);
-            if (onError) onError();
-        }
+        console.warn(`[MediaWithFallback] Failed to load media from: ${mediaSrc}`);
+        setHasErrored(true);
+        if (onError) onError();
     };
 
     const handleMediaLoad = () => {
-        console.log(`[MediaWithFallback] Successfully loaded media: ${mediaSrc} (after ${retryCount} retries)`);
+        console.log(`[MediaWithFallback] Successfully loaded media: ${mediaSrc}`);
         setHasErrored(false);
-        setIsLoading(false);
-        setRetryCount(0);
         if (onLoad) onLoad();
     };
 
-    // Never show placeholder - keep trying or show loading
-    if (!mediaSrc) {
-        console.log(`[MediaWithFallback] No media source provided, showing loading state`);
+    // If there's no valid media source or it has errored, show empty div
+    if (!mediaSrc || hasErrored) {
+        console.log(`[MediaWithFallback] No media available - mediaSrc: "${mediaSrc}", hasErrored: ${hasErrored}`);
         return (
-            <div className={`${className} flex items-center justify-center bg-slate-800/50 text-amber-200`}>
-                <div className="animate-pulse">
-                    <div className="w-8 h-8 bg-amber-400 rounded-full animate-bounce"></div>
-                </div>
-            </div>
-        );
-    }
-
-    // If retrying, show loading overlay
-    if (isLoading || (hasErrored && retryCount < maxRetries)) {
-        const MediaElement = isVideo ? (
-            <video
-                src={mediaSrc}
-                className={`${className} ${isLoading ? 'opacity-50' : ''}`}
-                autoPlay={autoPlay}
-                loop={loop}
-                muted={muted}
-                controls={controls}
-                onError={handleMediaError}
-                onLoadedData={handleMediaLoad}
-                playsInline
-            >
-                <source src={mediaSrc} />
-            </video>
-        ) : (
-            <img
-                src={mediaSrc}
-                alt={alt}
-                className={`${className} ${isLoading ? 'opacity-50' : ''}`}
-                onError={handleMediaError}
-                onLoad={handleMediaLoad}
-                loading="lazy"
-                decoding="async"
-                style={{
-                    maxWidth: '100%',
-                    height: 'auto',
-                    objectFit: 'cover'
-                }}
-            />
-        );
-
-        return (
-            <div className={`${className} relative`}>
-                {MediaElement}
-                {(isLoading || retryCount > 0) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-800/50">
-                        <div className="flex flex-col items-center text-amber-200 text-sm">
-                            <div className="w-6 h-6 bg-amber-400 rounded-full animate-bounce mb-2"></div>
-                            {retryCount > 0 && <span>Retrying... ({retryCount}/{maxRetries})</span>}
-                        </div>
-                    </div>
-                )}
+            <div className={`${className} flex items-center justify-center bg-slate-800/50`}>
+                {/* Empty div - no placeholder text */}
             </div>
         );
     }

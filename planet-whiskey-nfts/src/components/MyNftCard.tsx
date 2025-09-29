@@ -34,51 +34,82 @@ const MyNftCard: React.FC<MyNftCardProps> = ({
   // Fetch metadata using the robust endpoint like NftCollectionCard
   useEffect(() => {
     
-    const fetchMetadata = async () => {
+    const fetchMetadata = async (retryCount = 0) => {
+      const maxRetries = 3;
+      
       if (!metadataUri) {
         console.log(`[MyNftCard] No metadataUri for ${name}, using initial imageUrl:`, initialImageUrl);
-        setImageUrl(initialImageUrl || '');
+        if (initialImageUrl) {
+          setImageUrl(initialImageUrl);
+        }
         return;
       }
 
       try {
-        console.log(`[MyNftCard] Fetching metadata DIRECTLY for ${name} from:`, metadataUri);
+        console.log(`[MyNftCard] Fetching metadata for ${name} (attempt ${retryCount + 1}/${maxRetries + 1})`);
         
         // Use metadata API for better mobile compatibility
-        console.log(`[MyNftCard] Using metadata API for mobile compatibility`);
         const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
-          console.warn(`[MyNftCard] Failed to fetch metadata via API: ${response.status} ${response.statusText}`);
-          // Don't set placeholder, keep trying with initialImageUrl or empty
-          setImageUrl(initialImageUrl || '');
+          console.warn(`[MyNftCard] API request failed: ${response.status} ${response.statusText}`);
+          if (retryCount < maxRetries) {
+            console.log(`[MyNftCard] Retrying in ${(retryCount + 1) * 1000}ms...`);
+            setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+            return;
+          }
+          // Final fallback - try to use initial image if available
+          if (initialImageUrl) {
+            console.log(`[MyNftCard] Using initial image URL as final fallback: ${initialImageUrl}`);
+            setImageUrl(initialImageUrl);
+          }
           return;
         }
 
         const result = await response.json();
         if (!result.success) {
           console.warn(`[MyNftCard] API returned error: ${result.message}`);
-          // Don't set placeholder, keep trying with initialImageUrl or empty
-          setImageUrl(initialImageUrl || '');
+          if (retryCount < maxRetries) {
+            console.log(`[MyNftCard] Retrying due to API error...`);
+            setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+            return;
+          }
+          // Final fallback
+          if (initialImageUrl) {
+            setImageUrl(initialImageUrl);
+          }
           return;
         }
 
         const metadata = result.data;
-        console.log(`[MyNftCard] Successfully fetched metadata via API for ${name}:`, metadata);
+        console.log(`[MyNftCard] Successfully fetched metadata for ${name}:`, metadata);
 
         if (metadata.image) {
           console.log(`[MyNftCard] Setting image URL for ${name}:`, metadata.image);
           setImageUrl(metadata.image);
-        } else {
-          console.log(`[MyNftCard] No image in metadata for ${name}, keeping initial imageUrl`);
-          setImageUrl(initialImageUrl || '');
+        } else if (initialImageUrl) {
+          console.log(`[MyNftCard] No image in metadata, using initial imageUrl for ${name}`);
+          setImageUrl(initialImageUrl);
         }
         
       } catch (error) {
         console.error(`[MyNftCard] Error fetching metadata for ${name}:`, error);
-        console.log(`[MyNftCard] Falling back to initial imageUrl for ${name}`);
-        setImageUrl(initialImageUrl || '');
+        if (retryCount < maxRetries) {
+          console.log(`[MyNftCard] Retrying due to network error...`);
+          setTimeout(() => fetchMetadata(retryCount + 1), (retryCount + 1) * 1000);
+          return;
+        }
+        // Final fallback
+        if (initialImageUrl) {
+          console.log(`[MyNftCard] Using initial image URL after all retries failed`);
+          setImageUrl(initialImageUrl);
+        }
       }
     };
 

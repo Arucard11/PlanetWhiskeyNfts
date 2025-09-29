@@ -33,12 +33,19 @@ const fetchMetadataDirectly = async (metadataUri: string): Promise<any | null> =
     const metadata = await response.json();
     console.log(`[my-nfts] ✅ Successfully fetched metadata:`, metadata);
 
-    // Convert image IPFS URLs to gateway URLs (same as NftCollectionCard)
-    if (metadata.image && metadata.image.startsWith('ipfs://')) {
-      const ipfsHash = metadata.image.replace('ipfs://', '');
-      const pinataGateway = 'https://pink-obvious-bee-185.mypinata.cloud';
-      metadata.image = `${pinataGateway}/ipfs/${ipfsHash}`;
-      console.log(`[my-nfts] Converted image IPFS to gateway: ${metadata.image}`);
+    // Convert image URLs to use proxy for mobile compatibility
+    if (metadata.image) {
+      if (metadata.image.startsWith('ipfs://')) {
+        const hash = metadata.image.substring(7);
+        metadata.image = `/api/images/proxy?imageUrl=ipfs://${hash}`;
+        console.log(`[my-nfts] Converted IPFS URL to proxy: ${metadata.image}`);
+      } else if (metadata.image.includes('/ipfs/') || metadata.image.includes('gateway.pinata.cloud') || metadata.image.includes('pink-obvious-bee-185.mypinata.cloud')) {
+        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
+        console.log(`[my-nfts] Converted gateway URL to proxy: ${metadata.image}`);
+      } else if (metadata.image.startsWith('http')) {
+        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
+        console.log(`[my-nfts] Converted external URL to proxy: ${metadata.image}`);
+      }
     }
 
     return metadata;

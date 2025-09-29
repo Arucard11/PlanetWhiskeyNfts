@@ -61,7 +61,49 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(422).json({ message: 'Invalid IPFS URL format' });
       }
     } else {
-      return res.status(422).json({ message: 'Not an IPFS URL' });
+      // For non-IPFS URLs, try to fetch directly with mobile-friendly headers
+      try {
+        console.log(`[image-proxy] Attempting direct fetch for non-IPFS URL: ${imageUrl}`);
+        const directResponse = await fetch(imageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; NFT-Image-Proxy/1.0)',
+            'Accept': 'image/*,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive'
+          },
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (directResponse.ok) {
+          const imageBuffer = await directResponse.arrayBuffer();
+          const contentType = directResponse.headers.get('content-type') || 'image/jpeg';
+          
+          console.log(`[image-proxy] Successfully fetched direct URL: ${contentType}, ${imageBuffer.byteLength} bytes`);
+          
+          // Cache the result
+          imageCache.set(imageUrl, { 
+            data: Buffer.from(imageBuffer), 
+            contentType, 
+            timestamp: Date.now() 
+          });
+          
+          // Set headers and return
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=600');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.setHeader('Vary', 'Accept-Encoding, User-Agent');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+          
+          return res.status(200).send(Buffer.from(imageBuffer));
+        }
+      } catch (directError) {
+        console.log(`[image-proxy] Direct fetch failed: ${directError.message}`);
+      }
+      
+      return res.status(422).json({ message: 'URL not supported for proxy' });
     }
     
     console.log(`[image-proxy] Extracted IPFS hash: ${hash}`);
