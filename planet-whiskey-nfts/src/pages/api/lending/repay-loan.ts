@@ -100,18 +100,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const principalAmountUsd = Number(principalAmountMicro) / 1_000_000;
     const remainingInterestUsd = Number(remainingInterestMicro) / 1_000_000;
 
-    // Determine repayment amount to use
+    // For dual payment: USDC for principal, WHISKEY for interest only
     let actualRepaymentAmountUsd = remainingInterestUsd;
+    let isFullRepayment = false;
+    
     if (repaymentAmountUsd && repaymentAmountUsd > 0) {
-      // Use the amount specified by the frontend
-      actualRepaymentAmountUsd = repaymentAmountUsd;
-      console.log('💡 Using frontend-specified repayment amount:', actualRepaymentAmountUsd);
+      // Check if this is a full repayment (principal + interest)
+      const totalOwedUsd = principalAmountUsd + remainingInterestUsd;
+      if (Math.abs(repaymentAmountUsd - totalOwedUsd) < 0.001) {
+        // This is a full repayment
+        isFullRepayment = true;
+        actualRepaymentAmountUsd = remainingInterestUsd; // WHISKEY only for interest
+        console.log('💡 Full repayment detected: USDC for principal ($' + principalAmountUsd + '), WHISKEY for interest ($' + remainingInterestUsd + ')');
+      } else {
+        // Partial payment - use specified amount for interest only
+        actualRepaymentAmountUsd = repaymentAmountUsd;
+        console.log('💡 Partial payment: WHISKEY for interest ($' + actualRepaymentAmountUsd + ')');
+      }
     } else {
       // Default to remaining interest only
       console.log('💡 No repayment amount specified, using remaining interest only:', actualRepaymentAmountUsd);
     }
 
-    // Calculate WHISKEY amount needed for the FULL repayment amount (with 6 decimals)
+    // Calculate WHISKEY amount needed for the INTEREST portion only (with 6 decimals)
     const whiskeyAmountNeeded = (actualRepaymentAmountUsd / currentWhiskeyRate) * 1_000_000;
     // Add 1% buffer to account for price fluctuations
     const whiskeyAmountWithBuffer = Math.ceil(whiskeyAmountNeeded * 1.01);
@@ -119,10 +130,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('💰 Dual Payment Calculations:');
     console.log('  🔵 Principal (USDC to Capital Vault): $', principalAmountUsd);
     console.log('  🟡 Interest remaining: $', remainingInterestUsd);
-    console.log('  💵 ACTUAL Repayment Amount (WHISKEY): $', actualRepaymentAmountUsd);
-    console.log('  🥃 WHISKEY tokens needed:', whiskeyAmountWithBuffer / 1_000_000);
+    console.log('  💵 Interest Amount (WHISKEY): $', actualRepaymentAmountUsd);
+    console.log('  🥃 WHISKEY tokens needed (interest only):', whiskeyAmountWithBuffer / 1_000_000);
     console.log('  📊 Current WHISKEY rate: $', currentWhiskeyRate);
-    console.log('  ⚡ This is a DUAL PAYMENT: USDC for principal + WHISKEY for repayment');
+    console.log('  ⚡ DUAL PAYMENT: Principal (' + principalAmountUsd + ' USDC) + Interest (' + (whiskeyAmountWithBuffer / 1_000_000) + ' WHISKEY)');
+    console.log('  🔍 Smart Contract expects:');
+    console.log('    - Principal (micro-USDC):', loanAccount.principalAmountUsd);
+    console.log('    - Interest (WHISKEY tokens):', whiskeyAmountWithBuffer);
+    console.log('    - WHISKEY price (micro-USD):', Math.floor(currentWhiskeyRate * 1_000_000));
 
     // Derive PDAs
     const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
