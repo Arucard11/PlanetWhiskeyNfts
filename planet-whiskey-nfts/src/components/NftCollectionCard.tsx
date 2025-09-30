@@ -82,6 +82,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const [step2Complete, setStep2Complete] = useState(false);
     const [showSuccessPopup, setShowSuccessPopup] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
+    const [walletImageUrl, setWalletImageUrl] = useState(''); // Wallet-compatible image URL for minting
     const [imageLoading, setImageLoading] = useState(true);
     const [walletNftCount, setWalletNftCount] = useState<number>(0);
     const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number>(0);
@@ -113,32 +114,40 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             try {
                 setImageLoading(true);
                 
-                // Use metadata API for better mobile compatibility
-                console.log(`[NftCollectionCard] Using metadata API for mobile compatibility`);
-                const apiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
-                const response = await fetch(apiUrl);
+                // Fetch both display image (with proxy) and wallet-compatible image
+                console.log(`[NftCollectionCard] Fetching metadata for display and wallet compatibility`);
                 
-                if (!response.ok) {
-                    console.warn(`[NftCollectionCard] Failed to fetch metadata via API: ${response.status} ${response.statusText}`);
-                    return;
-                }
-
-                const result = await response.json();
-                if (!result.success) {
-                    console.warn(`[NftCollectionCard] API returned error: ${result.message}`);
-                    return;
-                }
-
-                const metadata = result.data;
-                console.log(`[NftCollectionCard] Successfully fetched metadata via API for ${name}:`, metadata);
+                // For web display (with proxy for mobile compatibility)
+                const displayApiUrl = `/api/collections/metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+                const displayResponse = await fetch(displayApiUrl);
                 
-                if (metadata.image) {
-                    console.log(`[NftCollectionCard] Setting image URL for ${name}:`, metadata.image);
-                    setImageUrl(metadata.image);
+                // For wallet compatibility (public URLs only)
+                const walletApiUrl = `/api/collections/wallet-metadata?metadataUri=${encodeURIComponent(metadataUri)}`;
+                const walletResponse = await fetch(walletApiUrl);
+                
+                if (displayResponse.ok) {
+                    const displayResult = await displayResponse.json();
+                    if (displayResult.success && displayResult.data.image) {
+                        console.log(`[NftCollectionCard] Setting display image URL for ${name}:`, displayResult.data.image);
+                        setImageUrl(displayResult.data.image);
+                    }
                 }
-                } catch (error) {
+                
+                if (walletResponse.ok) {
+                    const walletResult = await walletResponse.json();
+                    if (walletResult.success && walletResult.data.image) {
+                        console.log(`[NftCollectionCard] Setting wallet-compatible image URL for ${name}:`, walletResult.data.image);
+                        setWalletImageUrl(walletResult.data.image);
+                    }
+                }
+                
+                if (!displayResponse.ok && !walletResponse.ok) {
+                    console.warn(`[NftCollectionCard] Both metadata APIs failed for ${name}`);
+                }
+                
+            } catch (error) {
                 console.error('Error fetching collection metadata:', error);
-                } finally {
+            } finally {
                 setImageLoading(false);
             }
         };
@@ -407,15 +416,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     }
                 }
                 
-                // Determine the NFT image URL - use collection image if available, otherwise use a branded placeholder
+                // Determine the NFT image URL - prioritize wallet-compatible URL for Phantom display
                 let nftImageUrl = '';
-                if (imageUrl && imageUrl !== '' && imageUrl !== '/placeholder-image.svg' && !imageUrl.includes('placeholder')) {
+                if (walletImageUrl && walletImageUrl !== '' && !walletImageUrl.includes('placeholder')) {
+                    nftImageUrl = walletImageUrl;
+                    console.log(`[STEP2] ✅ Using wallet-compatible image: ${nftImageUrl}`);
+                } else if (imageUrl && imageUrl !== '' && imageUrl !== '/placeholder-image.svg' && !imageUrl.includes('placeholder')) {
                     nftImageUrl = imageUrl;
-                    console.log(`[STEP2] ✅ Using collection image: ${nftImageUrl}`);
+                    console.log(`[STEP2] ⚠️ Using display image (may not work in wallets): ${nftImageUrl}`);
                 } else {
                     // Create a proper branded placeholder that won't be rejected by the API
                     nftImageUrl = `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`;
-                    console.log(`[STEP2] ⚠️ Collection image not available, using branded placeholder: ${nftImageUrl}`);
+                    console.log(`[STEP2] ⚠️ No collection image available, using branded placeholder: ${nftImageUrl}`);
                 }
 
                 // Create individual NFT metadata using the API
@@ -762,7 +774,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     nftName,
                     nftSymbol: displaySymbol,
                     nftDescription: `${displayName} - Master Distiller Edition #${mintNumber}`,
-                    nftImageUrl: imageUrl || `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`,
+                    nftImageUrl: walletImageUrl || imageUrl || `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`,
                     attributes: [
                         { trait_type: 'Edition', value: mintNumber.toString() },
                         { trait_type: 'Collection', value: displayName },

@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import PinataClient from '@pinata/sdk';
+import { getBestNftImageUri, isWalletCompatibleImageUrl, testImageAccessibility } from '@/lib/imageUrlUtils';
 
 // Check if Pinata environment variables are available
 if (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET_KEY) {
@@ -67,27 +68,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'Missing required metadata fields. All fields including nftImageUrl are required.' });
     }
 
-    // Validate that we have a real image URL, not a local placeholder
-    if (nftImageUrl === '/placeholder-image.svg') {
-      return res.status(400).json({ message: 'Cannot create NFT metadata with local placeholder image. A real image URL is required.' });
-    }
+    // Convert proxy URL to wallet-compatible IPFS URI
+    let walletCompatibleImageUri = getBestNftImageUri(nftImageUrl, nftName);
     
-    // Allow branded placeholder URLs from via.placeholder.com (these are valid external images)
-    const isBrandedPlaceholder = nftImageUrl.includes('via.placeholder.com');
-    if (isBrandedPlaceholder) {
-      console.log('[CREATE_NFT_METADATA] Using branded placeholder image:', nftImageUrl);
+    console.log('[CREATE_NFT_METADATA] Image URI conversion:', {
+      original: nftImageUrl,
+      walletCompatible: walletCompatibleImageUri,
+      isCompatible: isWalletCompatibleImageUrl(walletCompatibleImageUri)
+    });
+    
+    // Validate that we have a wallet-compatible image URI
+    if (!isWalletCompatibleImageUrl(walletCompatibleImageUri)) {
+      return res.status(400).json({ 
+        message: 'Image URI is not compatible with wallets like Phantom. Please provide an IPFS URI (ipfs://) or public HTTP/HTTPS URL.',
+        details: {
+          providedUrl: nftImageUrl,
+          convertedUri: walletCompatibleImageUri,
+          isCompatible: false
+        }
+      });
     }
 
-    // Validate that it's not a metadata URI (but allow IPFS image URLs without extensions)
-    if (nftImageUrl.includes('metadata') || nftImageUrl.endsWith('.json')) {
-      return res.status(400).json({ message: 'Cannot create NFT metadata with metadata URI as image. An image URL is required.' });
+    // Test image accessibility (only for HTTP URLs, IPFS URIs are handled by wallets)
+    if (walletCompatibleImageUri.startsWith('http')) {
+      try {
+        const isAccessible = await testImageAccessibility(walletCompatibleImageUri);
+        if (!isAccessible) {
+          console.warn('[CREATE_NFT_METADATA] HTTP image may not be accessible:', walletCompatibleImageUri);
+          // Don't fail here, just warn - the image might still work in wallets
+        }
+      } catch (error) {
+        console.warn('[CREATE_NFT_METADATA] Could not test HTTP image accessibility:', error);
+      }
     }
 
     console.log('[CREATE_NFT_METADATA] Creating metadata for:', {
       nftName,
       collectionName,
       mintNumber,
-      imageUrl: nftImageUrl
+      originalImageUrl: nftImageUrl,
+      walletCompatibleImageUri: walletCompatibleImageUri
     });
 
     // Create the NFT metadata object following Metaplex standard
@@ -95,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       name: nftName,
       symbol: nftSymbol,
       description: nftDescription,
-      image: nftImageUrl,
+      image: walletCompatibleImageUri, // Use wallet-compatible IPFS URI
       attributes: attributes || [],
       collection: {
         name: collectionName,
@@ -104,9 +124,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       properties: {
         files: [
           {
-            uri: nftImageUrl,
-            type: nftImageUrl.includes('.mp4') ? "video/mp4" : 
-                  nftImageUrl.includes('.gif') ? "image/gif" : "image/png"
+            uri: walletCompatibleImageUri, // Use wallet-compatible IPFS URI
+            type: walletCompatibleImageUri.includes('.mp4') ? "video/mp4" : 
+                  walletCompatibleImageUri.includes('.gif') ? "image/gif" : "image/png"
           }
         ],
         category: "image",
@@ -126,13 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[CREATE_NFT_METADATA] Uploading to Pinata...');
     const pinataResponse = await pinata.pinJSONToIPFS(metadata, {
       pinataMetadata: {
-        name: `${nftName}_metadata.json`,
-        keyvalues: {
-          collection: collectionName,
-          type: 'nft_metadata',
-          mintNumber: mintNumber?.toString() || 'unknown',
-          timestamp: mintTimestamp?.toString() || Date.now().toString()
-        }
+        name: `${nftName}_metadata.json`
       }
     });
 
