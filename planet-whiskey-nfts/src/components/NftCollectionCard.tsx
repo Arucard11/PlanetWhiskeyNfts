@@ -230,19 +230,27 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         try {
             console.log('[STEP1] 🚀 Starting Step 1 - Swap Only (New Atomic Flow)');
             
-            // Calculate swap amount (only the lending portion that needs to be USDC)
+            // Calculate swap amount (lending portion + dev fee portion that needs to be USDC)
             const lendingShareBps = 8000; // 80% to lending
+            const devFeePercentage = 0.02; // 2% dev fee
+            const treasuryPercentageStep1 = 0.20; // 20% to treasury (unchanged)
             const lendingPercentage = lendingShareBps / 10000; // e.g., 8000/10000 = 0.80
-            const baseWhiskeyToSwap = displayMintPriceWhiskeyTokens * lendingPercentage;
-            // Add 2% buffer to account for swap fees and slippage
-            const whiskeyToSwap = baseWhiskeyToSwap * 1.02;
-            const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * (1 - lendingPercentage);
+            
+            const baseLendingWhiskey = displayMintPriceWhiskeyTokens * lendingPercentage;
+            const devFeeWhiskey = displayMintPriceWhiskeyTokens * devFeePercentage;
+            const baseWhiskeyToSwap = baseLendingWhiskey + devFeeWhiskey;
+            
+            // Add 8% buffer to account for swap fees, slippage, and dev fee
+            const whiskeyToSwap = baseWhiskeyToSwap * 1.08;
+            const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * treasuryPercentageStep1;
             
             console.log(`[STEP1] Payment breakdown:`);
             console.log(`  - Total WHISKEY payment: ${displayMintPriceWhiskeyTokens} WHISKEY`);
-            console.log(`  - Base lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${baseWhiskeyToSwap} WHISKEY`);
-            console.log(`  - Lending portion + 2% fee buffer: ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
-            console.log(`  - Treasury portion (${((1 - lendingPercentage) * 100).toFixed(1)}%): ${whiskeyToKeepForTreasury} WHISKEY → Treasury (Step 2)`);
+            console.log(`  - Lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${baseLendingWhiskey} WHISKEY`);
+            
+            console.log(`  - Base amount to swap: ${baseWhiskeyToSwap} WHISKEY`);
+            console.log(`  - Total with 8% buffer: ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
+            console.log(`  - Treasury portion (${(treasuryPercentageStep1 * 100).toFixed(1)}%): ${whiskeyToKeepForTreasury} WHISKEY → Treasury (Step 2)`);
             
             // Import the direct swap function
             console.log('[STEP1] Importing raydium swap function...');
@@ -520,22 +528,26 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Calculate payment amounts
             const whiskeyRate = await getCurrentWhiskeyRate();
             const lendingShareBps = 8000; // 80% to lending
-            const treasuryShareBps = 2000; // 20% to treasury
+            const devFeePercentage = 0.02; // 2% dev fee
+            const treasuryShareBps = 2000; // 20% to treasury (unchanged)
             
             const lendingPercentage = lendingShareBps / 10000;
             const treasuryPercentage = treasuryShareBps / 10000;
             
             const whiskeyToTreasury = displayMintPriceWhiskeyTokens * treasuryPercentage;
             const usdcToVault = (mintPriceUsd || 0) * lendingPercentage;
+            const usdcToDevWallet = (mintPriceUsd || 0) * devFeePercentage;
             
             // Convert to lamports/micro-units
             const whiskeyToTreasuryLamports = Math.floor(whiskeyToTreasury * 1000000); // WHISKEY has 6 decimals
             const usdcToVaultLamports = Math.floor(usdcToVault * 1000000); // USDC has 6 decimals
+            const usdcToDevWalletLamports = Math.floor(usdcToDevWallet * 1000000); // USDC has 6 decimals
             const currentWhiskeyPriceUsdMicro = Math.floor(whiskeyRate * 1000000); // Price in micro-USD
             
             console.log(`[STEP2] Payment calculation:`);
             console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury} tokens (${whiskeyToTreasuryLamports} lamports)`);
             console.log(`  - USDC to vault: ${usdcToVault} USDC (${usdcToVaultLamports} lamports)`);
+            console.log(`  - USDC to dev wallet: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
             console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
 
             // Create secure mint instruction using new function
@@ -603,6 +615,38 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 );
                 mintTransaction.add(createWhiskeyAtaIx);
             }
+            
+            // Add dev fee transfer instruction
+            const devWallet = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n");
+            const devUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, devWallet);
+            
+            console.log(`[STEP2] Adding dev fee transfer:`);
+            console.log(`  - Dev wallet: ${devWallet.toString()}`);
+            console.log(`  - Dev USDC account: ${devUsdcAccount.toString()}`);
+            console.log(`  - Dev fee amount: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
+            
+            // Check if dev USDC account exists, create if not
+            const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
+            if (devUsdcAccountInfo === null) {
+                console.log(`[STEP2] Creating dev USDC ATA...`);
+                const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
+                    publicKey, // payer (user pays for creation)
+                    devUsdcAccount, // ata
+                    devWallet, // owner (dev wallet)
+                    USDC_MINT // mint
+                );
+                mintTransaction.add(createDevUsdcAtaIx);
+            }
+            
+            // Create dev fee transfer instruction
+            const { createTransferInstruction } = await import('@solana/spl-token');
+            const devFeeTransferIx = createTransferInstruction(
+                userUsdcAccount, // source
+                devUsdcAccount, // destination
+                publicKey, // authority
+                usdcToDevWalletLamports // amount
+            );
+            mintTransaction.add(devFeeTransferIx);
             
             mintTransaction.add(mintInstruction);
             mintTransaction.feePayer = publicKey;
