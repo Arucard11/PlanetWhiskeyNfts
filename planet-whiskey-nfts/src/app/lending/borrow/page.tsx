@@ -99,24 +99,25 @@ export default function BorrowPage() {
                 approvalMap.set(result.collectionMint, result.isApproved);
               });
               
-              // Update NFT eligibility based on collection approval
-              const eligibleNfts = nfts.map(nft => ({
-                ...nft,
-                isEligible: approvalMap.get(nft.collectionMintAddress) || false
-              }));
+              // Filter to only show eligible NFTs (approved collections)
+              const eligibleNfts = nfts
+                .map(nft => ({
+                  ...nft,
+                  isEligible: approvalMap.get(nft.collectionMintAddress) || false
+                }))
+                .filter(nft => nft.isEligible); // Only show eligible NFTs
               
-              console.log('✅ NFTs with eligibility status:', eligibleNfts);
+              console.log('✅ Filtered to eligible NFTs only:', eligibleNfts);
+              console.log(`📊 Filtered out ${nfts.length - eligibleNfts.length} ineligible NFTs`);
               setUserNfts(eligibleNfts);
             } else {
-              console.log('⚠️ Failed to check collection approval, marking all as ineligible');
-              const ineligibleNfts = nfts.map(nft => ({ ...nft, isEligible: false }));
-              setUserNfts(ineligibleNfts);
+              console.log('⚠️ Failed to check collection approval, showing no NFTs');
+              setUserNfts([]); // Show no NFTs if we can't verify approval
             }
           } catch (approvalError) {
             console.error('❌ Error checking collection approval:', approvalError);
-            // Mark all as ineligible if we can't check approval
-            const ineligibleNfts = nfts.map(nft => ({ ...nft, isEligible: false }));
-            setUserNfts(ineligibleNfts);
+            // Show no NFTs if we can't check approval
+            setUserNfts([]);
           }
         } else {
           setUserNfts([]);
@@ -634,9 +635,10 @@ export default function BorrowPage() {
             </div>
           ) : userNfts.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-xl text-gray-300 mb-4">No eligible NFTs found</p>
+              <p className="text-xl text-gray-300 mb-4">No approved NFTs found</p>
               <p className="text-gray-400 mb-8">
-                You need Planet Whiskey NFTs to use as collateral
+                You need NFTs from approved Planet Whiskey collections to use as collateral.<br/>
+                Only certain collections are approved for lending.
               </p>
               <Link
                 href="/marketplace"
@@ -650,15 +652,13 @@ export default function BorrowPage() {
               {userNfts.map((nft) => (
                 <motion.div
                   key={nft.mintAddress}
-                  whileHover={{ scale: nft.isEligible ? 1.05 : 1.02 }}
-                  className={`bg-slate-800 rounded-xl p-4 border-2 transition-all duration-300 ${
-                    !nft.isEligible
-                      ? 'border-red-500/50 bg-red-500/5 cursor-not-allowed opacity-60'
-                      : selectedNfts.has(nft.mintAddress)
-                      ? 'border-amber-500 bg-amber-500/10 cursor-pointer'
-                      : 'border-slate-700 hover:border-slate-600 cursor-pointer'
+                  whileHover={{ scale: 1.05 }}
+                  className={`bg-slate-800 rounded-xl p-4 border-2 transition-all duration-300 cursor-pointer ${
+                    selectedNfts.has(nft.mintAddress)
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-slate-700 hover:border-slate-600'
                   }`}
-                  onClick={() => nft.isEligible && handleNftSelection(nft.mintAddress)}
+                  onClick={() => handleNftSelection(nft.mintAddress)}
                 >
                   <div className="aspect-square rounded-lg overflow-hidden mb-4">
                     <MediaWithFallback

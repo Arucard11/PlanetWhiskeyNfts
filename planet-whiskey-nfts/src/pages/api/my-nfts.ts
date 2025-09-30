@@ -112,8 +112,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       let collectionName = 'Unknown Collection';
       
       if (nft.collection) {
-        collectionAddress = nft.collection.address.toBase58();
+        // 🔧 FIX: Use collection mint address, not metadata account address
+        collectionAddress = (nft.collection as any).mintAddress?.toBase58() || nft.collection.address.toBase58();
         collectionName = 'Collection'; // Simplified for now
+        
+        console.log(`[my-nfts] 🔍 Collection debug for ${nft.name}:`);
+        console.log(`  - collection.address (metadata): ${nft.collection.address.toBase58()}`);
+        console.log(`  - collection.mintAddress: ${(nft.collection as any).mintAddress?.toBase58() || 'NOT FOUND'}`);
+        console.log(`  - Using collectionAddress: ${collectionAddress}`);
       }
 
       // 🚨 FIX: Use the NFT mint address, not the metadata account address
