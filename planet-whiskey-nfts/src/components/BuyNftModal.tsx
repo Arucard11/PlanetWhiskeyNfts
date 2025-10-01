@@ -4,7 +4,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Shield } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Transaction, SendTransactionError } from '@solana/web3.js';
+import { Transaction, SendTransactionError, PublicKey, SystemProgram } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import * as anchor from '@coral-xyz/anchor';
+import { getMarketplaceProgram } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface BuyNftModalProps {
@@ -43,21 +46,101 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
     setBuyMessage("1/4: Preparing purchase transaction...");
 
     try {
-        const txResponse = await fetch('/api/marketplace/transactions/buy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                buyerAddress: publicKey.toBase58(), 
-                nftMintAddress,
-                timestamp: Date.now() // Add unique timestamp
-            }),
-        });
-        const txData = await txResponse.json();
-        if (!txResponse.ok) throw new Error(txData.message || "Failed to create purchase transaction.");
+        // Build transaction client-side using Anchor program
+        console.log(`[BUY_MODAL] 🔧 Building transaction client-side...`);
         
-        setBuyMessage("2/4: Please sign the transaction...");
+        const program = getMarketplaceProgram();
+        const nftMint = new PublicKey(nftMintAddress);
+        const buyer = publicKey;
+        
+        // Get listing data from API first to find the seller
+        const listingResponse = await fetch(`/api/marketplace/listings?nftMintAddress=${nftMintAddress}`);
+        if (!listingResponse.ok) throw new Error("Failed to fetch listing data");
+        const listingData = await listingResponse.json();
+        const listing = listingData.listings.find((l: any) => l.nftMintAddress === nftMintAddress);
+        if (!listing) throw new Error("Listing not found");
+        
+        const seller = new PublicKey(listing.sellerWalletAddress);
+        const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
+        const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+        
+        // Derive PDAs
+        const [listingPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("listing"), seller.toBuffer(), nftMint.toBuffer()],
+            program.programId
+        );
+        
+        const [escrowTokenAccount] = PublicKey.findProgramAddressSync(
+            [Buffer.from("escrow"), listingPda.toBuffer()],
+            program.programId
+        );
+        
+        // Get token accounts
+        const buyerNftTokenAccount = await getAssociatedTokenAddress(nftMint, buyer);
+        const buyerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, buyer);
+        const sellerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, seller);
+        const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, treasuryWallet);
+        
+        // Get global market PDA (needed for marketplace program)
+        const [globalMarket] = PublicKey.findProgramAddressSync(
+            [Buffer.from("global_market")],
+            new PublicKey(process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID!)
+        );
+        
+        console.log(`[BUY_MODAL] 📍 Derived accounts:`, {
+            listingPda: listingPda.toString(),
+            escrowTokenAccount: escrowTokenAccount.toString(),
+            buyerNftTokenAccount: buyerNftTokenAccount.toString(),
+            seller: seller.toString()
+        });
+        
+        // Build the buy NFT instruction
+        const buyInstruction = await program.methods
+            .buyNft()
+            .accounts({
+                buyer: buyer,
+                listing: listingPda,
+                seller: seller,
+                escrowTokenAccount: escrowTokenAccount,
+                buyerNftTokenAccount: buyerNftTokenAccount,
+                whiskeyTokenMint: whiskeyMint,
+                buyerWhiskeyTokenAccount: buyerWhiskeyTokenAccount,
+                sellerWhiskeyTokenAccount: sellerWhiskeyTokenAccount,
+                treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
+                treasuryWallet: treasuryWallet,
+                globalMarket: globalMarket,
+                nftToBuyMint: nftMint,
+                systemProgram: SystemProgram.programId,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+        
+        // Create transaction
+        const transaction = new Transaction();
+        
+        // Check if buyer NFT token account exists, create if not
+        const buyerNftAccountInfo = await connection.getAccountInfo(buyerNftTokenAccount);
+        if (!buyerNftAccountInfo) {
+            const createBuyerNftAtaIx = createAssociatedTokenAccountInstruction(
+                buyer, // payer
+                buyerNftTokenAccount, // ata
+                buyer, // owner
+                nftMint // mint
+            );
+            transaction.add(createBuyerNftAtaIx);
+        }
+        
+        transaction.add(buyInstruction);
+        
+        // Get fresh blockhash
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
 
-        const transaction = Transaction.from(Buffer.from(txData.transaction, 'base64'));
+        setBuyMessage("2/4: Please sign the transaction...");
+        console.log(`[BUY_MODAL] ✅ Transaction built client-side, requesting signature...`);
+
         const signedTransaction = await signTransaction(transaction);
         
         console.log("🔍 DEBUG: About to send transaction to network...");

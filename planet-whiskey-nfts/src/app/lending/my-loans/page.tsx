@@ -5,7 +5,10 @@ import { motion } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { Connection, Transaction } from '@solana/web3.js';
+import { Connection, Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
+import * as anchor from '@coral-xyz/anchor';
+import { getLendingProgram } from '@/lib/solanaUtils';
 import { getCurrentWhiskeyRate } from '../../../lib/coingeckoPricing';
 import MediaWithFallback from '../../../components/MediaWithFallback';
 
@@ -202,28 +205,70 @@ export default function MyLoansPage() {
     try {
       console.log('🔄 Creating NFT withdrawal transaction...', { nftMintAddress });
       
-      const response = await fetch('/api/lending/withdraw-nft', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey.toString(),
-          nftMintAddress
-        }),
+      // Build transaction client-side using Anchor program
+      console.log(`[WITHDRAW_NFT] 🔧 Building transaction client-side for ${nftMintAddress}...`);
+      
+      const program = getLendingProgram();
+      const user = publicKey;
+      const nftMint = new PublicKey(nftMintAddress);
+      
+      // Derive PDAs
+      const [globalMarket] = PublicKey.findProgramAddressSync(
+        [Buffer.from("global_market")],
+        program.programId
+      );
+      
+      const [collectionRegistry] = PublicKey.findProgramAddressSync(
+        [Buffer.from("collection_registry")],
+        program.programId
+      );
+      
+      const [borrowerAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), user.toBuffer()],
+        program.programId
+      );
+      
+      const [nftEscrow] = PublicKey.findProgramAddressSync(
+        [Buffer.from("collateral_escrow"), user.toBuffer(), nftMint.toBuffer()],
+        program.programId
+      );
+      
+      // Get token accounts
+      const userNftAccount = await getAssociatedTokenAddress(nftMint, user);
+      
+      console.log(`[WITHDRAW_NFT] 📍 Derived accounts:`, {
+        globalMarket: globalMarket.toString(),
+        borrowerAccount: borrowerAccount.toString(),
+        nftEscrow: nftEscrow.toString(),
+        userNftAccount: userNftAccount.toString()
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create withdrawal transaction');
-      }
-
-      const data = await response.json();
-      console.log('✅ Withdrawal transaction created:', data);
-
-      // Deserialize and send transaction
+      
+      // Build the withdraw NFT instruction
+      const withdrawInstruction = await program.methods
+        .withdrawNft()
+        .accounts({
+          globalMarket: globalMarket,
+          collectionRegistry: collectionRegistry,
+          borrowerAccount: borrowerAccount,
+          nftMint: nftMint,
+          userNftAccount: userNftAccount,
+          nftEscrow: nftEscrow,
+          user: user,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+      
+      // Create transaction
+      const transaction = new Transaction();
+      transaction.add(withdrawInstruction);
+      
+      // Get fresh blockhash
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+      
+      console.log(`[WITHDRAW_NFT] ✅ Transaction built client-side`);
       
       // Simulate transaction first to get better error details
       console.log('🧪 Simulating NFT withdrawal transaction...');
@@ -275,29 +320,89 @@ export default function MyLoansPage() {
     try {
       console.log('🔄 Creating repayment transaction...', { loanId, amount });
       
-      const response = await fetch('/api/lending/repay-loan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey.toString(),
-          loanId,
-          repaymentAmountUsd: amount, // Amount in USD
-        }),
+      // Build transaction client-side using Anchor program
+      console.log(`[REPAY_LOAN] 🔧 Building transaction client-side...`);
+      
+      const program = getLendingProgram();
+      const user = publicKey;
+      const loanPubkey = new PublicKey(loanId);
+      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+      const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
+      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      
+      // Derive PDAs
+      const [borrowerAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), user.toBuffer()],
+        program.programId
+      );
+      
+      const [globalMarket] = PublicKey.findProgramAddressSync(
+        [Buffer.from("global_market")],
+        program.programId
+      );
+      
+      const [capitalVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("capital_vault_usdc")],
+        program.programId
+      );
+      
+      // Get token accounts
+      const borrowerUsdcTokenAccount = await getAssociatedTokenAddress(usdcMint, user);
+      const borrowerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, user);
+      const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, treasuryWallet);
+      
+      // Get current WHISKEY price for dual payment calculation
+      const whiskeyPriceUsd = await getCurrentWhiskeyRate();
+      const whiskeyPriceUsdMicro = Math.floor(whiskeyPriceUsd * 1_000_000);
+      
+      // Calculate payment amounts (this is a simplified calculation)
+      const totalAmountUsd = amount;
+      const principalUsd = Math.floor(totalAmountUsd * 0.8); // Assume 80% principal
+      const interestUsd = totalAmountUsd - principalUsd; // 20% interest
+      const whiskeyInterestAmount = Math.floor((interestUsd / whiskeyPriceUsd) * 1_000_000);
+      
+      console.log(`[REPAY_LOAN] 📍 Derived accounts:`, {
+        borrowerAccount: borrowerAccount.toString(),
+        globalMarket: globalMarket.toString(),
+        capitalVault: capitalVault.toString(),
+        loan: loanPubkey.toString(),
+        principalUsd,
+        interestUsd,
+        whiskeyInterestAmount
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create repayment transaction');
-      }
-
-      const data = await response.json();
-      console.log('✅ Repayment transaction created:', data);
-
-      // Deserialize and send transaction
+      
+      // Build the repay loan instruction
+      const repayInstruction = await program.methods
+        .repayLoanDualPayment(
+          new anchor.BN(principalUsd * 1_000_000), // USDC principal in microdollars
+          new anchor.BN(whiskeyInterestAmount), // WHISKEY interest amount
+          new anchor.BN(whiskeyPriceUsdMicro) // Current WHISKEY price
+        )
+        .accounts({
+          loan: loanPubkey,
+          borrowerAccount: borrowerAccount,
+          globalMarket: globalMarket,
+          capitalVault: capitalVault,
+          borrowerUsdcTokenAccount: borrowerUsdcTokenAccount,
+          borrowerWhiskeyTokenAccount: borrowerWhiskeyTokenAccount,
+          treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
+          treasuryWallet: treasuryWallet,
+          borrower: user,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+      
+      // Create transaction
+      const transaction = new Transaction();
+      transaction.add(repayInstruction);
+      
+      // Get fresh blockhash
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+      
+      console.log(`[REPAY_LOAN] ✅ Transaction built client-side`);
       
       // Simulate transaction first to get better error details
       console.log('🧪 Simulating repayment transaction...');

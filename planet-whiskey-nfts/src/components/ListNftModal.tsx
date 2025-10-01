@@ -4,7 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Tag } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Transaction, PublicKey, SendTransactionError } from '@solana/web3.js';
+import { Transaction, PublicKey, SendTransactionError, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import * as anchor from '@coral-xyz/anchor';
+import { getMarketplaceProgram } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface ListNftModalProps {
@@ -67,54 +70,61 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
     setListingMessage("1/4: Creating listing transaction...");
 
     try {
-        // 1. Get the transaction from our API with timestamp for uniqueness
-        const listingTimestamp = Date.now();
-        console.log(`[LIST_NFT_MODAL] 🕐 Creating listing transaction with timestamp: ${listingTimestamp}`);
+        // 1. Build transaction client-side using Anchor program
+        console.log(`[LIST_NFT_MODAL] 🔧 Building transaction client-side...`);
         
-        const txRequestBody = {
-            sellerAddress: publicKey.toBase58(),
-            nftMintAddress,
-            price: priceInSmallestUnit, // Send the integer price
-            timestamp: listingTimestamp, // Add timestamp for uniqueness
-        };
+        const program = getMarketplaceProgram();
+        const nftMint = new PublicKey(nftMintAddress);
+        const seller = publicKey;
         
-        console.log(`[LIST_NFT_MODAL] 📤 Sending transaction request:`, txRequestBody);
+        // Derive listing PDA
+        const [listingPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("listing"), seller.toBuffer(), nftMint.toBuffer()],
+            program.programId
+        );
         
-        const txResponse = await fetch('/api/marketplace/transactions/list', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(txRequestBody),
+        // Derive escrow token account PDA
+        const [escrowTokenAccount] = PublicKey.findProgramAddressSync(
+            [Buffer.from("escrow"), listingPda.toBuffer()],
+            program.programId
+        );
+        
+        // Get seller's NFT token account
+        const sellerNftTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
+        
+        console.log(`[LIST_NFT_MODAL] 📍 Derived accounts:`, {
+            listingPda: listingPda.toString(),
+            escrowTokenAccount: escrowTokenAccount.toString(),
+            sellerNftTokenAccount: sellerNftTokenAccount.toString()
         });
-
-        console.log(`[LIST_NFT_MODAL] 📨 Transaction API response status: ${txResponse.status}`);
-
-        const txData = await txResponse.json();
-        console.log(`[LIST_NFT_MODAL] 📄 Transaction API response:`, {
-          success: txResponse.ok,
-          hasTransaction: !!txData.transaction,
-          message: txData.message,
-          error: txData.error
-        });
-
-        if (!txResponse.ok) {
-            console.log(`[LIST_NFT_MODAL] ❌ Transaction API failed`);
-            throw new Error(txData.message || 'Failed to create transaction.');
-        }
-
-        setListingMessage("2/4: Please sign the transaction in your wallet...");
-
-        console.log(`[LIST_NFT_MODAL] 🔄 Deserializing transaction...`);
-        // 2. Deserialize the transaction and update with fresh blockhash
-        const transaction = Transaction.from(Buffer.from(txData.transaction, 'base64'));
         
-        // Get fresh blockhash for this specific transaction
+        // Build the list NFT instruction
+        const listInstruction = await program.methods
+            .listNft(new anchor.BN(priceInSmallestUnit))
+            .accounts({
+                seller: seller,
+                listing: listingPda,
+                sellerNftTokenAccount: sellerNftTokenAccount,
+                escrowTokenAccount: escrowTokenAccount,
+                nftToListMint: nftMint,
+                systemProgram: SystemProgram.programId,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                rent: SYSVAR_RENT_PUBKEY,
+            })
+            .instruction();
+        
+        // Create transaction
+        const transaction = new Transaction();
+        transaction.add(listInstruction);
+        
+        // Get fresh blockhash
         console.log(`[LIST_NFT_MODAL] 🔗 Getting fresh blockhash...`);
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = publicKey;
 
-        console.log(`[LIST_NFT_MODAL] ✅ Transaction prepared for signing`);
-        console.log(`[LIST_NFT_MODAL] 🖊️ Requesting signature from wallet...`);
+        setListingMessage("2/4: Please sign the transaction in your wallet...");
+        console.log(`[LIST_NFT_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
         const signedTransaction = await signTransaction(transaction);
         

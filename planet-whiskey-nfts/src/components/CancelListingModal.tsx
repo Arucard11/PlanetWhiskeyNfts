@@ -4,7 +4,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, XCircle } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Transaction } from '@solana/web3.js';
+import { Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
+import * as anchor from '@coral-xyz/anchor';
+import { getMarketplaceProgram } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface CancelListingModalProps {
@@ -49,36 +52,61 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
     setCancelMessage("1/4: Creating cancel transaction...");
 
     try {
-      // Add timestamp for transaction uniqueness
-      const cancelTimestamp = Date.now();
+      // Build transaction client-side using Anchor program
+      console.log(`[CANCEL_MODAL] 🔧 Building transaction client-side...`);
       
-      // Create cancel transaction via API
-      const txResponse = await fetch('/api/marketplace/transactions/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sellerAddress: publicKey.toBase58(), 
-          nftMintAddress,
-          timestamp: cancelTimestamp
-        }),
+      const program = getMarketplaceProgram();
+      const nftMint = new PublicKey(nftMintAddress);
+      const seller = publicKey;
+      
+      // Derive listing PDA
+      const [listingPda] = PublicKey.findProgramAddressSync(
+          [Buffer.from("listing"), seller.toBuffer(), nftMint.toBuffer()],
+          program.programId
+      );
+      
+      // Derive escrow token account PDA
+      const [escrowTokenAccount] = PublicKey.findProgramAddressSync(
+          [Buffer.from("escrow"), listingPda.toBuffer()],
+          program.programId
+      );
+      
+      // Get seller's NFT token account
+      const sellerNftTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
+      
+      console.log(`[CANCEL_MODAL] 📍 Derived accounts:`, {
+          listingPda: listingPda.toString(),
+          escrowTokenAccount: escrowTokenAccount.toString(),
+          sellerNftTokenAccount: sellerNftTokenAccount.toString()
       });
       
-      const txData = await txResponse.json();
-      if (!txResponse.ok) {
-        throw new Error(txData.message || "Failed to create cancel transaction.");
-      }
+      // Build the cancel listing instruction
+      const cancelInstruction = await program.methods
+          .cancelListing()
+          .accounts({
+              seller: seller,
+              listing: listingPda,
+              sellerNftTokenAccount: sellerNftTokenAccount,
+              escrowTokenAccount: escrowTokenAccount,
+              nftToListMint: nftMint,
+              systemProgram: SystemProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .instruction();
+      
+      // Create transaction
+      const transaction = new Transaction();
+      transaction.add(cancelInstruction);
 
       setCancelMessage("2/4: Getting fresh blockchain data...");
 
-      // Get fresh blockhash BEFORE deserializing the transaction
+      // Get fresh blockhash
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-      
-      // Deserialize and update the transaction with fresh blockhash
-      const transaction = Transaction.from(Buffer.from(txData.transaction, 'base64'));
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
 
       setCancelMessage("3/4: Please sign the transaction...");
+      console.log(`[CANCEL_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
       const signedTransaction = await signTransaction(transaction);
       

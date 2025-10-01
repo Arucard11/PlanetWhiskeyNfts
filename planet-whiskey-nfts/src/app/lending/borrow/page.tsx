@@ -5,7 +5,10 @@ import { motion } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { Transaction, Connection } from '@solana/web3.js';
+import { Transaction, Connection, PublicKey, SystemProgram } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
+import * as anchor from '@coral-xyz/anchor';
+import { getLendingProgram } from '@/lib/solanaUtils';
 import MediaWithFallback from '../../../components/MediaWithFallback';
 
 interface UserNft {
@@ -226,30 +229,84 @@ export default function BorrowPage() {
         wallet: publicKey.toString()
       });
 
-      const response = await fetch('/api/lending/take-loan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey.toString(),
-          loanAmount: parseFloat(loanAmount),
-          duration: loanDuration,
-          asset: 'USDC'
-        }),
+      // Build transaction client-side using Anchor program
+      console.log(`[TAKE_LOAN] 🔧 Building transaction client-side...`);
+      
+      const program = getLendingProgram();
+      const user = publicKey;
+      const amount = parseFloat(loanAmount);
+      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      
+      // Derive PDAs
+      const [globalMarket] = PublicKey.findProgramAddressSync(
+        [Buffer.from("global_market")],
+        program.programId
+      );
+      
+      const [borrowerAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), user.toBuffer()],
+        program.programId
+      );
+      
+      // Get borrower account data to get loan counter
+      const borrowerAccountData = await program.account.borrowerAccount.fetch(borrowerAccount);
+      const loanCounter = borrowerAccountData.loanCounter;
+      
+      const [loan] = PublicKey.findProgramAddressSync(
+        [Buffer.from("loan"), user.toBuffer(), loanCounter.toBuffer('le', 8)],
+        program.programId
+      );
+      
+      const [capitalVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("capital_vault_usdc")],
+        program.programId
+      );
+      
+      // Get token accounts
+      const treasuryTokenAccount = await getAssociatedTokenAddress(usdcMint, treasuryWallet);
+      const borrowerTokenAccount = await getAssociatedTokenAddress(usdcMint, user);
+      
+      console.log(`[TAKE_LOAN] 📍 Derived accounts:`, {
+        globalMarket: globalMarket.toString(),
+        borrowerAccount: borrowerAccount.toString(),
+        loan: loan.toString(),
+        capitalVault: capitalVault.toString(),
+        loanCounter: loanCounter.toString()
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create loan');
-      }
-
-      const data = await response.json();
-      console.log('✅ Loan transaction created:', data);
-
-      // Deserialize and send transaction
+      
+      // Build the take loan instruction
+      const takeLoanInstruction = await program.methods
+        .takeLoan(
+          new anchor.BN(amount * 1_000_000), // Convert to microdollars
+          loanDuration * 30 * 24 * 60 * 60 // Convert months to seconds
+        )
+        .accounts({
+          globalMarket: globalMarket,
+          borrowerAccount: borrowerAccount,
+          loan: loan,
+          assetMint: usdcMint,
+          capitalVault: capitalVault,
+          treasuryTokenAccount: treasuryTokenAccount,
+          treasuryWallet: treasuryWallet,
+          borrowerTokenAccount: borrowerTokenAccount,
+          borrower: user,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      
+      // Create transaction
+      const transaction = new Transaction();
+      transaction.add(takeLoanInstruction);
+      
+      // Get fresh blockhash
       const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const transaction = Transaction.from(Buffer.from(data.transaction, 'base64'));
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+      
+      console.log(`[TAKE_LOAN] ✅ Transaction built client-side`);
       
       console.log('🔍 Transaction details:', {
         instructions: transaction.instructions.length,
@@ -332,34 +389,86 @@ export default function BorrowPage() {
             throw new Error('NFT data not found');
           }
 
-          // Get transaction from API
-          const response = await fetch('/api/lending/deposit-nft', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              nftMintAddress: mintAddress,
-              walletAddress: publicKey?.toString(),
-              collectionMintAddress: nftData.collectionMintAddress,
-            }),
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            
-            // Handle specific error codes from API
-            if (error.errorCode === 'INVALID_NFT_COLLECTION') {
-              throw new Error(`❌ ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'This NFT'} is not from an approved collection. Only NFTs from approved collections can be used as collateral.`);
-            }
-            
-            throw new Error(error.message || 'Failed to create deposit transaction');
-          }
-
-          const { transaction: serializedTransaction, lastValidBlockHeight } = await response.json();
+          // Build transaction client-side using Anchor program
+          console.log(`[DEPOSIT_NFT] 🔧 Building transaction client-side for ${mintAddress}...`);
           
-          // Deserialize and send transaction
-          const transaction = Transaction.from(Buffer.from(serializedTransaction, 'base64'));
+          const program = getLendingProgram();
+          const nftMint = new PublicKey(mintAddress);
+          const user = publicKey;
+          const collectionMint = new PublicKey(nftData.collectionMintAddress);
+          
+          // Derive PDAs
+          const [globalMarket] = PublicKey.findProgramAddressSync(
+            [Buffer.from("global_market")],
+            program.programId
+          );
+          
+          const [collectionRegistry] = PublicKey.findProgramAddressSync(
+            [Buffer.from("collection_registry")],
+            program.programId
+          );
+          
+          const [borrowerAccount] = PublicKey.findProgramAddressSync(
+            [Buffer.from("borrower_account"), user.toBuffer()],
+            program.programId
+          );
+          
+          const [nftEscrow] = PublicKey.findProgramAddressSync(
+            [Buffer.from("collateral_escrow"), user.toBuffer(), nftMint.toBuffer()],
+            program.programId
+          );
+          
+          // Get token accounts
+          const userNftAccount = await getAssociatedTokenAddress(nftMint, user);
+          
+          // Get NFT metadata account
+          const MPL_TOKEN_METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+          const [nftMetadata] = PublicKey.findProgramAddressSync(
+            [
+              Buffer.from("metadata"),
+              MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+              nftMint.toBuffer(),
+            ],
+            MPL_TOKEN_METADATA_PROGRAM_ID
+          );
+          
+          console.log(`[DEPOSIT_NFT] 📍 Derived accounts:`, {
+            globalMarket: globalMarket.toString(),
+            borrowerAccount: borrowerAccount.toString(),
+            nftEscrow: nftEscrow.toString(),
+            userNftAccount: userNftAccount.toString(),
+            collectionMint: collectionMint.toString()
+          });
+          
+          // Build the deposit NFT instruction
+          const depositInstruction = await program.methods
+            .depositNft(collectionMint)
+            .accounts({
+              globalMarket: globalMarket,
+              collectionRegistry: collectionRegistry,
+              borrowerAccount: borrowerAccount,
+              nftMint: nftMint,
+              userNftAccount: userNftAccount,
+              nftEscrow: nftEscrow,
+              user: user,
+              nftMetadata: nftMetadata,
+              tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+              systemProgram: SystemProgram.programId,
+            })
+            .instruction();
+          
+          // Create transaction
+          const transaction = new Transaction();
+          transaction.add(depositInstruction);
+          
+          // Get fresh blockhash
+          const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = publicKey;
+          
+          console.log(`[DEPOSIT_NFT] ✅ Transaction built client-side`);
           
           const signature = await sendTransaction(transaction, connection);
           console.log(`✅ NFT ${mintAddress} deposited, signature:`, signature);

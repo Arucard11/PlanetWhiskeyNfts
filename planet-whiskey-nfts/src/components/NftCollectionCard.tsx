@@ -780,7 +780,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // Check if user has required WHISKEY balance
+        // STRICT CHECK: User must have the required WHISKEY balance
+        if (!requiredWhiskeyAmount || requiredWhiskeyAmount <= 0) {
+            setMintMessage('❌ Invalid collection configuration - no WHISKEY requirement set');
+            return;
+        }
+
+        if (userWhiskeyBalance < requiredWhiskeyAmount) {
+            setMintMessage(`❌ Insufficient WHISKEY balance. You have ${userWhiskeyBalance.toLocaleString()} but need ${requiredWhiskeyAmount.toLocaleString()} WHISKEY tokens to mint`);
+            return;
+        }
+
+        // Double-check with hasRequiredWhiskey flag
         if (!hasRequiredWhiskey) {
             setMintMessage(`❌ Need ${requiredWhiskeyAmount?.toLocaleString()} WHISKEY tokens to mint from this collection`);
             return;
@@ -850,7 +861,59 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const nftMetadataUri = metadataResult.metadataUri;
             console.log('[WHISKEY-GATED] ✅ NFT metadata created:', nftMetadataUri);
 
-            // Create the whiskey-gated mint transaction
+            // Build whiskey-gated mint transaction client-side
+            console.log('[WHISKEY-GATED] 🔧 Building transaction client-side...');
+            
+            const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()), {});
+            const program = new Program(idl as Whiskeyprogram, new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!), provider);
+            
+            // Generate new NFT mint keypair
+            const nftMint = Keypair.generate();
+            
+            // Derive collection config PDA
+            const [collectionConfigPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("collection"), Buffer.from(displayName)],
+                program.programId
+            );
+            
+            // Get user's NFT token account
+            const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, publicKey);
+            
+            // Derive metadata accounts
+            const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                    nftMint.publicKey.toBuffer(),
+                ],
+                MPL_TOKEN_METADATA_PROGRAM_ID
+            );
+            
+            const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                    nftMint.publicKey.toBuffer(),
+                    Buffer.from("edition"),
+                ],
+                MPL_TOKEN_METADATA_PROGRAM_ID
+            );
+            
+            // Get user's WHISKEY token account
+            const userWhiskeyAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, publicKey);
+            
+            console.log('[WHISKEY-GATED] 📍 Derived accounts:', {
+                collectionConfigPda: collectionConfigPda.toString(),
+                nftMint: nftMint.publicKey.toString(),
+                nftTokenAccount: nftTokenAccount.toString(),
+                nftMetadataAccount: nftMetadataAccount.toString(),
+                userWhiskeyAccount: userWhiskeyAccount.toString()
+            });
+            
+            // For whiskey-gated collections, use the existing API endpoint
+            // The API will handle the smart contract interaction properly
+            console.log('[WHISKEY-GATED] 🔄 Calling whiskey-gated mint API...');
+            
             const mintResponse = await fetch('/api/mints/whiskey-gated-mint', {
                 method: 'POST',
                 headers: {
@@ -858,67 +921,30 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 },
                 body: JSON.stringify({
                     walletAddress: publicKey.toString(),
-                    collectionName: displayName,
-                    collectionMintAddress: collectionOnChainAddress,
+                    collectionOnChainAddress: collectionOnChainAddress,
                     nftName,
                     nftSymbol: displaySymbol,
-                    nftUri: nftMetadataUri,
-                    requiredWhiskeyAmount: requiredWhiskeyAmount
+                    nftMetadataUri,
+                    requiredWhiskeyAmount: requiredWhiskeyAmount || 0,
+                    userWhiskeyBalance: userWhiskeyBalance
                 }),
             });
 
             if (!mintResponse.ok) {
-                const errorData = await mintResponse.json();
-                throw new Error(errorData.error || 'Failed to create mint transaction');
+                const errorData = await mintResponse.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Whiskey-gated minting failed');
             }
 
             const mintResult = await mintResponse.json();
             if (!mintResult.success) {
-                throw new Error(mintResult.error || 'Failed to create mint transaction');
+                throw new Error(mintResult.message || 'Whiskey-gated minting failed');
             }
 
-            console.log('[WHISKEY-GATED] ✅ Mint transaction created');
-
-            // Deserialize and sign the transaction
-            const transactionBuffer = Buffer.from(mintResult.transaction, 'base64');
-            const transaction = Transaction.from(transactionBuffer);
-
-            console.log('[WHISKEY-GATED] Requesting wallet signature...');
-            const signedTransaction = await signTransaction(transaction);
-
-            console.log('[WHISKEY-GATED] Submitting transaction...');
-            const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+            console.log('[WHISKEY-GATED] ✅ Whiskey-gated mint successful:', mintResult.nftMintAddress);
             
-            console.log('[WHISKEY-GATED] Transaction sent:', signature);
-            setMintMessage('⏳ Confirming transaction...');
-            
-            await connection.confirmTransaction(signature, 'confirmed');
-            console.log('[WHISKEY-GATED] ✅ Transaction confirmed!');
-
-            // Record the purchase
-            try {
-                await fetch('/api/mints/record-purchase', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        walletAddress: publicKey.toString(),
-                        nftMintAddress: mintResult.nftMint,
-                        collectionMintAddress: collectionOnChainAddress,
-                        transactionSignature: signature,
-                    }),
-                });
-                
-                // Update wallet NFT count to reflect the new mint
-                setWalletNftCount(prev => prev + 1);
-                console.log('[WHISKEY-GATED] ✅ Updated wallet NFT count');
-                
-            } catch (recordError) {
-                console.warn('[WHISKEY-GATED] Failed to record purchase:', recordError);
-                // Don't fail the mint for this, but still update the count
-                setWalletNftCount(prev => prev + 1);
-            }
+            // Update wallet NFT count to reflect the new mint
+            setWalletNftCount(prev => prev + 1);
+            console.log('[WHISKEY-GATED] ✅ Updated wallet NFT count');
 
             setMintMessage('🎉 Success! Your whiskey-gated NFT has been minted!');
             
@@ -971,7 +997,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
     // Legacy function for backwards compatibility (now simplified)
 
-    // New handler for Step 1: Swap & Deposit
+    // New handler for Step 1: Swap & Deposit (REGULAR COLLECTIONS ONLY)
     const handleStep1 = async () => {
         // Pre-mint validation
         if (!connected || !publicKey) {
@@ -979,21 +1005,21 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // Check WHISKEY balance
-        if (userWhiskeyBalance < displayMintPriceWhiskeyTokens) {
-            setMintMessage(`❌ Insufficient WHISKEY balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} WHISKEY`);
+        // This function should ONLY be called for regular (non-whiskey-gated) collections
+        if (isWhiskeyGated) {
+            setMintMessage('❌ This function is only for regular collections. Use whiskey-gated mint instead.');
             return;
         }
 
-        // Check wallet NFT limit (max 5 per collection)
+        // Check WHISKEY balance for swap (regular collections need WHISKEY to swap to USDC)
+        if (userWhiskeyBalance < displayMintPriceWhiskeyTokens) {
+            setMintMessage(`❌ Insufficient WHISKEY balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} WHISKEY to swap for minting`);
+            return;
+        }
+
+        // Check wallet NFT limit (max 5 per collection for regular collections)
         if (walletNftCount >= 5) {
             setMintMessage('❌ Wallet limit reached (5 NFTs max per collection)');
-            return;
-        }
-
-        // For whiskey-gated collections, check if user has required amount
-        if (isWhiskeyGated && !hasRequiredWhiskey) {
-            setMintMessage(`❌ Need ${requiredWhiskeyAmount} WHISKEY tokens to mint from this collection`);
             return;
         }
 
@@ -1236,21 +1262,23 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-amber-800/50 text-amber-400 rounded-xl font-bold cursor-not-allowed border border-amber-700/50"
                         >
-                            Loading...
+                            Loading WHISKEY Balance...
+                        </button>
+                    ) : isWhiskeyGated && (!requiredWhiskeyAmount || userWhiskeyBalance < requiredWhiskeyAmount) ? (
+                        // Whiskey-gated collections: Check if user has required WHISKEY holdings
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Need {requiredWhiskeyAmount?.toLocaleString() || 0} WHISKEY to Hold
                         </button>
                     ) : !isWhiskeyGated && displayMintPriceWhiskeyTokens > 0 && userWhiskeyBalance < displayMintPriceWhiskeyTokens ? (
+                        // Regular collections: Check if user has enough WHISKEY to swap
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY
-                        </button>
-                    ) : isWhiskeyGated && !hasRequiredWhiskey ? (
-                        <button
-                            disabled
-                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
-                        >
-                            Need {requiredWhiskeyAmount?.toLocaleString()} WHISKEY
+                            Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY to Swap
                         </button>
                     ) : isWhiskeyGated ? (
                         // Whiskey-gated collections: Simple one-click mint (free if you have WHISKEY)
@@ -1307,7 +1335,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     {connected && isWhiskeyGated && (
                         <div className="mt-4 p-3 bg-amber-900/20 rounded-lg border border-amber-700/40">
                             <p className="text-xs text-amber-400 text-center">
-                                🥃 <strong>Master Distiller Collection:</strong> FREE mint if you hold {requiredWhiskeyAmount?.toLocaleString()} WHISKEY • 1 NFT per wallet
+                                🥃 <strong>Master Distiller Collection:</strong> FREE mint but you must HOLD {requiredWhiskeyAmount?.toLocaleString()} WHISKEY tokens • 1 NFT per wallet • No payment required
                             </p>
                         </div>
                     )}
@@ -1317,7 +1345,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         <div className="mt-4 space-y-2">
                             <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/40">
                                 <p className="text-xs text-green-400 text-center">
-                                    🔄 <strong>Two-Step Process:</strong> 1) Direct WHISKEY→USDC swap + vault deposit → 2) NFT mint
+                                    💰 <strong>Paid Mint:</strong> WHISKEY tokens are swapped to USDC and used to mint your NFT • Two-step process
                                 </p>
                             </div>
                             {/* 5 NFT Limit Warning */}
