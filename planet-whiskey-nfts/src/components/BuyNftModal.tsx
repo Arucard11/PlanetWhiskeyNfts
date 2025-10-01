@@ -176,8 +176,6 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
         }
 
         setBuyMessage("3/4: Confirming purchase on blockchain...");
-
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
         
         // Fast confirmation with aggressive polling
         console.log('[BUY_MODAL] 🚀 Starting fast confirmation polling...');
