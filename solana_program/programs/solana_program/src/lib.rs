@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("3GbJdAjF6Sqic84sXJHargXXQjknXVAADeKyRGv8FN2N");
+declare_id!("Gf4thBmzMFmhAe4yo5oZXRTiZwUeTAVsWUzo6s7LywG5");
 
 use anchor_spl::{
     token::{self, Mint, Token, TokenAccount, MintTo, mint_to},
@@ -462,6 +462,139 @@ pub mod whiskeyprogram {
         msg!("✅ Whiskey-gated collection '{}' created successfully", name);
         Ok(())
     }
+
+    /// 🥃 NEW: Dedicated Whiskey-Gated Minting (No Payment Processing)
+    /// This function:
+    /// 1. Validates user has required WHISKEY balance (doesn't spend it)
+    /// 2. Checks wallet hasn't already minted from this collection
+    /// 3. Mints NFT directly (free mint)
+    /// 4. Updates collection counter
+    pub fn mint_whiskey_gated(
+        ctx: Context<MintWhiskeyGated>,
+        nft_name: String,
+        nft_symbol: String,
+        nft_uri: String,
+    ) -> Result<()> {
+        msg!("🥃 WHISKEY-GATED MINT: Starting free mint with balance validation");
+        
+        let collection_config = &mut ctx.accounts.collection_config;
+        
+        // ✅ VALIDATION 1: Ensure this is a whiskey-gated collection
+        require!(collection_config.is_whiskey_gated, ErrorCode::NotWhiskeyGated);
+        msg!("✅ Collection is whiskey-gated");
+        
+        // ✅ VALIDATION 2: Check collection isn't full
+        require!(
+            collection_config.items_minted < collection_config.item_limit,
+            ErrorCode::CollectionFull
+        );
+        msg!("✅ Collection has space ({}/{})", 
+             collection_config.items_minted, 
+             collection_config.item_limit);
+        
+        // ✅ VALIDATION 3: Check user's WHISKEY balance
+        let user_whiskey_balance = ctx.accounts.user_whiskey_account.amount;
+        let required_balance = collection_config.required_whiskey_amount;
+        
+        require!(
+            user_whiskey_balance >= required_balance,
+            ErrorCode::InsufficientWhiskeyBalance
+        );
+        msg!("✅ User has sufficient WHISKEY balance: {} >= {} required", 
+             user_whiskey_balance as f64 / 1_000_000.0,
+             required_balance as f64 / 1_000_000.0);
+        
+        // ✅ VALIDATION 4: Check wallet hasn't already minted from this collection
+        let wallet_counter = &mut ctx.accounts.wallet_nft_counter;
+        require!(
+            wallet_counter.nft_count == 0,
+            ErrorCode::WhiskeyGatedCollectionLimitExceeded
+        );
+        msg!("✅ Wallet hasn't minted from this collection yet");
+        
+        // ✅ VALIDATION 5: Validate NFT metadata
+        require!(nft_name.len() <= MAX_NAME_LENGTH, ErrorCode::NftNameTooLong);
+        require!(nft_symbol.len() <= MAX_SYMBOL_LENGTH, ErrorCode::NftSymbolTooLong);
+        require!(nft_uri.len() <= MAX_URI_LENGTH, ErrorCode::NftUriTooLong);
+        
+        // ✅ MINT NFT: Create the NFT (free mint - no payment processing)
+        msg!("🎨 Minting NFT: '{}'", nft_name);
+        
+        // Create collection signer seeds for PDA (same as regular mint)
+        let collection_name_bytes = collection_config.name.as_bytes();
+        let collection_bump = collection_config.bump;
+        let collection_seeds = &[
+            b"collection".as_ref(),
+            collection_name_bytes,
+            &[collection_bump],
+        ];
+        let collection_signer_seeds = &[&collection_seeds[..]];
+        
+        // Mint NFT token to user
+        mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.nft_mint.to_account_info(),
+                    to: ctx.accounts.nft_token_account.to_account_info(),
+                    authority: collection_config.to_account_info(),
+                },
+                collection_signer_seeds,
+            ),
+            1,
+        )?;
+        
+        // Create NFT metadata
+        let metadata_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_metadata_program.to_account_info(),
+            CreateMetadataAccountsV3 {
+                metadata: ctx.accounts.nft_metadata_account.to_account_info(),
+                mint: ctx.accounts.nft_mint.to_account_info(),
+                mint_authority: collection_config.to_account_info(),
+                payer: ctx.accounts.user.to_account_info(),
+                update_authority: collection_config.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                rent: ctx.accounts.rent.to_account_info(),
+            },
+            collection_signer_seeds,
+        );
+        
+        let data = DataV2 {
+            name: nft_name.clone(),
+            symbol: nft_symbol,
+            uri: nft_uri,
+            seller_fee_basis_points: 500, // 5% royalty
+            creators: Some(vec![Creator {
+                address: collection_config.authority,
+                verified: false,
+                share: 100,
+            }]),
+            collection: Some(Collection {
+                verified: false,
+                key: collection_config.collection_mint,
+            }),
+            uses: None,
+        };
+        
+        create_metadata_accounts_v3(
+            metadata_ctx,
+            data,
+            true, // is_mutable
+            false, // update_authority_is_signer (collection_config is PDA)
+            None, // No collection details for individual NFTs
+        )?;
+        
+        // ✅ UPDATE COUNTERS
+        collection_config.items_minted += 1;
+        wallet_counter.nft_count += 1;
+        
+        msg!("✅ Whiskey-gated NFT '{}' minted successfully! Collection: {}/{}", 
+             nft_name, 
+             collection_config.items_minted, 
+             collection_config.item_limit);
+        
+        Ok(())
+    }
 }
 
 // ✅ ACCOUNT STRUCTURES
@@ -582,6 +715,78 @@ pub struct CreateCollectionAccounts<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
+// 🥃 NEW: Whiskey-Gated Minting Accounts (No Payment Processing)
+// 🥃 NEW: Whiskey-Gated Minting Accounts (No Payment Processing)
+#[derive(Accounts)]
+// CORRECTED: The #[instruction(...)] line that was causing the error has been removed from here.
+pub struct MintWhiskeyGated<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        mut,
+        constraint = collection_config.is_whiskey_gated @ ErrorCode::NotWhiskeyGated
+    )]
+    pub collection_config: Account<'info, CollectionConfig>,
+
+    // User's WHISKEY token account (for balance validation only - no transfer)
+    #[account(
+        associated_token::mint = whiskey_mint,
+        associated_token::authority = user
+    )]
+    pub user_whiskey_account: Account<'info, TokenAccount>,
+
+    // Wallet NFT counter for this collection (to prevent duplicate mints)
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = WalletNftCounter::SPACE,
+        seeds = [
+            b"wallet_counter",
+            user.key().as_ref(),
+            collection_config.collection_mint.as_ref()
+        ],
+        bump
+    )]
+    pub wallet_nft_counter: Account<'info, WalletNftCounter>,
+
+    // NFT accounts (same as regular mint)
+    #[account(
+        init,
+        payer = user,
+        mint::decimals = 0,
+        mint::authority = collection_config,
+        mint::freeze_authority = collection_config
+    )]
+    pub nft_mint: Account<'info, Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = user,
+        associated_token::mint = nft_mint,
+        associated_token::authority = user
+    )]
+    pub nft_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Metaplex metadata account
+    #[account(mut)]
+    pub nft_metadata_account: UncheckedAccount<'info>,
+
+    /// CHECK: Metaplex master edition account
+    #[account(mut)]
+    pub nft_master_edition_account: UncheckedAccount<'info>,
+
+    // Token mints for validation
+    #[account(address = WHISKEY_TOKEN_MINT)]
+    pub whiskey_mint: Account<'info, Mint>,
+
+    // Programs
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_metadata_program: Program<'info, Metadata>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
 // Error codes
 #[error_code]
 pub enum ErrorCode {
@@ -633,4 +838,8 @@ pub enum ErrorCode {
     WrongCollection,
     #[msg("Insufficient payment")]
     InsufficientPayment,
+    #[msg("Collection is not whiskey-gated")]
+    NotWhiskeyGated,
+    #[msg("Insufficient WHISKEY balance for this gated collection")]
+    InsufficientWhiskeyBalance,
 }

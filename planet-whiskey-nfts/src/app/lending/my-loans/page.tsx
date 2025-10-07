@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { Connection, Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
-import * as anchor from '@coral-xyz/anchor';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import { getLendingProgram } from '@/lib/solanaUtils';
+import { Lendingprogram } from '@/lib/idl/lendingprogram';
+import lendingIdl from '@/lib/idl/lendingprogram.json';
 import { getCurrentWhiskeyRate } from '../../../lib/coingeckoPricing';
 import MediaWithFallback from '../../../components/MediaWithFallback';
 
@@ -44,7 +46,8 @@ interface UserLendingData {
 }
 
 export default function MyLoansPage() {
-  const { connected, publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { connected, publicKey, signTransaction, sendTransaction } = useWallet();
   const [lendingData, setLendingData] = useState<UserLendingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -196,7 +199,7 @@ export default function MyLoansPage() {
   };
 
   const handleWithdrawNft = async (nftMintAddress: string) => {
-    if (!connected || !publicKey || !sendTransaction) {
+    if (!connected || !publicKey || !signTransaction) {
       toast.error('Wallet not connected');
       return;
     }
@@ -205,113 +208,137 @@ export default function MyLoansPage() {
     try {
       console.log('🔄 Creating NFT withdrawal transaction...', { nftMintAddress });
       
-      // Build transaction client-side using Anchor program
-      console.log(`[WITHDRAW_NFT] 🔧 Building transaction client-side for ${nftMintAddress}...`);
+      toastId = toast.loading('⏳ Creating withdrawal transaction...');
+
+      // Setup Anchor program
+      const walletInterface = {
+        publicKey,
+        signTransaction: signTransaction!,
+        signAllTransactions: async (txs: Transaction[]) => {
+          return await Promise.all(txs.map(tx => signTransaction!(tx)));
+        }
+      };
       
-      const program = getLendingProgram();
-      const user = publicKey;
-      const nftMint = new PublicKey(nftMintAddress);
+      const provider = new AnchorProvider(connection, walletInterface as any, {
+        commitment: 'confirmed',
+        preflightCommitment: 'confirmed'
+      });
       
-      // Derive PDAs
-      const [globalMarket] = PublicKey.findProgramAddressSync(
+      const program = new Program(lendingIdl as Lendingprogram, provider);
+
+      // Get PDAs and accounts
+      const [globalMarketPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("global_market")],
         program.programId
       );
-      
-      const [collectionRegistry] = PublicKey.findProgramAddressSync(
+
+      const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("collection_registry")],
         program.programId
       );
-      
-      const [borrowerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("borrower_account"), user.toBuffer()],
+
+      const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), publicKey.toBuffer()],
         program.programId
       );
+
+      const nftMint = new PublicKey(nftMintAddress);
+      const userNftAccount = getAssociatedTokenAddressSync(nftMint, publicKey);
       
-      const [nftEscrow] = PublicKey.findProgramAddressSync(
-        [Buffer.from("collateral_escrow"), user.toBuffer(), nftMint.toBuffer()],
+      const [nftEscrowPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("collateral_escrow"), publicKey.toBuffer(), nftMint.toBuffer()],
         program.programId
       );
-      
-      // Get token accounts
-      const userNftAccount = await getAssociatedTokenAddress(nftMint, user);
-      
-      console.log(`[WITHDRAW_NFT] 📍 Derived accounts:`, {
-        globalMarket: globalMarket.toString(),
-        borrowerAccount: borrowerAccount.toString(),
-        nftEscrow: nftEscrow.toString(),
-        userNftAccount: userNftAccount.toString()
+
+      console.log('📋 Withdrawal parameters:', {
+        nftMint: nftMint.toBase58(),
+        userNftAccount: userNftAccount.toBase58(),
+        nftEscrow: nftEscrowPda.toBase58(),
+        borrowerAccount: borrowerAccountPda.toBase58()
       });
-      
-      // Build the withdraw NFT instruction
-      const withdrawInstruction = await program.methods
+
+      toast.loading('⏳ Please sign the transaction...', { id: toastId });
+
+      // Create withdraw NFT instruction
+      const withdrawIx = await program.methods
         .withdrawNft()
         .accounts({
-          globalMarket: globalMarket,
-          collectionRegistry: collectionRegistry,
-          borrowerAccount: borrowerAccount,
+          globalMarket: globalMarketPda,
+          collectionRegistry: collectionRegistryPda,
+          borrowerAccount: borrowerAccountPda,
           nftMint: nftMint,
           userNftAccount: userNftAccount,
-          nftEscrow: nftEscrow,
-          user: user,
+          nftEscrow: nftEscrowPda,
+          user: publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .instruction();
-      
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.add(withdrawInstruction);
-      
-      // Get fresh blockhash
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+      // Create and send transaction
+      const transaction = new Transaction().add(withdrawIx);
+      const { blockhash } = await connection.getLatestBlockhash('confirmed');
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
+
+      const signedTransaction = await signTransaction(transaction);
       
-      console.log(`[WITHDRAW_NFT] ✅ Transaction built client-side`);
+      toast.loading('⏳ Sending transaction...', { id: toastId });
       
-      // Simulate transaction first to get better error details
-      console.log('🧪 Simulating NFT withdrawal transaction...');
-      try {
-        const simulation = await connection.simulateTransaction(transaction);
-        if (simulation.value.err) {
-          console.error('❌ Transaction simulation failed:', simulation.value.err);
-          console.error('📋 Simulation logs:', simulation.value.logs);
-          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
-        }
-        console.log('✅ Transaction simulation successful');
-      } catch (simError) {
-        console.error('❌ Simulation error:', simError);
-        throw new Error(`Transaction simulation failed: ${simError.message}`);
-      }
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed'
+      });
+
+      toast.loading('⏳ Confirming transaction...', { id: toastId });
       
-      console.log('🚀 Sending NFT withdrawal transaction...');
-      const signature = await sendTransaction(transaction, connection);
-      console.log('📡 Transaction sent:', signature);
-      
-      // Wait for confirmation
-      toastId = toast.loading('⏳ Confirming NFT withdrawal...');
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-      
-      if (confirmation.value.err) {
-        toast.dismiss(toastId);
-        throw new Error(`Transaction failed: ${confirmation.value.err.toString()}`);
-      }
-      
-      console.log('✅ Withdrawal transaction confirmed:', signature);
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      console.log('✅ NFT withdrawal successful:', signature);
       toast.success(`🎨 NFT withdrawn successfully! Transaction: ${signature.slice(0, 8)}...`, { id: toastId });
+
+      // Record the withdrawal in the database for tracking
+      try {
+        await fetch('/api/lending/withdraw-nft', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress: publicKey.toString(),
+            nftMintAddress: nftMintAddress,
+            signature: signature,
+            clientSideTransaction: true,
+          }),
+        });
+      } catch (dbError) {
+        console.warn('Failed to record withdrawal in database:', dbError);
+      }
       
       // Refresh data
       await fetchUserLendingData();
     } catch (error) {
       console.error('Error withdrawing NFT:', error);
       if (toastId) toast.dismiss(toastId);
-      toast.error(error instanceof Error ? error.message : 'Failed to withdraw NFT');
+      
+      let errorMessage = 'Failed to withdraw NFT';
+      if (error instanceof Error) {
+        if (error.message.includes('Outstanding debt exists')) {
+          errorMessage = 'Cannot withdraw NFT while you have outstanding loans. Repay all loans first.';
+        } else if (error.message.includes('NFT not found')) {
+          errorMessage = 'NFT not found in your deposited collateral';
+        } else if (error.message.includes('User rejected')) {
+          errorMessage = 'Transaction cancelled by user';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
   const handleRepayLoan = async (loanId: string, amount: number) => {
-    if (!connected || !publicKey || !sendTransaction) {
+    if (!connected || !publicKey || !signTransaction) {
       toast.error('Wallet not connected');
       return;
     }
@@ -320,127 +347,163 @@ export default function MyLoansPage() {
     try {
       console.log('🔄 Creating repayment transaction...', { loanId, amount });
       
-      // Build transaction client-side using Anchor program
-      console.log(`[REPAY_LOAN] 🔧 Building transaction client-side...`);
+      toastId = toast.loading('⏳ Creating repayment transaction...');
+
+      // Setup Anchor program
+      const walletInterface = {
+        publicKey,
+        signTransaction: signTransaction!,
+        signAllTransactions: async (txs: Transaction[]) => {
+          return await Promise.all(txs.map(tx => signTransaction!(tx)));
+        }
+      };
       
-      const program = getLendingProgram();
-      const user = publicKey;
-      const loanPubkey = new PublicKey(loanId);
-      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
-      const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_TOKEN_MINT!);
-      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      const provider = new AnchorProvider(connection, walletInterface as any, {
+        commitment: 'confirmed',
+        preflightCommitment: 'confirmed'
+      });
       
-      // Derive PDAs
-      const [borrowerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("borrower_account"), user.toBuffer()],
+      const program = new Program(lendingIdl as Lendingprogram, provider);
+
+      // Get current WHISKEY price for dual payment calculation
+      const whiskeyRate = await getCurrentWhiskeyRate();
+      
+      // Find the loan to get details
+      const loan = lendingData?.activeLoans.find(l => l.loanId === loanId);
+      if (!loan) {
+        throw new Error('Loan not found');
+      }
+
+      // Calculate dual payment breakdown
+      const breakdown = calculateDualPaymentBreakdown(loan);
+      const principalUsd = breakdown.principalUSDC;
+      const interestUsd = breakdown.interestUSD;
+      const whiskeyAmountNeeded = interestUsd / whiskeyRate;
+
+      // Convert to micro units (6 decimals)
+      const usdcPrincipalAmount = Math.floor(principalUsd * 1000000);
+      const whiskeyInterestAmount = Math.floor(whiskeyAmountNeeded * 1000000);
+      const currentWhiskeyPriceUsd = Math.floor(whiskeyRate * 1000000);
+
+      // Get PDAs and accounts
+      const loanPda = new PublicKey(loanId);
+      
+      const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), publicKey.toBuffer()],
         program.programId
       );
-      
-      const [globalMarket] = PublicKey.findProgramAddressSync(
+
+      const [globalMarketPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("global_market")],
         program.programId
       );
-      
-      const [capitalVault] = PublicKey.findProgramAddressSync(
+
+      const [capitalVaultPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("capital_vault_usdc")],
         program.programId
       );
-      
-      // Get token accounts
-      const borrowerUsdcTokenAccount = await getAssociatedTokenAddress(usdcMint, user);
-      const borrowerWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, user);
-      const treasuryWhiskeyTokenAccount = await getAssociatedTokenAddress(whiskeyMint, treasuryWallet);
-      
-      // Get current WHISKEY price for dual payment calculation
-      const whiskeyPriceUsd = await getCurrentWhiskeyRate();
-      const whiskeyPriceUsdMicro = Math.floor(whiskeyPriceUsd * 1_000_000);
-      
-      // Calculate payment amounts (this is a simplified calculation)
-      const totalAmountUsd = amount;
-      const principalUsd = Math.floor(totalAmountUsd * 0.8); // Assume 80% principal
-      const interestUsd = totalAmountUsd - principalUsd; // 20% interest
-      const whiskeyInterestAmount = Math.floor((interestUsd / whiskeyPriceUsd) * 1_000_000);
-      
-      console.log(`[REPAY_LOAN] 📍 Derived accounts:`, {
-        borrowerAccount: borrowerAccount.toString(),
-        globalMarket: globalMarket.toString(),
-        capitalVault: capitalVault.toString(),
-        loan: loanPubkey.toString(),
-        principalUsd,
-        interestUsd,
-        whiskeyInterestAmount
+
+      // Token accounts
+      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+      const whiskeyMint = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
+      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+
+      const borrowerUsdcAccount = getAssociatedTokenAddressSync(usdcMint, publicKey);
+      const borrowerWhiskeyAccount = getAssociatedTokenAddressSync(whiskeyMint, publicKey);
+      const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(whiskeyMint, treasuryWallet);
+
+      console.log('📋 Repayment parameters:', {
+        usdcPrincipalAmount,
+        whiskeyInterestAmount,
+        currentWhiskeyPriceUsd,
+        loanPda: loanPda.toBase58(),
+        borrowerAccount: borrowerAccountPda.toBase58()
       });
-      
-      // Build the repay loan instruction
-      const repayInstruction = await program.methods
+
+      toast.loading('⏳ Please sign the transaction...', { id: toastId });
+
+      // Create repay loan instruction
+      const repayIx = await program.methods
         .repayLoanDualPayment(
-          new anchor.BN(principalUsd * 1_000_000), // USDC principal in microdollars
-          new anchor.BN(whiskeyInterestAmount), // WHISKEY interest amount
-          new anchor.BN(whiskeyPriceUsdMicro) // Current WHISKEY price
+          new BN(usdcPrincipalAmount),
+          new BN(whiskeyInterestAmount),
+          new BN(currentWhiskeyPriceUsd)
         )
         .accounts({
-          loan: loanPubkey,
-          borrowerAccount: borrowerAccount,
-          globalMarket: globalMarket,
-          capitalVault: capitalVault,
-          borrowerUsdcTokenAccount: borrowerUsdcTokenAccount,
-          borrowerWhiskeyTokenAccount: borrowerWhiskeyTokenAccount,
-          treasuryWhiskeyTokenAccount: treasuryWhiskeyTokenAccount,
+          loan: loanPda,
+          borrowerAccount: borrowerAccountPda,
+          globalMarket: globalMarketPda,
+          capitalVault: capitalVaultPda,
+          borrowerUsdcTokenAccount: borrowerUsdcAccount,
+          borrowerWhiskeyTokenAccount: borrowerWhiskeyAccount,
+          treasuryWhiskeyTokenAccount: treasuryWhiskeyAccount,
           treasuryWallet: treasuryWallet,
-          borrower: user,
+          borrower: publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .instruction();
-      
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.add(repayInstruction);
-      
-      // Get fresh blockhash
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+      // Create and send transaction
+      const transaction = new Transaction().add(repayIx);
+      const { blockhash } = await connection.getLatestBlockhash('confirmed');
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
+
+      const signedTransaction = await signTransaction(transaction);
       
-      console.log(`[REPAY_LOAN] ✅ Transaction built client-side`);
+      toast.loading('⏳ Sending transaction...', { id: toastId });
       
-      // Simulate transaction first to get better error details
-      console.log('🧪 Simulating repayment transaction...');
-      try {
-        const simulation = await connection.simulateTransaction(transaction);
-        if (simulation.value.err) {
-          console.error('❌ Transaction simulation failed:', simulation.value.err);
-          console.error('📋 Simulation logs:', simulation.value.logs);
-          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
-        }
-        console.log('✅ Transaction simulation successful');
-      } catch (simError) {
-        console.error('❌ Simulation error:', simError);
-        throw new Error(`Transaction simulation failed: ${simError.message}`);
-      }
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed'
+      });
+
+      toast.loading('⏳ Confirming transaction...', { id: toastId });
       
-      console.log('🚀 Sending repayment transaction...');
-      const signature = await sendTransaction(transaction, connection);
-      console.log('📡 Transaction sent:', signature);
-      
-      // Wait for confirmation
-      toastId = toast.loading('⏳ Confirming loan repayment...');
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-      
-      if (confirmation.value.err) {
-        toast.dismiss(toastId);
-        throw new Error(`Transaction failed: ${confirmation.value.err.toString()}`);
-      }
-      
-      console.log('✅ Repayment transaction confirmed:', signature);
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      console.log('✅ Loan repayment successful:', signature);
       toast.success(`💰 Loan repayment successful! Transaction: ${signature.slice(0, 8)}...`, { id: toastId });
+
+      // Record the repayment in the database for tracking
+      try {
+        await fetch('/api/lending/repay-loan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress: publicKey.toString(),
+            loanId: loanId,
+            repaymentAmountUsd: amount,
+            signature: signature,
+            clientSideTransaction: true,
+          }),
+        });
+      } catch (dbError) {
+        console.warn('Failed to record repayment in database:', dbError);
+      }
       
       // Refresh data
       await fetchUserLendingData();
     } catch (error) {
       console.error('Error repaying loan:', error);
       if (toastId) toast.dismiss(toastId);
-      toast.error(error instanceof Error ? error.message : 'Failed to repay loan');
+      
+      let errorMessage = 'Failed to repay loan';
+      if (error instanceof Error) {
+        if (error.message.includes('Insufficient payment amount')) {
+          errorMessage = 'Insufficient payment amount. Please check your token balances.';
+        } else if (error.message.includes('Loan not active')) {
+          errorMessage = 'Loan is not active or has already been repaid.';
+        } else if (error.message.includes('User rejected')) {
+          errorMessage = 'Transaction cancelled by user';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   };
 

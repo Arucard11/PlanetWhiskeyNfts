@@ -267,6 +267,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tempKeypair = Keypair.generate();
     const provider = getAnchorProvider(tempKeypair);
     const program = getSolanaProgram(provider);
+    
+    // Debug: Check program ID matching
+    console.log('[DEBUG] Environment WHISKEY_PROGRAM_ID:', process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID);
+    console.log('[DEBUG] Program ID from program:', program.programId.toString());
+    console.log('[DEBUG] IDL address:', (program.idl as any).address);
+    console.log('[DEBUG] Program IDs match:', program.programId.toString() === process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID);
 
     // This keypair is for the *new collection's mint account itself*, NOT the fee payer.
     const collectionMintKeypair = Keypair.generate();

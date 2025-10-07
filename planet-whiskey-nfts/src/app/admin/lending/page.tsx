@@ -43,6 +43,15 @@ interface LendingStats {
   averageNftValue: string;
 }
 
+interface CollectionEntry {
+  mint: string;
+  valueUsd: number;
+  isApproved: boolean;
+  addedAt: number; // Unix timestamp
+  isWhiskeyGated?: boolean;
+  requiredWhiskeyAmount?: number;
+}
+
 export default function LendingAdminPage() {
   const { connected, publicKey, signTransaction, wallet } = useWallet();
   const [config, setConfig] = useState<LendingConfig | null>(null);
@@ -56,7 +65,7 @@ export default function LendingAdminPage() {
   const [dataLoaded, setDataLoaded] = useState(false); // Track if data has been loaded
   
   // Collection Registry state
-  const [collections, setCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<CollectionEntry[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(false);
   const [newCollectionMint, setNewCollectionMint] = useState('');
   const [newCollectionValue, setNewCollectionValue] = useState('');
@@ -199,7 +208,7 @@ export default function LendingAdminPage() {
       setDeploymentInfo({
         lendingProgramId: lendingProgramId,
         globalMarketPda: 'Deriving...',
-        network: 'Devnet'
+        network: 'Mainnet'
       });
     }
   };
@@ -1162,15 +1171,17 @@ export default function LendingAdminPage() {
 
                   {/* Collections List */}
                   <div className="bg-white border border-gray-200 rounded-lg">
-                    <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                      <h4 className="text-md font-medium text-gray-800">Approved Collections</h4>
-                      <button
-                        onClick={fetchCollections}
-                        disabled={loadingCollections}
-                        className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 disabled:opacity-50"
-                      >
-                        {loadingCollections ? 'Loading...' : '🔄 Refresh'}
-                      </button>
+                    <div className="p-4 border-b border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-md font-medium text-gray-800">Collection Registry</h4>
+                        <button
+                          onClick={fetchCollections}
+                          disabled={loadingCollections}
+                          className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 disabled:opacity-50"
+                        >
+                          {loadingCollections ? 'Loading...' : '🔄 Refresh'}
+                        </button>
+                      </div>
                     </div>
                     
                     {collections.length === 0 ? (
@@ -1202,12 +1213,23 @@ export default function LendingAdminPage() {
                                 )}
                               </div>
                               <div className="text-sm text-gray-500 mt-1">
-                                Value: ${collection.valueUsd.toFixed(2)} USD
-                                {collection.isWhiskeyGated && collection.requiredWhiskeyAmount > 0 && (
-                                  <span className="ml-2 text-amber-600">
-                                    • Requires {collection.requiredWhiskeyAmount} WHISKEY
+                                <div>Value: ${collection.valueUsd.toFixed(2)} USD</div>
+                                <div className="flex items-center space-x-4 mt-1">
+                                  <span>
+                                    📅 Added: {new Date(collection.addedAt * 1000).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
                                   </span>
-                                )}
+                                  {collection.isWhiskeyGated && collection.requiredWhiskeyAmount > 0 && (
+                                    <span className="text-amber-600">
+                                      🥃 Requires {collection.requiredWhiskeyAmount.toLocaleString()} WHISKEY
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             <button

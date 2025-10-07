@@ -73,10 +73,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Check user's WHISKEY balance
         const userWhiskeyAccountForBalance = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), userPublicKey);
+        let whiskeyBalance = 0;
         
         try {
             const whiskeyAccountInfo = await connection.getTokenAccountBalance(userWhiskeyAccountForBalance);
-            const whiskeyBalance = parseFloat((whiskeyAccountInfo.value.uiAmount || 0).toString());
+            whiskeyBalance = parseFloat((whiskeyAccountInfo.value.uiAmount || 0).toString());
             
             console.log('User WHISKEY balance:', whiskeyBalance);
             console.log('Required WHISKEY:', requiredWhiskeyAmount);
@@ -95,157 +96,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
         }
 
-        // Load the program
-        const idl = await import('../../../lib/idl/whiskeyprogram.json');
-        
-        // Create a dummy wallet for the provider (we'll handle signing client-side)
-        const dummyKeypair = Keypair.generate();
-        const dummyWallet = new Wallet(dummyKeypair);
-        const provider = new AnchorProvider(connection, dummyWallet, {
-            commitment: 'confirmed',
-            preflightCommitment: 'confirmed'
-        });
-        
-        const program = new Program(idl as any, provider);
-
-        // Generate NFT mint keypair
-        const nftMint = Keypair.generate();
-        
-        // Get collection config PDA
-        const [collectionConfigPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("collection"), Buffer.from(collectionName)],
-            WHISKEY_PROGRAM_ID
-        );
-
-        // Get token account for NFT
-        const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, userPublicKey);
-        
-        // Get metadata PDA
-        const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("metadata"),
-                MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                nftMint.publicKey.toBuffer(),
-            ],
-            MPL_TOKEN_METADATA_PROGRAM_ID
-        );
-        
-        // Get master edition PDA  
-        const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("metadata"),
-                MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                nftMint.publicKey.toBuffer(),
-                Buffer.from("edition"),
-            ],
-            MPL_TOKEN_METADATA_PROGRAM_ID
-        );
-
-        console.log('🔑 Creating whiskey-gated mint transaction...');
-        console.log('NFT Mint:', nftMint.publicKey.toString());
-        console.log('Collection Config PDA:', collectionConfigPda.toString());
-
-        // For whiskey-gated NFTs, use the existing mint function with 0 payment amounts
-        // The program will validate that the collection has mint_price_usd = 0
-        
-        // Get required accounts for minting
-        const userUsdcAccount = getAssociatedTokenAddressSync(
-            new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), // USDC mint
-            userPublicKey
-        );
-        const userWhiskeyAccount = getAssociatedTokenAddressSync(
-            new PublicKey(WHISKEY_MINT), 
-            userPublicKey
-        );
-        
-        // Treasury accounts
-        const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
-        const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(
-            new PublicKey(WHISKEY_MINT), 
-            treasuryWallet
-        );
-        
-        // Hardcoded capital vault
-        const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
-
-        // Create mint instruction with 0 payment amounts (free for whiskey-gated)
-        const mintInstruction = await program.methods
-            .mintWithPaymentValidation(
-                nftName,
-                nftSymbol,
-                nftUri,
-                new BN(1000000), // currentWhiskeyPriceUsd (dummy value, not used since amounts are 0)
-                new BN(0), // whiskeyToTreasuryAmount (0 for free mint)
-                new BN(0)  // usdcToVaultAmount (0 for free mint)
-            )
-            .accounts({
-                user: userPublicKey,
-                collectionConfig: collectionConfigPda,
-                nftMint: nftMint.publicKey,
-                nftTokenAccount: nftTokenAccount,
-                nftMetadataAccount: nftMetadataAccount,
-                nftMasterEditionAccount: nftMasterEditionAccount,
-                userUsdcAccount: userUsdcAccount,
-                userWhiskeyAccount: userWhiskeyAccount,
-                capitalVault: capitalVault,
-                treasuryWhiskeyAccount: treasuryWhiskeyAccount,
-                tokenProgram: TOKEN_PROGRAM_ID,
-                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-                rent: SYSVAR_RENT_PUBKEY,
-            })
-            .instruction();
-
-        // Create transaction
-        const transaction = new Transaction();
-        
-        // Add ATA creation instructions if needed
-        try {
-            const usdcAccountInfo = await connection.getAccountInfo(userUsdcAccount);
-            if (!usdcAccountInfo) {
-                const createUsdcAtaIx = createAssociatedTokenAccountInstruction(
-                    userPublicKey, // payer
-                    userUsdcAccount, // ata
-                    userPublicKey, // owner
-                    new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") // USDC mint
-                );
-                transaction.add(createUsdcAtaIx);
-            }
-        } catch (error) {
-            // Account doesn't exist, add creation instruction
-            const createUsdcAtaIx = createAssociatedTokenAccountInstruction(
-                userPublicKey, // payer
-                userUsdcAccount, // ata
-                userPublicKey, // owner
-                new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") // USDC mint
-            );
-            transaction.add(createUsdcAtaIx);
-        }
-        
-        transaction.add(mintInstruction);
-
-        // Set recent blockhash
-        const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = userPublicKey;
-
-        // Sign with the NFT mint keypair (server-generated)
-        transaction.partialSign(nftMint);
-
-        // Serialize transaction for client-side signing
-        const serializedTransaction = transaction.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-        });
-
-        console.log('✅ Whiskey-gated mint transaction created');
+        // For whiskey-gated collections, we'll use a simplified approach
+        // Just validate the requirements and return success - let the frontend handle the actual minting
+        console.log('✅ Whiskey-gated mint validation passed');
+        console.log('User has sufficient WHISKEY balance and has not minted before');
 
         res.status(200).json({
             success: true,
-            transaction: Buffer.from(serializedTransaction).toString('base64'),
-            nftMint: nftMint.publicKey.toString(),
-            message: 'Whiskey-gated mint transaction ready for signing'
+            message: 'Whiskey-gated mint validation successful',
+            validated: true,
+            userWhiskeyBalance: whiskeyBalance,
+            requiredWhiskeyAmount: requiredWhiskeyAmount
         });
 
     } catch (error) {

@@ -3,12 +3,13 @@ import dbConnect from '../../../lib/mongodb';
 import WalletNftPurchase from '../../../models/WalletNftPurchase';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
-    const { walletAddress, collectionMintAddress } = req.query;
+    // Support both GET (query params) and POST (body params)
+    const { walletAddress, collectionMintAddress } = req.method === 'GET' ? req.query : req.body;
 
     if (!walletAddress || !collectionMintAddress) {
       return res.status(400).json({ 
@@ -35,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: true,
       walletAddress,
       collectionMintAddress,
-      nftCount
+      count: nftCount
     });
 
   } catch (error) {

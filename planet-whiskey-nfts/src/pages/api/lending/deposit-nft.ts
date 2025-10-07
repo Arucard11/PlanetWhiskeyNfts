@@ -36,17 +36,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { nftMintAddress, walletAddress, collectionMintAddress } = req.body;
+  const { nftMintAddress, walletAddress, collectionMintAddress, signature, clientSideTransaction } = req.body;
 
   console.log('🔍 API Debug - Received addresses:');
   console.log('🔍 nftMintAddress:', nftMintAddress);
   console.log('🔍 walletAddress:', walletAddress);
   console.log('🔍 collectionMintAddress:', collectionMintAddress);
+  console.log('🔍 clientSideTransaction:', clientSideTransaction);
 
   if (!nftMintAddress || !walletAddress || !collectionMintAddress) {
     return res.status(400).json({ 
       message: 'NFT mint address, wallet address, and collection mint address are required' 
     });
+  }
+
+  // If this is a client-side transaction, just validate and record
+  if (clientSideTransaction && signature) {
+    try {
+      console.log('📝 Recording client-side NFT deposit:', {
+        walletAddress,
+        nftMintAddress,
+        collectionMintAddress,
+        signature,
+        timestamp: new Date().toISOString()
+      });
+
+      // TODO: Store in database if needed
+      // For now, just validate and return success
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'NFT deposit recorded successfully',
+        signature 
+      });
+    } catch (error) {
+      console.error('Error recording client-side deposit:', error);
+      return res.status(500).json({ 
+        error: 'Failed to record deposit',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   try {

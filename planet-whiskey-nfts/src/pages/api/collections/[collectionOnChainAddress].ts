@@ -97,9 +97,9 @@ export default async function handler(
       ...(collectionFromDB as any),
       _id: collectionFromDB._id.toString(),
       companyId: collectionFromDB.companyId.toString(),
-      itemsMintedOnChain: onChainData.itemsMinted,
-      isWhiskeyGated: onChainData.isWhiskeyGated,
-      requiredWhiskeyAmount: onChainData.requiredWhiskeyAmount,
+      itemsMintedOnChain: onChainData.itemsMinted ?? 0, // Default to 0 if undefined
+      isWhiskeyGated: onChainData.isWhiskeyGated ?? false,
+      requiredWhiskeyAmount: onChainData.requiredWhiskeyAmount ?? 0,
     };
 
     res.status(200).json({ success: true, data: augmentedCollection });

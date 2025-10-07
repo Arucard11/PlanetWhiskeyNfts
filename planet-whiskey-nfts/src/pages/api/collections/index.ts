@@ -45,15 +45,57 @@ async function getCollectionOnChainData(collectionPdaString: string, program: an
   requiredWhiskeyAmount?: number;
 }> {
   try {
+    console.log(`[COLLECTIONS_API] 🔍 Fetching on-chain data for PDA: ${collectionPdaString}`);
     const pda = new PublicKey(collectionPdaString);
-    const accountInfo = await program.account.collectionConfig.fetch(pda);
-    return {
-      itemsMinted: (accountInfo as any).itemsMinted.toNumber(),
-      isWhiskeyGated: (accountInfo as any).isWhiskeyGated || false,
-      requiredWhiskeyAmount: (accountInfo as any).requiredWhiskeyAmount ? (accountInfo as any).requiredWhiskeyAmount.toNumber() : 0
+    console.log(`[COLLECTIONS_API] 🔑 PDA parsed successfully: ${pda.toString()}`);
+    
+    // Use connection.getAccountInfo instead of program.account.fetch
+    const connection = getSolanaConnection();
+    console.log(`[COLLECTIONS_API] 🌐 Using connection: ${connection.rpcEndpoint}`);
+    
+    const accountInfo = await connection.getAccountInfo(pda);
+    console.log(`[COLLECTIONS_API] 📊 Account info result:`, accountInfo ? 'Account exists' : 'Account not found');
+    
+    if (!accountInfo) {
+      console.log(`[COLLECTIONS_API] ⚠️ No account info found for PDA: ${collectionPdaString}`);
+      return {};
+    }
+    
+    // Decode the account data using the program coder
+    let collectionConfigData;
+    try {
+      console.log(`[COLLECTIONS_API] 🔧 Attempting to decode account data for PDA: ${collectionPdaString}`);
+      console.log(`[COLLECTIONS_API] 📊 Account data length: ${accountInfo.data.length} bytes`);
+      console.log(`[COLLECTIONS_API] 🏷️ Account owner: ${accountInfo.owner.toString()}`);
+      
+      collectionConfigData = program.coder.accounts.decode('collectionConfig', accountInfo.data);
+      console.log(`[COLLECTIONS_API] ✅ Successfully decoded account data`);
+    } catch (decodeError) {
+      console.error(`[COLLECTIONS_API] ❌ Failed to decode account data:`, decodeError);
+      console.log(`[COLLECTIONS_API] 🔍 Raw account data (first 100 bytes):`, accountInfo.data.slice(0, 100));
+      
+      // Try the old method as fallback
+      console.log(`[COLLECTIONS_API] 🔄 Trying fallback method: program.account.collectionConfig.fetch()`);
+      try {
+        const fallbackData = await program.account.collectionConfig.fetch(pda);
+        console.log(`[COLLECTIONS_API] ✅ Fallback method succeeded`);
+        collectionConfigData = fallbackData;
+      } catch (fallbackError) {
+        console.error(`[COLLECTIONS_API] ❌ Fallback method also failed:`, fallbackError);
+        return {};
+      }
+    }
+    
+    const result = {
+      itemsMinted: collectionConfigData.itemsMinted ? collectionConfigData.itemsMinted.toNumber() : 0,
+      isWhiskeyGated: collectionConfigData.isWhiskeyGated || false,
+      requiredWhiskeyAmount: collectionConfigData.requiredWhiskeyAmount ? collectionConfigData.requiredWhiskeyAmount.toNumber() : 0
     };
+    
+    console.log(`[COLLECTIONS_API] 📊 On-chain data for ${collectionPdaString}:`, result);
+    return result;
   } catch (error) {
-    console.error(`Error fetching on-chain data for PDA ${collectionPdaString}:`, error);
+    console.error(`[COLLECTIONS_API] ❌ Error fetching on-chain data for PDA ${collectionPdaString}:`, error);
     return {};
   }
 }
@@ -74,10 +116,22 @@ export default async function handler(
     await dbConnect();
 
     // Set up Solana program for on-chain data fetching
+    console.log(`[COLLECTIONS_API] 🔧 Setting up Solana program...`);
     const connection = getSolanaConnection();
+    console.log(`[COLLECTIONS_API] 🌐 Connection endpoint: ${connection.rpcEndpoint}`);
+    
     const tempKeypair = Keypair.generate(); // Temporary keypair for read-only operations
     const provider = getAnchorProvider(tempKeypair);
     const program = getSolanaProgram(provider);
+    
+    console.log(`[COLLECTIONS_API] 📋 Program ID: ${program.programId.toString()}`);
+    console.log(`[COLLECTIONS_API] 🔑 Expected program ID: ${process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID}`);
+    
+    if (program.programId.toString() !== process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID) {
+      console.error(`[COLLECTIONS_API] ❌ Program ID mismatch!`);
+      console.error(`[COLLECTIONS_API] 📋 Actual: ${program.programId.toString()}`);
+      console.error(`[COLLECTIONS_API] 🔑 Expected: ${process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID}`);
+    }
 
     const filter: any = {};
     if (companyId && typeof companyId === 'string') {
@@ -103,13 +157,17 @@ export default async function handler(
       collectionsFromDB.map(async (collection) => {
         let onChainData: { itemsMinted?: number; isWhiskeyGated?: boolean; requiredWhiskeyAmount?: number } = {};
         if (collection.collectionOnChainAddress) {
+          console.log(`[COLLECTIONS_API] 🔍 Processing collection "${collection.name}" with PDA: ${collection.collectionOnChainAddress}`);
           onChainData = await getCollectionOnChainData(collection.collectionOnChainAddress, program);
+          console.log(`[COLLECTIONS_API] 📊 Retrieved on-chain data for "${collection.name}":`, onChainData);
+        } else {
+          console.log(`[COLLECTIONS_API] ⚠️ Collection "${collection.name}" has no collectionOnChainAddress`);
         }
         const augmented = {
           ...(collection as any), // Cast to any to avoid Omit issues if INftCollection has more fields
           _id: collection._id.toString(), // ensure _id is string
           companyId: collection.companyId.toString(), // ensure companyId is string
-          itemsMintedOnChain: onChainData.itemsMinted,
+          itemsMintedOnChain: onChainData.itemsMinted ?? 0, // Default to 0 if undefined
           // Prioritize database values for whiskey gating info, fallback to on-chain
           isWhiskeyGated: collection.isWhiskeyGated ?? onChainData.isWhiskeyGated ?? false,
           requiredWhiskeyAmount: collection.requiredWhiskeyAmount ?? onChainData.requiredWhiskeyAmount ?? 0,
@@ -127,6 +185,12 @@ export default async function handler(
     );
 
     console.log(`[COLLECTIONS_API] ✅ Successfully returning ${augmentedCollections.length} collections`);
+    
+    // Add cache-busting headers to ensure fresh data
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.status(200).json({ success: true, data: augmentedCollections });
   } catch (error: any) {
     console.error("[COLLECTIONS_API] ❌ Error fetching collections:", error);

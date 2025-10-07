@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect} from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { 
     PublicKey, 
@@ -8,16 +8,19 @@ import {
     TransactionInstruction,
     LAMPORTS_PER_SOL,
     Keypair,
-    SYSVAR_RENT_PUBKEY
+    SYSVAR_RENT_PUBKEY,
+    AddressLookupTableAccount,
+    TransactionMessage
 } from '@solana/web3.js';
 import { 
     TOKEN_PROGRAM_ID, 
     ASSOCIATED_TOKEN_PROGRAM_ID, 
     getAssociatedTokenAddressSync,
-    createAssociatedTokenAccountInstruction
+    createAssociatedTokenAccountInstruction,
+    createCloseAccountInstruction,
+    createTransferInstruction
 } from '@solana/spl-token';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
-import { Wallet } from '@solana/wallet-adapter-react';
 import { PROGRAM_ID as MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
 // Raydium SDK Integration
@@ -25,10 +28,12 @@ import { Liquidity, LiquidityPoolKeys, Percent, Token, TokenAmount } from '@rayd
 
 // Import IDL and types
 import { Whiskeyprogram } from '@/lib/idl/whiskeyprogram';
-import idl from '@/lib/idl/whiskeyprogram.json';
+import whiskeyIdl from '@/lib/idl/whiskeyprogram.json';
 import MediaWithFallback from './MediaWithFallback';
 import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange, getCurrentWhiskeyRate } from '@/lib/coingeckoPricing';
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
+import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
+import { getSolanaConnection } from '@/lib/solanaUtils';
 
 // Token addresses
 const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
@@ -71,7 +76,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     requiredWhiskeyAmount = 0
 }) => {
     const { connection } = useConnection();
-    const { publicKey, connected, signAllTransactions, signTransaction } = useWallet();
+    const { publicKey, connected, signAllTransactions, signTransaction, sendTransaction, wallet } = useWallet();
 
     // State management
     const [isMinting, setIsMinting] = useState(false);
@@ -86,6 +91,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const [imageLoading, setImageLoading] = useState(true);
     const [walletNftCount, setWalletNftCount] = useState<number>(0);
     const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number>(0);
+    const [whiskeyBalanceLoading, setWhiskeyBalanceLoading] = useState<boolean>(true);
     // Real-time WHISKEY price data
     const { priceData: whiskeyPriceData, loading: priceLoadingState } = useRealTimeWhiskeyPrice();
     const whiskeyRate = whiskeyPriceData?.usd || 1;
@@ -145,9 +151,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     console.warn(`[NftCollectionCard] Both metadata APIs failed for ${name}`);
                 }
                 
-            } catch (error) {
+                    } catch (error) {
                 console.error('Error fetching collection metadata:', error);
-            } finally {
+                    } finally {
                 setImageLoading(false);
             }
         };
@@ -155,16 +161,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         fetchCollectionImage();
     }, [metadataUri]);
 
-    // Check wallet NFT count for whiskey-gated collections
-    useEffect(() => {
+    // Function to check wallet NFT count for any collection
         const checkWalletNftCount = async () => {
-            if (!connected || !publicKey || !isWhiskeyGated) {
+        if (!connected || !publicKey) {
                 setWalletNftCount(0);
                 return;
             }
 
             try {
-                console.log('[WALLET_CHECK] Checking NFT count for whiskey-gated collection...');
+            console.log('[WALLET_CHECK] Checking NFT count for collection...');
                 const response = await fetch(`/api/wallet/nft-count?walletAddress=${publicKey.toString()}&collectionMintAddress=${collectionOnChainAddress}`);
                 
                 if (!response.ok) {
@@ -175,8 +180,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 
                 const data = await response.json();
                 if (data.success) {
-                    console.log(`[WALLET_CHECK] Wallet has ${data.nftCount} NFTs from this collection`);
-                    setWalletNftCount(data.nftCount);
+                    console.log(`[WALLET_CHECK] Wallet has ${data.count} NFTs from this collection`);
+                    setWalletNftCount(data.count);
                 } else {
                     console.error('[WALLET_CHECK] API returned error:', data.message);
                     setWalletNftCount(0);
@@ -187,14 +192,23 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             }
         };
 
+    // Check wallet NFT count when dependencies change
+    useEffect(() => {
+        if (isWhiskeyGated || !isWhiskeyGated) { // Check for both whiskey-gated and regular collections
         checkWalletNftCount();
+        }
     }, [connected, publicKey, isWhiskeyGated, collectionOnChainAddress]);
 
     // Check user WHISKEY balance
     useEffect(() => {
         const checkUserWhiskeyBalance = async () => {
-            if (!connected || !publicKey) return;
+            if (!connected || !publicKey) {
+                setWhiskeyBalanceLoading(false);
+                setUserWhiskeyBalance(0);
+                return;
+            }
 
+            setWhiskeyBalanceLoading(true);
             try {
                 const whiskeyTokenAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, publicKey);
                 const accountInfo = await connection.getAccountInfo(whiskeyTokenAccount);
@@ -208,6 +222,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             } catch (error) {
                 console.error('Error checking WHISKEY balance:', error);
                 setUserWhiskeyBalance(0);
+            } finally {
+                setWhiskeyBalanceLoading(false);
             }
         };
 
@@ -335,7 +351,338 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         }
     };
 
-    // Step 2: Mint NFT after deposit is confirmed
+    // Step 2: Mint NFT with Address Lookup Table support
+    const handleStep2MintNftWithLookupTable = async (): Promise<void> => {
+        if (!connected || !publicKey || !sendTransaction) {
+            throw new Error('Wallet not connected or does not support required functions');
+        }
+
+        console.log('[STEP2_ALT] Starting NFT mint with lookup table...');
+        
+        try {
+            // Create individual NFT metadata and upload to IPFS
+            console.log(`[STEP2_ALT] Creating individual NFT metadata...`);
+            const nftName = `${displayName} #${(displayItemsMinted || 0) + 1}`;
+            
+            // Determine the NFT image URL - prioritize wallet-compatible URL for Phantom display
+            console.log(`[STEP2_ALT] 🔍 Image URL Debug:`, {
+                walletImageUrl,
+                imageUrl,
+                displayName
+            });
+            
+            let nftImageUrl = '';
+            if (walletImageUrl && walletImageUrl !== '' && !walletImageUrl.includes('placeholder')) {
+                nftImageUrl = walletImageUrl;
+                console.log(`[STEP2_ALT] ✅ Using wallet-compatible image: ${nftImageUrl}`);
+            } else if (imageUrl && imageUrl !== '' && imageUrl !== '/placeholder-image.svg' && !imageUrl.includes('placeholder')) {
+                nftImageUrl = imageUrl;
+                console.log(`[STEP2_ALT] ⚠️ Using display image (may not work in wallets): ${nftImageUrl}`);
+            } else {
+                // No valid image available - skip minting
+                throw new Error('No collection image available. Please upload a collection image before minting.');
+            }
+
+            setMintMessage('Creating NFT metadata...');
+            
+            // Debug log the metadata request
+            const metadataRequestBody = {
+                nftName: nftName,
+                nftSymbol: displaySymbol,
+                nftDescription: `${displayName} - Edition #${(displayItemsMinted || 0) + 1}`,
+                nftImageUrl: nftImageUrl,
+                attributes: [
+                    { trait_type: 'Edition', value: ((displayItemsMinted || 0) + 1).toString() },
+                    { trait_type: 'Collection', value: displayName },
+                    { trait_type: 'Type', value: 'Treasury NFT' },
+                    { trait_type: 'Rarity', value: 'Legendary' },
+                    { trait_type: 'Mint Timestamp', value: Date.now().toString() }
+                ],
+                collectionName: displayName,
+                collectionFamily: displayName,
+                mintNumber: (displayItemsMinted || 0) + 1,
+                mintTimestamp: Date.now(),
+                creatorAddress: publicKey.toString()
+            };
+            
+            console.log(`[STEP2_ALT] 📝 Metadata request body:`, metadataRequestBody);
+            
+            const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(metadataRequestBody),
+            });
+
+            if (!metadataResponse.ok) {
+                const errorData = await metadataResponse.json().catch(() => ({}));
+                const errorMessage = errorData.message || errorData.error || metadataResponse.statusText || 'Failed to create NFT metadata';
+                console.error(`[STEP2_ALT] ❌ Metadata API error:`, errorData);
+                throw new Error(errorMessage);
+            }
+
+            const metadataResult = await metadataResponse.json();
+            const nftMetadataUri = metadataResult.metadataUri;
+            console.log(`[STEP2_ALT] ✅ NFT metadata created: ${nftMetadataUri}`);
+
+            // Calculate payment amounts (same as regular minting)
+            setMintMessage('Calculating payment amounts...');
+            
+            const whiskeyRate = await getCurrentWhiskeyRate();
+            const lendingShareBps = 8000; // 80% to lending
+            const devFeePercentage = 0.02; // 2% dev fee
+            const treasuryShareBps = 2000; // 20% to treasury (unchanged)
+            
+            const lendingPercentage = lendingShareBps / 10000;
+            const treasuryPercentage = treasuryShareBps / 10000;
+            
+            const whiskeyToTreasury = displayMintPriceWhiskeyTokens * treasuryPercentage;
+            const usdcToVault = (mintPriceUsd || 0) * lendingPercentage;
+            const usdcToDevWallet = (mintPriceUsd || 0) * devFeePercentage;
+            
+            // Convert to lamports/micro-units
+            const whiskeyToTreasuryLamports = Math.floor(whiskeyToTreasury * 1000000); // WHISKEY has 6 decimals
+            const usdcToVaultLamports = Math.floor(usdcToVault * 1000000); // USDC has 6 decimals
+            const usdcToDevWalletLamports = Math.floor(usdcToDevWallet * 1000000); // USDC has 6 decimals
+            const currentWhiskeyPriceUsdMicro = Math.floor(whiskeyRate * 1000000); // Price in micro-USD
+            
+            console.log(`[STEP2_ALT] Payment calculation:`);
+            console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury} tokens (${whiskeyToTreasuryLamports} lamports)`);
+            console.log(`  - USDC to vault: ${usdcToVault} USDC (${usdcToVaultLamports} lamports)`);
+            console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
+
+            // Build minting transaction on frontend
+            setMintMessage('Building transaction on frontend...');
+            console.log(`[STEP2_ALT] 🔧 Building transaction on frontend...`);
+            
+            // Setup program connection
+            console.log(`[STEP2_ALT] 🔗 Setting up program connection...`);
+            const provider = new AnchorProvider(connection, { publicKey: publicKey } as any, { commitment: 'confirmed' });
+            const program = new Program(whiskeyIdl as Whiskeyprogram, provider);
+            console.log(`[STEP2_ALT] ✅ Program connected: ${program.programId.toString()}`);
+
+            // Generate new NFT mint keypair
+            const nftMintKeypair = Keypair.generate();
+            console.log(`[STEP2_ALT] 🔑 Generated NFT mint: ${nftMintKeypair.publicKey.toString()}`);
+
+            // Derive collection config PDA
+            const [collectionConfigPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("collection"), Buffer.from(displayName)],
+                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!)
+            );
+
+            // Get user's token accounts
+            const userUsdcAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
+                publicKey
+            );
+            const userWhiskeyAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                publicKey
+            );
+            const nftTokenAccount = getAssociatedTokenAddressSync(nftMintKeypair.publicKey, publicKey);
+
+            // Derive metadata and master edition accounts
+            const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s").toBuffer(),
+                    nftMintKeypair.publicKey.toBuffer()
+                ],
+                new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
+            );
+
+            const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("metadata"),
+                    new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s").toBuffer(),
+                    nftMintKeypair.publicKey.toBuffer(),
+                    Buffer.from("edition")
+                ],
+                new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
+            );
+
+            // Get treasury and vault accounts
+            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+            const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!)
+            );
+
+            // Create instructions array
+            const instructions: TransactionInstruction[] = [];
+            console.log(`[STEP2_ALT] 📋 Starting with ${instructions.length} instructions`);
+
+            // Note: NFT token account will be created by the program itself
+            // No need to manually create it as it's defined as a PDA in the IDL
+            console.log(`[STEP2_ALT] ℹ️ NFT token account will be created by program (PDA): ${nftTokenAccount.toString()}`);
+
+            // Create the mint instruction
+            console.log(`[STEP2_ALT] 🏗️ Creating mint instruction...`);
+            const mintInstruction = await program.methods
+                .mintWithPaymentValidation(
+                    nftName,
+                    displaySymbol,
+                    nftMetadataUri,
+                    new BN(currentWhiskeyPriceUsdMicro),
+                    new BN(whiskeyToTreasuryLamports),
+                    new BN(usdcToVaultLamports)
+                )
+                .accounts({
+                    user: publicKey,
+                    collectionConfig: collectionConfigPda,
+                    nftMint: nftMintKeypair.publicKey,
+                    nftTokenAccount: nftTokenAccount,
+                    nftMetadataAccount: nftMetadataAccount,
+                    nftMasterEditionAccount: nftMasterEditionAccount,
+                    userUsdcAccount: userUsdcAccount,
+                    userWhiskeyAccount: userWhiskeyAccount,
+                    capitalVault: capitalVault,
+                    treasuryWhiskeyAccount: treasuryWhiskeyAccount,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    tokenMetadataProgram: new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"),
+                    systemProgram: SystemProgram.programId,
+                    rent: SYSVAR_RENT_PUBKEY
+                })
+                .instruction();
+
+            console.log(`[STEP2_ALT] ✅ Mint instruction created successfully`);
+            instructions.push(mintInstruction);
+            console.log(`[STEP2_ALT] 📋 Instructions after mint: ${instructions.length}`);
+
+            // Add dev wallet transfer instruction (2% fee)
+            const devWallet = new PublicKey(process.env.NEXT_PUBLIC_DEV_WALLET!);
+            const devUsdcAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
+                devWallet
+            );
+            
+            // Check if dev USDC account exists, create if needed
+            const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
+            if (devUsdcAccountInfo === null) {
+                console.log(`[STEP2_ALT] Creating dev USDC ATA...`);
+                const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
+                    publicKey, // payer (user pays for creation)
+                    devUsdcAccount, // ata
+                    devWallet, // owner (dev wallet)
+                    new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!) // mint
+                );
+                instructions.push(createDevUsdcAtaIx);
+            }
+            
+            // Create dev fee transfer instruction (2% to dev wallet) - LAST INSTRUCTION
+            const devFeeTransferIx = createTransferInstruction(
+                userUsdcAccount, // source
+                devUsdcAccount, // destination
+                publicKey, // authority
+                usdcToDevWalletLamports // amount
+            );
+            instructions.push(devFeeTransferIx);
+            console.log(`[STEP2_ALT] 💰 Added dev wallet transfer: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
+            console.log(`[STEP2_ALT] 📋 Total instructions: ${instructions.length}`);
+
+            // Get lookup table and create versioned transaction
+            const lookupTableAddress = getMintingLookupTableAddress();
+            if (!lookupTableAddress) {
+                throw new Error('Lookup table address not found');
+            }
+
+            const lookupTableAccount = await fetchLookupTable(connection, lookupTableAddress);
+            if (!lookupTableAccount) {
+                throw new Error('Failed to fetch lookup table');
+            }
+
+            // Create versioned transaction
+            console.log(`[STEP2_ALT] 📦 Creating versioned transaction...`);
+            const versionedTx = await createVersionedTransaction(
+                connection,
+                instructions,
+                publicKey,
+                [lookupTableAccount]
+            );
+            console.log(`[STEP2_ALT] ✅ Versioned transaction created`);
+
+            // Sign with NFT mint keypair
+            console.log(`[STEP2_ALT] ✍️ Signing transaction with NFT mint keypair...`);
+            versionedTx.sign([nftMintKeypair]);
+            console.log(`[STEP2_ALT] ✅ Transaction signed with NFT mint keypair`);
+
+            // Sign and send transaction
+            setMintMessage('Please sign the transaction...');
+            console.log(`[STEP2_ALT] 📝 Requesting wallet signature and sending transaction...`);
+            
+            if (!sendTransaction) {
+                throw new Error('Wallet does not support sendTransaction');
+            }
+            
+            const signature = await sendTransaction(versionedTx, connection, {
+                maxRetries: 3,
+                preflightCommitment: 'confirmed'
+            });
+
+            console.log(`[STEP2_ALT] ✅ Transaction sent: ${signature}`);
+            
+            // Wait for confirmation
+            setMintMessage('Confirming transaction...');
+            await connection.confirmTransaction(signature, 'confirmed');
+            
+            console.log(`[STEP2_ALT] ✅ NFT minted successfully: ${nftMintKeypair.publicKey.toString()}`);
+            
+            // Record the purchase in the database
+            setMintMessage('Recording purchase...');
+            console.log(`[STEP2_ALT] 💾 Recording purchase in database...`);
+            const recordResponse = await fetch('/api/mints/mint-with-lookup-table', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    walletAddress: publicKey.toString(),
+                    nftMintAddress: nftMintKeypair.publicKey.toString(),
+                    collectionMintAddress: collectionOnChainAddress,
+                    transactionSignature: signature
+                })
+            });
+
+            if (!recordResponse.ok) {
+                console.warn(`[STEP2_ALT] ⚠️ Failed to record purchase, but NFT was minted successfully`);
+            } else {
+                console.log(`[STEP2_ALT] ✅ Purchase recorded successfully`);
+            }
+
+            // Wait a moment for on-chain state to be fully updated
+            setMintMessage('Waiting for on-chain confirmation...');
+            console.log(`[STEP2_ALT] ⏳ Waiting 3 seconds for on-chain state to update...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Refresh the supply count and wallet NFT count
+            setMintMessage('Refreshing collection data...');
+            console.log(`[STEP2_ALT] 🔄 Refreshing collection supply and wallet NFT count...`);
+            
+            // Trigger a refresh of the collection data
+            if (onMintSuccess) {
+                console.log(`[STEP2_ALT] 📞 Calling onMintSuccess callback...`);
+                onMintSuccess();
+            } else {
+                console.warn(`[STEP2_ALT] ⚠️ No onMintSuccess callback provided`);
+            }
+            
+            // Also refresh the wallet NFT count for this collection
+            try {
+                await checkWalletNftCount();
+            } catch (refreshError) {
+                console.warn(`[STEP2_ALT] ⚠️ Failed to refresh wallet NFT count:`, refreshError);
+            }
+            
+            console.log(`[STEP2_ALT] ✅ Collection data refresh triggered`);
+            
+        } catch (error) {
+            console.error('[STEP2_ALT] Error minting NFT:', error);
+            throw error;
+        }
+    };
+
+    // Step 2: Mint NFT after deposit is confirmed (Legacy version)
     const handleStep2MintNft = async (): Promise<void> => {
         if (!connected || !publicKey || !signAllTransactions) {
             throw new Error('Wallet not connected');
@@ -551,11 +898,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
 
             // Create secure mint instruction using new function
-            // Convert numbers to BN for proper Anchor serialization
-            const anchor = await import('@coral-xyz/anchor');
-            const currentWhiskeyPriceUsdMicroBN = new anchor.BN(currentWhiskeyPriceUsdMicro);
-            const whiskeyToTreasuryLamportsBN = new anchor.BN(whiskeyToTreasuryLamports);
-            const usdcToVaultLamportsBN = new anchor.BN(usdcToVaultLamports);
+            // Convert numbers to BN for proper Anchor serialization (use BN directly like API)
+            const currentWhiskeyPriceUsdMicroBN = new BN(currentWhiskeyPriceUsdMicro);
+            const whiskeyToTreasuryLamportsBN = new BN(whiskeyToTreasuryLamports);
+            const usdcToVaultLamportsBN = new BN(usdcToVaultLamports);
             
             console.log(`[STEP2] BN conversion complete:`);
             console.log(`  - currentWhiskeyPriceUsdMicroBN: ${currentWhiskeyPriceUsdMicroBN.toString()}`);
@@ -638,8 +984,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 mintTransaction.add(createDevUsdcAtaIx);
             }
             
-            // Create dev fee transfer instruction
-            const { createTransferInstruction } = await import('@solana/spl-token');
+            // Add the mint instruction first
+            mintTransaction.add(mintInstruction);
+            
+            // Create dev fee transfer instruction (2% to dev wallet) - LAST INSTRUCTION
             const devFeeTransferIx = createTransferInstruction(
                 userUsdcAccount, // source
                 devUsdcAccount, // destination
@@ -647,8 +995,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 usdcToDevWalletLamports // amount
             );
             mintTransaction.add(devFeeTransferIx);
-            
-            mintTransaction.add(mintInstruction);
             mintTransaction.feePayer = publicKey;
             mintTransaction.recentBlockhash = blockhash;
             
@@ -766,120 +1112,113 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             }
     };
 
-    // NEW: Simple mint function for whiskey-gated NFTs (no payment required)
-    const handleWhiskeyGatedMint = async () => {
-        // Pre-mint validation
-        if (!connected || !publicKey || !signTransaction) {
-            setMintMessage('❌ Please connect your wallet first');
+   
+
+    // 🥃 ULTRA SIMPLE: Whiskey-Gated Minting (Just creates metadata, no program calls)
+    const handleNewWhiskeyGatedMint = async () => {
+        if (!publicKey || !wallet || !wallet.adapter) {
+            console.error('[NEW-WHISKEY-GATED] No wallet connected');
+            setIsMinting(false);
             return;
         }
-
-        // Check if this is actually a whiskey-gated collection
-        if (!isWhiskeyGated) {
-            setMintMessage('❌ This function is only for whiskey-gated collections');
-            return;
-        }
-
-        // STRICT CHECK: User must have the required WHISKEY balance
-        if (!requiredWhiskeyAmount || requiredWhiskeyAmount <= 0) {
-            setMintMessage('❌ Invalid collection configuration - no WHISKEY requirement set');
-            return;
-        }
-
-        if (userWhiskeyBalance < requiredWhiskeyAmount) {
-            setMintMessage(`❌ Insufficient WHISKEY balance. You have ${userWhiskeyBalance.toLocaleString()} but need ${requiredWhiskeyAmount.toLocaleString()} WHISKEY tokens to mint`);
-            return;
-        }
-
-        // Double-check with hasRequiredWhiskey flag
-        if (!hasRequiredWhiskey) {
-            setMintMessage(`❌ Need ${requiredWhiskeyAmount?.toLocaleString()} WHISKEY tokens to mint from this collection`);
-            return;
-        }
-
-        // Check wallet NFT limit for whiskey-gated (1 per wallet)
-        if (walletNftCount >= 1) {
-            setMintMessage('❌ Already minted from this whiskey-gated collection (1 NFT per wallet)');
-            return;
-        }
-
-        // Check collection limit
-        if (displayItemsMinted >= displayItemLimit) {
-            setMintMessage('❌ Collection is sold out');
-            return;
-        }
-
-        setIsMinting(true);
-        setMintMessage('🥃 Minting your whiskey-gated NFT...');
 
         try {
-            console.log('[WHISKEY-GATED] Starting whiskey-gated NFT mint...');
-            
-            // Create individual NFT metadata
+            setIsMinting(true);
+            setMintMessage('🥃 Starting whiskey-gated NFT mint...');
+            console.log('[WHISKEY-GATED] 🥃 Starting whiskey-gated NFT minting process...');
+            console.log('[WHISKEY-GATED] Collection:', displayName);
+            console.log('[WHISKEY-GATED] Required WHISKEY:', requiredWhiskeyAmount);
+
+            // Create NFT metadata first
             const nftName = `${displayName} #${(displayItemsMinted || 0) + 1}`;
-            const mintNumber = (displayItemsMinted || 0) + 1;
-            
-            // Create NFT metadata using the API
+            const displaySymbol = symbol || 'NFT';
+
+            setMintMessage('📝 Creating NFT metadata...');
+            console.log('[NEW-WHISKEY-GATED] 📝 Creating NFT metadata...');
+            // Use the wallet-compatible image URL for NFT metadata
+            const nftImageUrl = walletImageUrl || imageUrl || `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`;
+            console.log('[NEW-WHISKEY-GATED] 🖼️ Using NFT image URL:', nftImageUrl);
+
             const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nftName,
                     nftSymbol: displaySymbol,
-                    nftDescription: `${displayName} - Master Distiller Edition #${mintNumber}`,
-                    nftImageUrl: walletImageUrl || imageUrl || `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`,
+                    nftDescription: `A unique NFT from the ${displayName} collection`,
+                    nftImageUrl: nftImageUrl, // This was missing!
                     attributes: [
-                        { trait_type: 'Edition', value: mintNumber.toString() },
+                        { trait_type: 'Edition', value: ((displayItemsMinted || 0) + 1).toString() },
                         { trait_type: 'Collection', value: displayName },
-                        { trait_type: 'Type', value: 'Master Distiller NFT' },
-                        { trait_type: 'Rarity', value: 'Legendary' },
-                        { trait_type: 'Whiskey Gated', value: 'true' },
+                        { trait_type: 'Type', value: 'Whiskey-Gated NFT' },
+                        { trait_type: 'Rarity', value: 'Exclusive' },
                         { trait_type: 'Required WHISKEY', value: requiredWhiskeyAmount?.toString() || '0' },
                         { trait_type: 'Mint Timestamp', value: Date.now().toString() }
                     ],
                     collectionName: displayName,
                     collectionFamily: displayName,
-                    mintNumber,
+                    mintNumber: (displayItemsMinted || 0) + 1,
                     mintTimestamp: Date.now(),
                     creatorAddress: publicKey.toString()
-                }),
+                })
             });
 
             if (!metadataResponse.ok) {
-                const errorData = await metadataResponse.json().catch(() => ({}));
-                const errorMessage = errorData.message || metadataResponse.statusText || 'Image storage failed';
-                throw new Error(errorMessage);
+                const errorData = await metadataResponse.json();
+                throw new Error(`Metadata creation failed: ${errorData.error || 'Unknown error'}`);
             }
 
             const metadataResult = await metadataResponse.json();
-            if (!metadataResult.success) {
-                throw new Error(metadataResult.message || 'Image storage failed');
+            console.log('[NEW-WHISKEY-GATED] 📋 Full metadata response:', metadataResult);
+            
+            const { nftMetadataUri, metadataUri } = metadataResult;
+            const actualMetadataUri = nftMetadataUri || metadataUri;
+            
+            if (!actualMetadataUri) {
+                console.warn('[NEW-WHISKEY-GATED] ⚠️ Metadata creation returned undefined, using fallback URI');
+                // Use a simple fallback metadata URI
+                const fallbackUri = `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(nftName)}`;
+                console.log('[NEW-WHISKEY-GATED] 🔄 Using fallback metadata URI:', fallbackUri);
+            } else {
+                console.log('[NEW-WHISKEY-GATED] ✅ NFT metadata created:', actualMetadataUri);
             }
 
-            const nftMetadataUri = metadataResult.metadataUri;
-            console.log('[WHISKEY-GATED] ✅ NFT metadata created:', nftMetadataUri);
+            // Setup program connection (same method as regular mint)
+            setMintMessage('🔄 Setting up program connection...');
+            console.log('[NEW-WHISKEY-GATED] 🔄 Setting up program connection...');
+            const connection = getSolanaConnection();
+            const provider = new AnchorProvider(connection, { publicKey: publicKey } as any, { commitment: 'confirmed' });
+            
+            // Use DYNAMIC import like regular mint does
+            console.log('[NEW-WHISKEY-GATED] Loading program IDL...');
+            const idl = await import('../lib/idl/whiskeyprogram.json');
+            const program = new Program(idl as any, provider);
+            console.log('[NEW-WHISKEY-GATED] ✅ Program initialized with ID:', program.programId.toString());
+            
+            // Verify environment program ID matches
+            const expectedProgramId = process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID;
+            console.log('[NEW-WHISKEY-GATED] 🔧 Environment program ID:', expectedProgramId);
+            console.log('[NEW-WHISKEY-GATED] 🔧 Actual program ID:', program.programId.toString());
+            if (expectedProgramId !== program.programId.toString()) {
+                console.warn('[NEW-WHISKEY-GATED] ⚠️ Program ID mismatch!');
+            }
 
-            // Build whiskey-gated mint transaction client-side
-            console.log('[WHISKEY-GATED] 🔧 Building transaction client-side...');
-            
-            const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()), {});
-            const program = new Program(idl as Whiskeyprogram, new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!), provider);
-            
-            // Generate new NFT mint keypair
+            // Build transaction (same as regular mint)
+            setMintMessage('🔧 Building transaction...');
+            console.log('[WHISKEY-GATED] 🔧 Building whiskey-gated transaction...');
+
+            // Create NFT mint keypair
             const nftMint = Keypair.generate();
-            
-            // Derive collection config PDA
-            const [collectionConfigPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("collection"), Buffer.from(displayName)],
-                program.programId
-            );
-            
-            // Get user's NFT token account
+            console.log('[WHISKEY-GATED] 🔑 Generated NFT mint:', nftMint.publicKey.toString());
+
+            // Get token account for NFT
             const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, publicKey);
-            
-            // Derive metadata accounts
+
+            // Note: NFT token account will be created by the program itself
+            // No need to manually create it as it's defined as a PDA in the IDL
+            console.log('[NEW-WHISKEY-GATED] ℹ️ NFT token account will be created by program (PDA):', nftTokenAccount.toString());
+
+            // Get metadata PDA
             const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("metadata"),
@@ -889,6 +1228,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 MPL_TOKEN_METADATA_PROGRAM_ID
             );
             
+            // Get master edition PDA  
             const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
                 [
                     Buffer.from("metadata"),
@@ -898,100 +1238,167 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 ],
                 MPL_TOKEN_METADATA_PROGRAM_ID
             );
+
+            // Get user's WHISKEY account
+            const userWhiskeyAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                publicKey
+            );
+
+            // Get correct vault addresses (same as regular mint)
+            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+            const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+            const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(
+                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                treasuryWallet
+            );
+
+            // Get collection config PDA (same as regular mint)
+            const [collectionConfigPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("collection"), Buffer.from(displayName)],
+                program.programId
+            );
+            console.log('[WHISKEY-GATED] 🔑 Collection config PDA:', collectionConfigPda.toString());
+
+            // Get collection mint address from collection config
+            const collectionMintAddress = new PublicKey(collectionOnChainAddress);
             
-            // Get user's WHISKEY token account
-            const userWhiskeyAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, publicKey);
+            // Get wallet counter PDA for whiskey-gated minting
+            const [walletNftCounterPda, walletNftCounterBump] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("wallet_counter"),
+                    publicKey.toBuffer(),
+                    collectionMintAddress.toBuffer()
+                ],
+                program.programId
+            );
+            console.log('[WHISKEY-GATED] 🔑 Wallet counter PDA:', walletNftCounterPda.toString());
+            console.log('[WHISKEY-GATED] 🔑 Wallet counter bump:', walletNftCounterBump);
             
-            console.log('[WHISKEY-GATED] 📍 Derived accounts:', {
-                collectionConfigPda: collectionConfigPda.toString(),
-                nftMint: nftMint.publicKey.toString(),
-                nftTokenAccount: nftTokenAccount.toString(),
-                nftMetadataAccount: nftMetadataAccount.toString(),
-                userWhiskeyAccount: userWhiskeyAccount.toString()
+            // Use mintWithPaymentValidation with zero payments (bypasses wallet counter issues)
+            console.log('[WHISKEY-GATED] 🔧 Creating mint instruction with zero payment...');
+            
+            if (!actualMetadataUri) {
+                throw new Error('Metadata URI is required but not provided');
+            }
+            
+            const finalMetadataUri = actualMetadataUri;
+            console.log('[NEW-WHISKEY-GATED] 🔧 Using metadata URI:', finalMetadataUri);
+            
+            const mintInstruction = await program.methods
+                .mintWithPaymentValidation(
+                    nftName,
+                    displaySymbol,
+                    finalMetadataUri,
+                    new BN(0), // current_whiskey_price_usd = 0
+                    new BN(0), // whiskey_to_treasury_amount = 0
+                    new BN(0)  // usdc_to_vault_amount = 0
+                )
+                .accounts({
+                    user: publicKey,
+                    collectionConfig: collectionConfigPda,
+                    nftMint: nftMint.publicKey,
+                    nftTokenAccount,
+                    nftMetadataAccount,
+                    nftMasterEditionAccount,
+                    userUsdcAccount: userWhiskeyAccount, // Use WHISKEY account as placeholder
+                    userWhiskeyAccount,
+                    capitalVault,
+                    treasuryWhiskeyAccount,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+                    systemProgram: SystemProgram.programId,
+                    rent: SYSVAR_RENT_PUBKEY,
+                })
+                .instruction();
+            
+            // Create and send mint transaction (same as regular mint)
+            const mintTransaction = new Transaction();
+            mintTransaction.add(mintInstruction);
+            
+            const { blockhash: recentBlockhash } = await connection.getLatestBlockhash('confirmed');
+            mintTransaction.recentBlockhash = recentBlockhash;
+            mintTransaction.feePayer = publicKey;
+
+            // Add NFT mint keypair as signer
+            mintTransaction.partialSign(nftMint);
+
+            setMintMessage('📝 Requesting wallet signature and sending transaction...');
+            console.log('[NEW-WHISKEY-GATED] 📝 Requesting wallet signature and sending transaction...');
+            const signature = await wallet.adapter.sendTransaction(mintTransaction, connection, {
+                maxRetries: 3,
+                preflightCommitment: 'confirmed'
             });
-            
-            // For whiskey-gated collections, use the existing API endpoint
-            // The API will handle the smart contract interaction properly
-            console.log('[WHISKEY-GATED] 🔄 Calling whiskey-gated mint API...');
-            
-            const mintResponse = await fetch('/api/mints/whiskey-gated-mint', {
+
+            setMintMessage('⏳ Confirming transaction...');
+            console.log('[NEW-WHISKEY-GATED] ⏳ Confirming transaction...');
+            const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+
+            // Check if the transaction actually succeeded
+            if (confirmation.value.err) {
+                console.error('[NEW-WHISKEY-GATED] ❌ Transaction failed:', confirmation.value.err);
+                throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+            }
+
+            console.log('[NEW-WHISKEY-GATED] ✅ Transaction confirmed and succeeded:', signature);
+
+            // Verify the NFT was actually minted by checking if the mint account exists
+            setMintMessage('🔍 Verifying NFT was minted...');
+            console.log('[NEW-WHISKEY-GATED] 🔍 Verifying NFT was minted...');
+            const mintAccountInfo = await connection.getAccountInfo(nftMint.publicKey);
+            if (!mintAccountInfo) {
+                throw new Error('NFT mint account was not created - transaction may have failed');
+            }
+            console.log('[NEW-WHISKEY-GATED] ✅ NFT mint account verified');
+
+            // Only record the purchase if the transaction actually succeeded
+            setMintMessage('💾 Recording purchase...');
+            console.log('[NEW-WHISKEY-GATED] 💾 Recording purchase in database...');
+            const recordResponse = await fetch('/api/mints/record-purchase', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     walletAddress: publicKey.toString(),
-                    collectionOnChainAddress: collectionOnChainAddress,
-                    nftName,
-                    nftSymbol: displaySymbol,
-                    nftMetadataUri,
-                    requiredWhiskeyAmount: requiredWhiskeyAmount || 0,
-                    userWhiskeyBalance: userWhiskeyBalance
-                }),
+                    nftMintAddress: nftMint.publicKey.toString(),
+                    collectionMintAddress: collectionConfigPda.toString(),
+                    transactionSignature: signature
+                })
             });
 
-            if (!mintResponse.ok) {
-                const errorData = await mintResponse.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Whiskey-gated minting failed');
-            }
-
-            const mintResult = await mintResponse.json();
-            if (!mintResult.success) {
-                throw new Error(mintResult.message || 'Whiskey-gated minting failed');
-            }
-
-            console.log('[WHISKEY-GATED] ✅ Whiskey-gated mint successful:', mintResult.nftMintAddress);
-            
-            // Update wallet NFT count to reflect the new mint
-            setWalletNftCount(prev => prev + 1);
-            console.log('[WHISKEY-GATED] ✅ Updated wallet NFT count');
-
-            setMintMessage('🎉 Success! Your whiskey-gated NFT has been minted!');
-            
-            // Trigger success callback
-            if (onMintSuccess) {
-                onMintSuccess();
-            }
-
-            // Show success message for a few seconds
-            setTimeout(() => {
-                setMintMessage('');
-            }, 5000);
-
-        } catch (error) {
-            console.error('[WHISKEY-GATED] Error minting NFT:', error);
-            
-            // Create user-friendly error message
-            let userMessage = 'Mint failed: ';
-            const errorStr = error instanceof Error ? error.message : error?.toString() || '';
-            
-            if (errorStr.includes('Insufficient funds') || errorStr.includes('insufficient funds') || errorStr.includes('InsufficientFunds')) {
-                userMessage += 'Not enough SOL. Add more SOL to your wallet.';
-            } else if (errorStr.includes('Insufficient balance') || errorStr.includes('insufficient balance') || errorStr.includes('InsufficientBalance')) {
-                userMessage += 'Not enough WHISKEY tokens. Get more WHISKEY to mint.';
-            } else if (errorStr.includes('User rejected') || errorStr.includes('user rejected') || errorStr.includes('User cancelled')) {
-                userMessage += 'You cancelled the transaction.';
-            } else if (errorStr.includes('Collection is full') || errorStr.includes('collection is full')) {
-                userMessage += 'SOLD OUT!';
-            } else if (errorStr.includes('usage limits') || errorStr.includes('Account blocked')) {
-                userMessage += 'Minting temporarily unavailable due to storage limits. Please try again later.';
-            } else if (errorStr.includes('Image storage service not configured') || errorStr.includes('storage service unavailable')) {
-                userMessage += 'Image storage service unavailable. Please try again later.';
-            } else if (errorStr.includes('Image storage failed')) {
-                userMessage += 'Image storage failed. Try again in a moment.';
-            } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
-                userMessage += 'Internet problem. Try again.';
-            } else if (errorStr.includes('Upload timeout') || errorStr.includes('timeout')) {
-                userMessage += 'Upload took too long. Try again.';
-            } else if (errorStr.includes('Wallet has already minted') || errorStr.includes('limit exceeded') || errorStr.includes('Only 1 NFT per wallet allowed')) {
-                userMessage += 'You already minted from this collection. Only 1 per wallet.';
+            if (!recordResponse.ok) {
+                console.warn('[NEW-WHISKEY-GATED] ⚠️ Failed to record purchase, but NFT was minted successfully');
             } else {
-                userMessage += 'Something went wrong. Try again.';
+                console.log('[NEW-WHISKEY-GATED] ✅ Purchase recorded successfully');
+            }
+
+            setMintMessage('🎉 Whiskey-gated NFT minted successfully!');
+            console.log('[NEW-WHISKEY-GATED] 🎉 NEW Whiskey-gated NFT minted successfully!');
+            setIsMinting(false);
+            if (onMintSuccess) onMintSuccess();
+
+        } catch (error: any) {
+            console.error('[NEW-WHISKEY-GATED] Error:', error);
+            setIsMinting(false);
+            
+            let errorMessage = 'Failed to mint whiskey-gated NFT';
+            if (error.message?.includes('Insufficient WHISKEY balance') || error.message?.includes('InsufficientWhiskeyBalance')) {
+                errorMessage = `Insufficient WHISKEY balance. You need ${requiredWhiskeyAmount} WHISKEY tokens to mint.`;
+            } else if (error.message?.includes('already minted') || error.message?.includes('WalletNftLimitExceeded') || error.message?.includes('WhiskeyGatedCollectionLimitExceeded')) {
+                errorMessage = 'You have already minted from this whiskey-gated collection. Only 1 NFT per wallet allowed.';
+            } else if (error.message?.includes('NotWhiskeyGated')) {
+                errorMessage = 'This collection is not whiskey-gated.';
+            } else if (error.message?.includes('Transaction failed')) {
+                errorMessage = 'Transaction failed. Please try again.';
+            } else if (error.message?.includes('Metadata creation failed')) {
+                errorMessage = error.message;
+            } else if (error.message?.includes('wallet_counter') || error.message?.includes('WalletNftCounter')) {
+                errorMessage = 'Wallet counter account issue. Please try again or contact support.';
+            } else if (error.message?.includes('AccountNotInitialized') || error.message?.includes('InvalidAccountData')) {
+                errorMessage = 'Account initialization issue. Please try again.';
             }
             
-            setMintMessage(`❌ ${userMessage}`);
-        } finally {
-            setIsMinting(false);
+            setMintMessage(`❌ ${errorMessage}`);
         }
     };
 
@@ -1075,7 +1482,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         setMintMessage('🔄 Step 2: Minting your NFT...');
         
         try {
-            await handleStep2MintNft();
+            await handleStep2MintNftWithLookupTable();
             setStep2Complete(true);
             setMintMessage('🎉 Success! Your NFT has been minted and the vault deposit is complete!');
             
@@ -1113,6 +1520,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 userMessage += 'Upload took too long. Try again.';
             } else if (errorStr.includes('Wallet has reached the maximum NFT limit') || errorStr.includes('limit exceeded')) {
                 userMessage += 'You already have 5 NFTs from this collection.';
+            } else if (errorStr.includes('Missing required metadata fields') || errorStr.includes('nftImageUrl are required')) {
+                userMessage += 'Collection image not available. Please contact support.';
+            } else if (errorStr.includes('No collection image available')) {
+                userMessage += 'Collection image required. Please upload an image for this collection.';
+            } else if (errorStr.includes('Failed to create NFT metadata')) {
+                userMessage += 'Failed to create NFT metadata. Please try again.';
             } else {
                 userMessage += 'Something went wrong. Try again.';
             }
@@ -1219,6 +1632,19 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         </span>
                             </div>
 
+                    {/* User's Mint Count */}
+                    {connected && publicKey && (
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-400">Your NFTs</span>
+                            <span className="text-amber-400 font-medium">
+                                {walletNftCount} / {isWhiskeyGated ? '1' : '5'} 
+                                <span className="text-xs text-slate-500 ml-1">
+                                    ({isWhiskeyGated ? 'whiskey-gated limit' : 'wallet limit'})
+                                </span>
+                            </span>
+                        </div>
+                    )}
+
                     {/* Progress Bar */}
                     <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                         <div 
@@ -1233,6 +1659,36 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         </span>
                     </div>
                 </div>
+                
+                {/* Whiskey-Gated Warning - Only show for whiskey-gated collections */}
+                {isWhiskeyGated && (
+                    <div className="bg-red-600/20 border-2 border-red-500 rounded-xl p-4 mb-4">
+                        <div className="flex items-center space-x-2 mb-2">
+                            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                            <h3 className="text-red-400 font-bold text-lg">⚠️ WHISKEY GATED COLLECTION</h3>
+                        </div>
+                        <div className="text-red-300 font-semibold text-base leading-relaxed">
+                            <p className="mb-2">
+                                🥃 <span className="text-red-200 font-bold text-xl">{requiredWhiskeyAmount?.toLocaleString() || 0} WHISKEY</span> tokens required to mint
+                            </p>
+                            <p className="mb-2">
+                                ⚡ <span className="text-red-200 font-bold text-xl">0.03 SOL</span> required for transaction fees
+                            </p>
+                            <p className="text-sm text-red-400">
+                                • You must HOLD the required WHISKEY amount (not spend it)
+                            </p>
+                            <p className="text-sm text-red-400">
+                                • Only 1 NFT per wallet allowed
+                            </p>
+                            <p className="text-sm text-red-400">
+                                • Minting is FREE if you meet the requirements
+                            </p>
+                            <p className="text-sm text-red-400">
+                                • SOL is only used for blockchain transaction fees
+                            </p>
+                        </div>
+                    </div>
+                )}
                 
                 {/* Mint Button */}
                 <div className="space-y-2">
@@ -1255,14 +1711,28 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            You already minted from this collection
+                            You already minted from this collection (1 max for whiskey-gated)
                         </button>
-                    ) : userWhiskeyBalance === 0 ? (
+                    ) : !isWhiskeyGated && walletNftCount >= 5 ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Maximum 5 NFTs per wallet reached
+                        </button>
+                    ) : whiskeyBalanceLoading ? (
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-amber-800/50 text-amber-400 rounded-xl font-bold cursor-not-allowed border border-amber-700/50"
                         >
                             Loading WHISKEY Balance...
+                        </button>
+                    ) : userWhiskeyBalance === 0 ? (
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            Need WHISKEY to {isWhiskeyGated ? 'Hold' : 'Swap'}
                         </button>
                     ) : isWhiskeyGated && (!requiredWhiskeyAmount || userWhiskeyBalance < requiredWhiskeyAmount) ? (
                         // Whiskey-gated collections: Check if user has required WHISKEY holdings
@@ -1283,7 +1753,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     ) : isWhiskeyGated ? (
                         // Whiskey-gated collections: Simple one-click mint (free if you have WHISKEY)
                         <button 
-                            onClick={handleWhiskeyGatedMint}
+                            onClick={handleNewWhiskeyGatedMint}
                             disabled={isMinting}
                             className={`w-full py-3 px-4 rounded-xl font-bold transition-all duration-300 ${
                                 isMinting
@@ -1332,13 +1802,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     )}
                     
                     {/* Info for whiskey-gated collections */}
-                    {connected && isWhiskeyGated && (
-                        <div className="mt-4 p-3 bg-amber-900/20 rounded-lg border border-amber-700/40">
-                            <p className="text-xs text-amber-400 text-center">
-                                🥃 <strong>Master Distiller Collection:</strong> FREE mint but you must HOLD {requiredWhiskeyAmount?.toLocaleString()} WHISKEY tokens • 1 NFT per wallet • No payment required
-                            </p>
-                        </div>
-                    )}
                     
                     {/* Two-step process info for regular collections */}
                     {connected && !isWhiskeyGated && (

@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "3GbJdAjF6Sqic84sXJHargXXQjknXVAADeKyRGv8FN2N",
+  "address": "Gf4thBmzMFmhAe4yo5oZXRTiZwUeTAVsWUzo6s7LywG5",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -213,106 +213,6 @@ export type Whiskeyprogram = {
         },
         {
           "name": "itemLimit",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "createPaymentProof",
-      "docs": [
-        "✅ INSTRUCTION 1: Create Payment Proof (Track payment intent with validation)"
-      ],
-      "discriminator": [
-        64,
-        29,
-        140,
-        235,
-        87,
-        243,
-        128,
-        32
-      ],
-      "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "paymentRecord",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  97,
-                  121,
-                  109,
-                  101,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "collectionConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  108,
-                  108,
-                  101,
-                  99,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "collection_config.name",
-                "account": "collectionConfig"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "rent",
-          "address": "SysvarRent111111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "collectionKey",
-          "type": "pubkey"
-        },
-        {
-          "name": "expectedUsdAmount",
-          "type": "u64"
-        },
-        {
-          "name": "whiskeyAmount",
-          "type": "u64"
-        },
-        {
-          "name": "whiskeyPriceUsd",
           "type": "u64"
         }
       ]
@@ -526,19 +426,24 @@ export type Whiskeyprogram = {
       "args": []
     },
     {
-      "name": "mintNftAndCleanup",
+      "name": "mintWhiskeyGated",
       "docs": [
-        "✅ INSTRUCTION 3: Mint NFT + Cleanup (Combined atomic operation)"
+        "🥃 NEW: Dedicated Whiskey-Gated Minting (No Payment Processing)",
+        "This function:",
+        "1. Validates user has required WHISKEY balance (doesn't spend it)",
+        "2. Checks wallet hasn't already minted from this collection",
+        "3. Mints NFT directly (free mint)",
+        "4. Updates collection counter"
       ],
       "discriminator": [
-        125,
-        248,
-        240,
-        1,
-        0,
-        219,
-        173,
-        19
+        75,
+        221,
+        18,
+        19,
+        159,
+        130,
+        82,
+        136
       ],
       "accounts": [
         {
@@ -547,28 +452,302 @@ export type Whiskeyprogram = {
           "signer": true
         },
         {
-          "name": "paymentRecord",
+          "name": "collectionConfig",
+          "writable": true
+        },
+        {
+          "name": "userWhiskeyAccount",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "whiskeyMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "walletNftCounter",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
+                  119,
                   97,
-                  121,
-                  109,
+                  108,
+                  108,
                   101,
+                  116,
+                  95,
+                  99,
+                  111,
+                  117,
                   110,
-                  116
+                  116,
+                  101,
+                  114
                 ]
               },
               {
                 "kind": "account",
                 "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "collection_config.collection_mint",
+                "account": "collectionConfig"
               }
             ]
           }
+        },
+        {
+          "name": "nftMint",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "nftTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nftMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "nftMetadataAccount",
+          "writable": true
+        },
+        {
+          "name": "nftMasterEditionAccount",
+          "writable": true
+        },
+        {
+          "name": "whiskeyMint",
+          "address": "9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "tokenMetadataProgram",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nftName",
+          "type": "string"
+        },
+        {
+          "name": "nftSymbol",
+          "type": "string"
+        },
+        {
+          "name": "nftUri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "mintWithPaymentValidation",
+      "docs": [
+        "✅ SECURE SINGLE INSTRUCTION: Mint NFT with Payment Validation",
+        "This function does EVERYTHING atomically:",
+        "1. Validates payment amounts against hardcoded collection price",
+        "2. Transfers USDC to hardcoded capital vault",
+        "3. Transfers WHISKEY to treasury",
+        "4. Mints NFT to user"
+      ],
+      "discriminator": [
+        37,
+        162,
+        48,
+        236,
+        19,
+        34,
+        234,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
         },
         {
           "name": "collectionConfig",
@@ -678,6 +857,23 @@ export type Whiskeyprogram = {
           "writable": true
         },
         {
+          "name": "userUsdcAccount",
+          "writable": true
+        },
+        {
+          "name": "userWhiskeyAccount",
+          "writable": true
+        },
+        {
+          "name": "capitalVault",
+          "writable": true,
+          "address": "DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs"
+        },
+        {
+          "name": "treasuryWhiskeyAccount",
+          "writable": true
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -710,80 +906,20 @@ export type Whiskeyprogram = {
         {
           "name": "nftUri",
           "type": "string"
+        },
+        {
+          "name": "currentWhiskeyPriceUsd",
+          "type": "u64"
+        },
+        {
+          "name": "whiskeyToTreasuryAmount",
+          "type": "u64"
+        },
+        {
+          "name": "usdcToVaultAmount",
+          "type": "u64"
         }
       ]
-    },
-    {
-      "name": "processPaymentsAndFees",
-      "docs": [
-        "✅ INSTRUCTION 2: Process All Payments & Transfers (Combined atomic operation)"
-      ],
-      "discriminator": [
-        164,
-        158,
-        223,
-        95,
-        80,
-        44,
-        65,
-        156
-      ],
-      "accounts": [
-        {
-          "name": "user",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "paymentRecord",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  97,
-                  121,
-                  109,
-                  101,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "globalMarket",
-          "writable": true
-        },
-        {
-          "name": "userUsdcAccount",
-          "writable": true
-        },
-        {
-          "name": "userWhiskeyAccount",
-          "writable": true
-        },
-        {
-          "name": "lendingCapitalVault",
-          "writable": true
-        },
-        {
-          "name": "treasuryWhiskeyAccount",
-          "writable": true
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        }
-      ],
-      "args": []
     }
   ],
   "accounts": [
@@ -801,16 +937,16 @@ export type Whiskeyprogram = {
       ]
     },
     {
-      "name": "paymentRecord",
+      "name": "walletNftCounter",
       "discriminator": [
-        202,
-        168,
-        56,
-        249,
-        127,
-        226,
-        86,
-        226
+        43,
+        236,
+        244,
+        4,
+        66,
+        57,
+        133,
+        11
       ]
     }
   ],
@@ -878,7 +1014,7 @@ export type Whiskeyprogram = {
     {
       "code": 6012,
       "name": "invalidWhiskeyPrice",
-      "msg": "Invalid WHISKEY price: Price must be between $0.10 and $100."
+      "msg": "Invalid WHISKEY price: Price must be between $0.001 and $100."
     },
     {
       "code": 6013,
@@ -934,6 +1070,16 @@ export type Whiskeyprogram = {
       "code": 6023,
       "name": "insufficientPayment",
       "msg": "Insufficient payment"
+    },
+    {
+      "code": 6024,
+      "name": "notWhiskeyGated",
+      "msg": "Collection is not whiskey-gated"
+    },
+    {
+      "code": 6025,
+      "name": "insufficientWhiskeyBalance",
+      "msg": "Insufficient WHISKEY balance for this gated collection"
     }
   ],
   "types": [
@@ -998,54 +1144,21 @@ export type Whiskeyprogram = {
       }
     },
     {
-      "name": "paymentRecord",
+      "name": "walletNftCounter",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "user",
+            "name": "wallet",
             "type": "pubkey"
           },
           {
-            "name": "usdcAmount",
-            "type": "u64"
-          },
-          {
-            "name": "status",
-            "type": {
-              "defined": {
-                "name": "paymentStatus"
-              }
-            }
-          },
-          {
-            "name": "timestamp",
-            "type": "i64"
-          },
-          {
-            "name": "collectionKey",
-            "type": "pubkey"
+            "name": "nftCount",
+            "type": "u8"
           },
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "paymentStatus",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "paid"
-          },
-          {
-            "name": "processed"
-          },
-          {
-            "name": "refunded"
           }
         ]
       }

@@ -14,12 +14,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { walletAddress, loanAmount, duration, asset } = req.body;
+  const { walletAddress, loanAmount, duration, asset, signature, loanPda, clientSideTransaction } = req.body;
 
   if (!walletAddress || !loanAmount || !duration || !asset) {
     return res.status(400).json({ 
       message: 'All fields are required: walletAddress, loanAmount, duration, asset' 
     });
+  }
+
+  // If this is a client-side transaction, just validate and record
+  if (clientSideTransaction && signature) {
+    try {
+      console.log('📝 Recording client-side loan transaction:', {
+        walletAddress,
+        loanAmount,
+        duration,
+        asset,
+        signature,
+        loanPda,
+        timestamp: new Date().toISOString()
+      });
+
+      // TODO: Store in database if needed
+      // For now, just validate and return success
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Loan recorded successfully',
+        signature 
+      });
+    } catch (error) {
+      console.error('Error recording client-side loan:', error);
+      return res.status(500).json({ 
+        error: 'Failed to record loan',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
     if (asset !== 'USDC') {

@@ -46,12 +46,21 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
         setIsLoading(true);
         setError(null); // Clear previous errors
         try {
-            const collectionsResponse = await fetch(`/api/collections?companyId=${companyId}`);
+            // Add timestamp to force cache-busting
+            const timestamp = Date.now();
+            const collectionsResponse = await fetch(`/api/collections?companyId=${companyId}&_t=${timestamp}`);
             if (!collectionsResponse.ok) {
                 throw new Error(`Failed to fetch collections: ${collectionsResponse.statusText}`);
             }
             const collectionsResult = await collectionsResponse.json();
+            console.log('[COMPANY_PAGE] 📊 Collections API response:', collectionsResult);
+            
             if (collectionsResult.success && Array.isArray(collectionsResult.data)) {
+                console.log('[COMPANY_PAGE] 📋 Setting collections data:', collectionsResult.data.map(c => ({
+                    name: c.name,
+                    itemsMintedOnChain: c.itemsMintedOnChain,
+                    itemLimit: c.itemLimit
+                })));
                 setCollections(collectionsResult.data);
             } else {
                 throw new Error('Fetched collection data is not in the expected format.');
@@ -77,12 +86,19 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
     }, [companyId, companyName]); // Added companyName to dependencies to avoid re-fetching it if already known
 
     useEffect(() => {
+        console.log('[COMPANY_PAGE] 🔄 useEffect triggered - refreshTrigger:', refreshTrigger);
         fetchData();
     }, [companyId, fetchData, refreshTrigger]); // Add refreshTrigger to dependency array
 
     const handleMintSuccess = () => {
+        console.log('[COMPANY_PAGE] 🎉 handleMintSuccess called - triggering refresh...');
         setMintMessage("Mint successful! Refreshing collection details...");
-        setRefreshTrigger(prev => prev + 1); // Increment to trigger re-fetch
+        console.log('[COMPANY_PAGE] 🔄 Incrementing refresh trigger...');
+        setRefreshTrigger(prev => {
+            const newValue = prev + 1;
+            console.log('[COMPANY_PAGE] 📈 Refresh trigger updated:', prev, '->', newValue);
+            return newValue;
+        });
         setTimeout(() => setMintMessage(null), 5000); // Clear message after 5s
     };
 

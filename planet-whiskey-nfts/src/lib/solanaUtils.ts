@@ -1,3 +1,16 @@
+/**
+ * Solana Utilities - Environment Variable Driven
+ * 
+ * This file ensures all program IDs and addresses come from environment variables
+ * to prevent mismatches between deployed programs and frontend code.
+ * 
+ * Required Environment Variables:
+ * - NEXT_PUBLIC_SOLANA_RPC_URL
+ * - NEXT_PUBLIC_WHISKEY_PROGRAM_ID  
+ * - NEXT_PUBLIC_LENDING_PROGRAM_ID
+ * - NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID
+ */
+
 import { AnchorProvider, Program, type Idl, setProvider } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 
@@ -5,7 +18,6 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction, SYSVAR_RENT
 // For newer @metaplex-foundation/js:
 // import { Metaplex, keypairIdentity, bundlrStorage } from "@metaplex-foundation/js";
 // For older mpl-token-metadata directly (if that's what you use for constants):
-import { PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata'; // Verify this constant's source and type
 
 import idlJson from './idl/whiskeyprogram.json';
 import { Whiskeyprogram } from './idl/whiskeyprogram';
@@ -13,24 +25,31 @@ import { Marketplaceprogram } from './idl/marketplaceprogram'; // Use consistent
 import marketplaceIdl from './idl/marketplaceprogram.json'; // Use consistent naming
 
 
-if (!process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID) {
-  throw new Error('NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID is not set in the environment.');
-}
-const marketplaceProgramId = new PublicKey(process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID);
+// Marketplace program ID validation moved to top-level validation
 
 
 // REMOVED: Server-side admin wallet operations - All admin operations now require client-side wallet signing
 // Admin wallet address is hardcoded in Rust programs: F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X
 
-const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'; // Fallback to Mainnet
-export const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || "68iiLsi736PMxTYoS8Lbgczk1odiLzyAkb6y2sm5TtnD"); // Whiskey program ID from env
-
-if (!SOLANA_RPC_URL) {
-  throw new Error('SOLANA_RPC_URL is not set in .env.local');
+// Environment variable validation - no fallbacks to prevent mismatches
+if (!process.env.NEXT_PUBLIC_SOLANA_RPC_URL) {
+  throw new Error('NEXT_PUBLIC_SOLANA_RPC_URL is not set in .env.local');
+}
+if (!process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID) {
+  throw new Error('NEXT_PUBLIC_WHISKEY_PROGRAM_ID is not set in .env.local');
+}
+if (!process.env.NEXT_PUBLIC_LENDING_PROGRAM_ID) {
+  throw new Error('NEXT_PUBLIC_LENDING_PROGRAM_ID is not set in .env.local');
+}
+if (!process.env.NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID) {
+  throw new Error('NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID is not set in .env.local');
 }
 
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+export const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID);
+
 export function getSolanaConnection() {
-  return new Connection(SOLANA_RPC_URL!, 'confirmed');
+  return new Connection(SOLANA_RPC_URL, 'confirmed');
 }
 
 export function getAnchorProvider(walletKeypair?: Keypair) {
@@ -69,7 +88,17 @@ export function getAnchorProvider(walletKeypair?: Keypair) {
 
 export function getSolanaProgram(provider: AnchorProvider) {
   setProvider(provider);
-  const program = new Program(idlJson as any, provider);
+  // Always use the environment variable program ID to ensure consistency
+  const programId = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
+  
+  // Create a working IDL by ensuring correct program ID
+  const workingIdl = {
+    ...idlJson,
+    address: programId.toString(), // Ensure IDL has correct program ID
+    // Keep accounts section for proper account decoding
+  };
+  
+  const program = new Program(workingIdl as any, provider);
   return program as unknown as Program<Whiskeyprogram>;
 }
 

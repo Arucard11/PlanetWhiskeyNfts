@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { Transaction, Connection, PublicKey, SystemProgram } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
-import * as anchor from '@coral-xyz/anchor';
+import { Transaction, Connection, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import { getLendingProgram } from '@/lib/solanaUtils';
+import { Lendingprogram } from '@/lib/idl/lendingprogram';
+import lendingIdl from '@/lib/idl/lendingprogram.json';
 import MediaWithFallback from '../../../components/MediaWithFallback';
 
 interface UserNft {
@@ -33,7 +35,8 @@ interface BorrowingStats {
 }
 
 export default function BorrowPage() {
-  const { connected, publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { connected, publicKey, signTransaction, sendTransaction } = useWallet();
   const [userNfts, setUserNfts] = useState<UserNft[]>([]);
   const [borrowingStats, setBorrowingStats] = useState<BorrowingStats | null>(null);
   const [selectedNfts, setSelectedNfts] = useState<Set<string>>(new Set());
@@ -211,7 +214,7 @@ export default function BorrowPage() {
   };
 
   const handleTakeLoan = async () => {
-    if (!connected || !publicKey || !loanAmount || parseFloat(loanAmount) <= 0) {
+    if (!connected || !publicKey || !signTransaction || !loanAmount || parseFloat(loanAmount) <= 0) {
       toast.error('Enter a loan amount.');
       return;
     }
@@ -222,6 +225,8 @@ export default function BorrowPage() {
     }
 
     setBorrowing(true);
+    let toastId: string | undefined;
+    
     try {
       console.log('🏦 Taking loan...', {
         amount: loanAmount,
@@ -229,111 +234,143 @@ export default function BorrowPage() {
         wallet: publicKey.toString()
       });
 
-      // Build transaction client-side using Anchor program
-      console.log(`[TAKE_LOAN] 🔧 Building transaction client-side...`);
+      toastId = toast.loading('⏳ Creating loan transaction...');
+
+      // Setup Anchor program
+      const walletInterface = {
+        publicKey,
+        signTransaction: signTransaction!,
+        signAllTransactions: async (txs: Transaction[]) => {
+          return await Promise.all(txs.map(tx => signTransaction!(tx)));
+        }
+      };
       
-      const program = getLendingProgram();
-      const user = publicKey;
-      const amount = parseFloat(loanAmount);
-      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
-      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      const provider = new AnchorProvider(connection, walletInterface as any, {
+        commitment: 'confirmed',
+        preflightCommitment: 'confirmed'
+      });
       
-      // Derive PDAs
-      const [globalMarket] = PublicKey.findProgramAddressSync(
+      const program = new Program(lendingIdl as Lendingprogram, provider);
+
+      // Get PDAs and accounts
+      const [globalMarketPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("global_market")],
         program.programId
       );
-      
-      const [borrowerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("borrower_account"), user.toBuffer()],
+
+      const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("borrower_account"), publicKey.toBuffer()],
         program.programId
       );
-      
-      // Get borrower account data to get loan counter
-      const borrowerAccountData = await program.account.borrowerAccount.fetch(borrowerAccount);
-      const loanCounter = borrowerAccountData.loanCounter;
-      
-      const [loan] = PublicKey.findProgramAddressSync(
-        [Buffer.from("loan"), user.toBuffer(), loanCounter.toBuffer('le', 8)],
+
+      // Get loan counter from borrower account
+      let borrowerAccount: any;
+      try {
+        borrowerAccount = await (program.account as any).borrowerAccount.fetch(borrowerAccountPda);
+      } catch (error) {
+        throw new Error('Borrower account not found. Please deposit NFTs first.');
+      }
+
+      const loanCounter = borrowerAccount.loanCounter;
+      const [loanPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("loan"), publicKey.toBuffer(), new BN(loanCounter).toArrayLike(Buffer, "le", 8)],
         program.programId
       );
+
+      // Asset mint (USDC)
+      const usdcMint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
       
-      const [capitalVault] = PublicKey.findProgramAddressSync(
+      // Get capital vault PDA
+      const [capitalVaultPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("capital_vault_usdc")],
         program.programId
       );
-      
-      // Get token accounts
-      const treasuryTokenAccount = await getAssociatedTokenAddress(usdcMint, treasuryWallet);
-      const borrowerTokenAccount = await getAssociatedTokenAddress(usdcMint, user);
-      
-      console.log(`[TAKE_LOAN] 📍 Derived accounts:`, {
-        globalMarket: globalMarket.toString(),
-        borrowerAccount: borrowerAccount.toString(),
-        loan: loan.toString(),
-        capitalVault: capitalVault.toString(),
-        loanCounter: loanCounter.toString()
+
+      // Get treasury token account
+      const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+      const treasuryTokenAccount = getAssociatedTokenAddressSync(usdcMint, treasuryWallet);
+
+      // Get borrower token account
+      const borrowerTokenAccount = getAssociatedTokenAddressSync(usdcMint, publicKey);
+
+      // Convert loan amount to micro-USD (6 decimals)
+      const loanAmountUsd = Math.floor(parseFloat(loanAmount) * 1000000);
+      const durationSecs = parseInt(loanDuration.toString()) * 30 * 24 * 60 * 60; // months to seconds
+
+      console.log('📋 Loan parameters:', {
+        loanAmountUsd,
+        durationSecs,
+        borrowerAccount: borrowerAccountPda.toBase58(),
+        loan: loanPda.toBase58()
       });
-      
-      // Build the take loan instruction
-      const takeLoanInstruction = await program.methods
-        .takeLoan(
-          new anchor.BN(amount * 1_000_000), // Convert to microdollars
-          loanDuration * 30 * 24 * 60 * 60 // Convert months to seconds
-        )
+
+      toast.loading('⏳ Please sign the transaction...', { id: toastId });
+
+      // Create take loan instruction
+      const takeLoanIx = await program.methods
+        .takeLoan(new BN(loanAmountUsd), durationSecs)
         .accounts({
-          globalMarket: globalMarket,
-          borrowerAccount: borrowerAccount,
-          loan: loan,
+          globalMarket: globalMarketPda,
+          borrowerAccount: borrowerAccountPda,
+          loan: loanPda,
           assetMint: usdcMint,
-          capitalVault: capitalVault,
+          capitalVault: capitalVaultPda,
           treasuryTokenAccount: treasuryTokenAccount,
           treasuryWallet: treasuryWallet,
           borrowerTokenAccount: borrowerTokenAccount,
-          borrower: user,
+          borrower: publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
         .instruction();
-      
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.add(takeLoanInstruction);
-      
-      // Get fresh blockhash
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+      // Create and send transaction
+      const transaction = new Transaction().add(takeLoanIx);
+      const { blockhash } = await connection.getLatestBlockhash('confirmed');
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
+
+      const signedTransaction = await signTransaction(transaction);
       
-      console.log(`[TAKE_LOAN] ✅ Transaction built client-side`);
+      toast.loading('⏳ Sending transaction...', { id: toastId });
       
-      console.log('🔍 Transaction details:', {
-        instructions: transaction.instructions.length,
-        feePayer: transaction.feePayer?.toString(),
-        recentBlockhash: transaction.recentBlockhash
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed'
       });
 
-      // Simulate transaction first to check for errors
-      try {
-        console.log('🧪 Simulating transaction first...');
-        const simulationResult = await connection.simulateTransaction(transaction);
-        console.log('📊 Simulation result:', simulationResult);
-        
-        if (simulationResult.value.err) {
-          console.error('❌ Transaction simulation failed:', simulationResult.value.err);
-          throw new Error(`Transaction simulation failed: ${JSON.stringify(simulationResult.value.err)}`);
-        }
-        
-        console.log('✅ Transaction simulation successful');
-      } catch (simError) {
-        console.error('❌ Simulation error:', simError);
-        throw new Error(`Simulation failed: ${simError instanceof Error ? simError.message : 'Unknown simulation error'}`);
-      }
+      toast.loading('⏳ Confirming transaction...', { id: toastId });
+      
+      await connection.confirmTransaction(signature, 'confirmed');
 
-      const signature = await sendTransaction(transaction, connection);
-      console.log('🚀 Loan transaction sent:', signature);
-      toast.success(`Loan taken successfully! Transaction: ${signature.slice(0, 8)}...`);
+      console.log('✅ Loan taken successfully:', signature);
+      toast.success(`🏦 Loan taken successfully! Transaction: ${signature.slice(0, 8)}...`, { id: toastId });
+
+      // Validate and record the loan in the database for tracking
+      try {
+        const recordResponse = await fetch('/api/lending/take-loan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress: publicKey.toString(),
+            loanAmount: parseFloat(loanAmount),
+            duration: parseInt(loanDuration.toString()),
+            asset: 'USDC',
+            signature: signature,
+            loanPda: loanPda.toBase58(),
+            clientSideTransaction: true, // Flag to indicate client-side transaction
+          }),
+        });
+
+        if (!recordResponse.ok) {
+          console.warn('Failed to record loan in database');
+        }
+      } catch (dbError) {
+        console.warn('Failed to record loan in database:', dbError);
+        // Don't fail the whole operation for DB issues
+      }
 
       // Reset form and refresh data
       setLoanAmount('');
@@ -342,23 +379,22 @@ export default function BorrowPage() {
     } catch (error) {
       console.error('Error taking loan:', error);
       
-      // Enhanced error logging
+      if (toastId) toast.dismiss(toastId);
+      
+      let errorMessage = 'Failed to take loan';
       if (error instanceof Error) {
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        if (error.message.includes('Borrower account not found')) {
+          errorMessage = 'Please deposit NFTs first before taking a loan';
+        } else if (error.message.includes('Insufficient borrowing power')) {
+          errorMessage = 'Insufficient borrowing power. Deposit more NFTs or reduce loan amount';
+        } else if (error.message.includes('User rejected')) {
+          errorMessage = 'Transaction cancelled by user';
+        } else {
+          errorMessage = error.message;
+        }
       }
       
-      // Check for specific wallet errors
-      if (error?.toString().includes('WalletSendTransactionError')) {
-        console.error('❌ Wallet transaction error detected');
-        toast.error('Wallet problem. Check connection and try again.');
-      } else if (error?.toString().includes('simulation failed')) {
-        console.error('❌ Transaction simulation failed');
-        toast.error('Not enough funds or permissions.');
-      } else {
-        toast.error(error instanceof Error ? error.message : 'Failed to take loan');
-      }
+      toast.error(errorMessage);
     } finally {
       setBorrowing(false);
     }
@@ -370,13 +406,13 @@ export default function BorrowPage() {
       return;
     }
 
-    if (!sendTransaction) {
+    if (!signTransaction) {
       toast.error('Wallet not connected.');
       return;
     }
 
     setDepositing(true);
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com', 'confirmed');
+    let toastId: string | undefined;
     
     try {
       let successCount = 0;
@@ -389,118 +425,139 @@ export default function BorrowPage() {
             throw new Error('NFT data not found');
           }
 
-          // Build transaction client-side using Anchor program
-          console.log(`[DEPOSIT_NFT] 🔧 Building transaction client-side for ${mintAddress}...`);
+          console.log(`[DEPOSIT_NFT] 🔧 Creating client-side transaction for ${mintAddress}...`);
+          toastId = toast.loading(`⏳ Depositing ${nftData.name}...`);
+
+          // Setup Anchor program
+          const walletInterface = {
+            publicKey,
+            signTransaction: signTransaction!,
+            signAllTransactions: async (txs: Transaction[]) => {
+              return await Promise.all(txs.map(tx => signTransaction!(tx)));
+            }
+          };
           
-          const program = getLendingProgram();
-          const nftMint = new PublicKey(mintAddress);
-          const user = publicKey;
-          const collectionMint = new PublicKey(nftData.collectionMintAddress);
+          const provider = new AnchorProvider(connection, walletInterface as any, {
+            commitment: 'confirmed',
+            preflightCommitment: 'confirmed'
+          });
           
-          // Derive PDAs
-          const [globalMarket] = PublicKey.findProgramAddressSync(
+          const program = new Program(lendingIdl as Lendingprogram, provider);
+
+          // Get PDAs and accounts
+          const [globalMarketPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("global_market")],
             program.programId
           );
-          
-          const [collectionRegistry] = PublicKey.findProgramAddressSync(
+
+          const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("collection_registry")],
             program.programId
           );
-          
-          const [borrowerAccount] = PublicKey.findProgramAddressSync(
-            [Buffer.from("borrower_account"), user.toBuffer()],
+
+          const [borrowerAccountPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("borrower_account"), publicKey!.toBuffer()],
             program.programId
           );
+
+          const nftMint = new PublicKey(mintAddress);
+          const collectionMint = new PublicKey(nftData.collectionMintAddress);
+          const userNftAccount = getAssociatedTokenAddressSync(nftMint, publicKey!);
           
-          const [nftEscrow] = PublicKey.findProgramAddressSync(
-            [Buffer.from("collateral_escrow"), user.toBuffer(), nftMint.toBuffer()],
+          const [nftEscrowPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("collateral_escrow"), publicKey!.toBuffer(), nftMint.toBuffer()],
             program.programId
           );
-          
-          // Get token accounts
-          const userNftAccount = await getAssociatedTokenAddress(nftMint, user);
-          
+
           // Get NFT metadata account
-          const MPL_TOKEN_METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
-          const [nftMetadata] = PublicKey.findProgramAddressSync(
+          const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
             [
               Buffer.from("metadata"),
-              MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+              new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s").toBuffer(),
               nftMint.toBuffer(),
             ],
-            MPL_TOKEN_METADATA_PROGRAM_ID
+            new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
           );
-          
-          console.log(`[DEPOSIT_NFT] 📍 Derived accounts:`, {
-            globalMarket: globalMarket.toString(),
-            borrowerAccount: borrowerAccount.toString(),
-            nftEscrow: nftEscrow.toString(),
-            userNftAccount: userNftAccount.toString(),
-            collectionMint: collectionMint.toString()
+
+          console.log('📋 Deposit parameters:', {
+            nftMint: nftMint.toBase58(),
+            collectionMint: collectionMint.toBase58(),
+            userNftAccount: userNftAccount.toBase58(),
+            nftEscrow: nftEscrowPda.toBase58(),
+            borrowerAccount: borrowerAccountPda.toBase58()
           });
-          
-          // Build the deposit NFT instruction
-          const depositInstruction = await program.methods
+
+          toast.loading(`⏳ Please sign transaction for ${nftData.name}...`, { id: toastId });
+
+          // Create deposit NFT instruction
+          const depositIx = await program.methods
             .depositNft(collectionMint)
             .accounts({
-              globalMarket: globalMarket,
-              collectionRegistry: collectionRegistry,
-              borrowerAccount: borrowerAccount,
+              globalMarket: globalMarketPda,
+              collectionRegistry: collectionRegistryPda,
+              borrowerAccount: borrowerAccountPda,
               nftMint: nftMint,
               userNftAccount: userNftAccount,
-              nftEscrow: nftEscrow,
-              user: user,
-              nftMetadata: nftMetadata,
-              tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+              nftEscrow: nftEscrowPda,
+              user: publicKey!,
+              nftMetadata: nftMetadataAccount,
+              tokenMetadataProgram: new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"),
               tokenProgram: TOKEN_PROGRAM_ID,
               associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
               systemProgram: SystemProgram.programId,
             })
             .instruction();
-          
-          // Create transaction
-          const transaction = new Transaction();
-          transaction.add(depositInstruction);
-          
-          // Get fresh blockhash
-          const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+          // Create and send transaction
+          const transaction = new Transaction().add(depositIx);
+          const { blockhash } = await connection.getLatestBlockhash('confirmed');
           transaction.recentBlockhash = blockhash;
-          transaction.feePayer = publicKey;
+          transaction.feePayer = publicKey!;
+
+          const signedTransaction = await signTransaction(transaction);
           
-          console.log(`[DEPOSIT_NFT] ✅ Transaction built client-side`);
+          toast.loading(`⏳ Sending transaction for ${nftData.name}...`, { id: toastId });
           
-          const signature = await sendTransaction(transaction, connection);
+          const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed'
+          });
+
+          toast.loading(`⏳ Confirming transaction for ${nftData.name}...`, { id: toastId });
+          
+          await connection.confirmTransaction(signature, 'confirmed');
+
           console.log(`✅ NFT ${mintAddress} deposited, signature:`, signature);
           
-          // Use a more robust confirmation strategy with shorter timeout
+          // Record the deposit in the database for tracking
           try {
-            await connection.confirmTransaction({
-              signature,
-              lastValidBlockHeight,
-              blockhash: transaction.recentBlockhash!
-            }, 'confirmed');
-          } catch (confirmError) {
-            // If confirmation times out, check if transaction actually succeeded
-            console.log('⏰ Confirmation timeout, checking transaction status...');
-            const status = await connection.getSignatureStatus(signature);
-            if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
-              console.log('✅ Transaction confirmed despite timeout');
-            } else if (status.value?.err) {
-              throw new Error(`Transaction failed: ${status.value.err}`);
-            } else {
-              console.log('⚠️ Transaction status unclear, but proceeding...');
-            }
+            await fetch('/api/lending/deposit-nft', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                walletAddress: publicKey!.toString(),
+                nftMintAddress: mintAddress,
+                collectionMintAddress: nftData.collectionMintAddress,
+                signature: signature,
+                clientSideTransaction: true,
+              }),
+            });
+          } catch (dbError) {
+            console.warn('Failed to record deposit in database:', dbError);
           }
           
           successCount++;
-          toast.success(`Successfully deposited ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}`);
+          toast.success(`Successfully deposited ${nftData.name}`, { id: toastId });
 
         } catch (innerError) {
           console.error(`Failed to deposit NFT ${mintAddress}:`, innerError);
           
+          if (toastId) toast.dismiss(toastId);
+          
           // Check for specific error types
-          let errorMessage = `Failed to deposit ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please try again.`;
+          let errorMessage = `Failed to deposit ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}`;
           
           if (innerError instanceof Error) {
             const errorString = innerError.message.toLowerCase();
@@ -517,6 +574,9 @@ export default function BorrowPage() {
             }
             else if (errorString.includes('unauthorized')) {
               errorMessage = `❌ Unauthorized access for ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. Please check your permissions.`;
+            }
+            else if (errorString.includes('user rejected')) {
+              errorMessage = 'Transaction cancelled by user';
             }
             else if (errorString.includes('simulation failed')) {
               errorMessage = `❌ Transaction would fail for ${userNfts.find(n => n.mintAddress === mintAddress)?.name || 'NFT'}. This NFT may not be eligible for lending.`;
@@ -548,6 +608,7 @@ export default function BorrowPage() {
 
     } catch (error) {
       console.error('Error in deposit process:', error);
+      if (toastId) toast.dismiss(toastId);
       toast.error('Something went wrong. Try again.');
     } finally {
       setDepositing(false);
@@ -556,7 +617,7 @@ export default function BorrowPage() {
   
   const calculateGrossBorrowingPower = () => {
     if (!borrowingStats) return 0;
-    const ltv = borrowingStats.ltvRatio / 10000;
+    const ltv = borrowingStats!.ltvRatio / 10000;
     
     // Calculate gross borrowing power based on individual NFT collection values (before fees)
     let totalValue = 0;
@@ -713,7 +774,7 @@ export default function BorrowPage() {
                     ${calculateBorrowingPower()}
                   </p>
                   <p className="text-xs text-gray-500">
-                    (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                    (after {(borrowingStats?.transactionFeeBps || 0 / 100).toFixed(1)}% fee)
                   </p>
                 </div>
               </div>

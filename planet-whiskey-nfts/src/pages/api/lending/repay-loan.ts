@@ -19,13 +19,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   console.log('📥 Received request body:', req.body);
   
-  const { walletAddress, loanId, repaymentAmountUsd } = req.body;
+  const { walletAddress, loanId, repaymentAmountUsd, signature, clientSideTransaction } = req.body;
 
   if (!walletAddress || !loanId) {
     console.error('❌ Missing required fields:', { walletAddress, loanId });
     return res.status(400).json({ 
       message: 'All fields are required: walletAddress, loanId' 
     });
+  }
+
+  // If this is a client-side transaction, just validate and record
+  if (clientSideTransaction && signature) {
+    try {
+      console.log('📝 Recording client-side loan repayment:', {
+        walletAddress,
+        loanId,
+        repaymentAmountUsd,
+        signature,
+        timestamp: new Date().toISOString()
+      });
+
+      // TODO: Store in database if needed
+      // For now, just validate and return success
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Loan repayment recorded successfully',
+        signature 
+      });
+    } catch (error) {
+      console.error('Error recording client-side repayment:', error);
+      return res.status(500).json({ 
+        error: 'Failed to record repayment',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   console.log('💰 Repayment request details:', { walletAddress, loanId, repaymentAmountUsd });

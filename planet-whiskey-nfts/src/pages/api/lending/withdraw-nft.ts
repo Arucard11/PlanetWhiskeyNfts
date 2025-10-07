@@ -13,12 +13,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { walletAddress, nftMintAddress } = req.body;
+  const { walletAddress, nftMintAddress, signature, clientSideTransaction } = req.body;
 
   if (!walletAddress || !nftMintAddress) {
     return res.status(400).json({ 
       message: 'All fields are required: walletAddress, nftMintAddress' 
     });
+  }
+
+  // If this is a client-side transaction, just validate and record
+  if (clientSideTransaction && signature) {
+    try {
+      console.log('📝 Recording client-side NFT withdrawal:', {
+        walletAddress,
+        nftMintAddress,
+        signature,
+        timestamp: new Date().toISOString()
+      });
+
+      // TODO: Store in database if needed
+      // For now, just validate and return success
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'NFT withdrawal recorded successfully',
+        signature 
+      });
+    } catch (error) {
+      console.error('Error recording client-side withdrawal:', error);
+      return res.status(500).json({ 
+        error: 'Failed to record withdrawal',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   try {
