@@ -92,6 +92,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     const [walletNftCount, setWalletNftCount] = useState<number>(0);
     const [userWhiskeyBalance, setUserWhiskeyBalance] = useState<number>(0);
     const [whiskeyBalanceLoading, setWhiskeyBalanceLoading] = useState<boolean>(true);
+    const [userSolBalance, setUserSolBalance] = useState<number>(0);
+    const [solBalanceLoading, setSolBalanceLoading] = useState<boolean>(true);
     // Real-time WHISKEY price data
     const { priceData: whiskeyPriceData, loading: priceLoadingState } = useRealTimeWhiskeyPrice();
     const whiskeyRate = whiskeyPriceData?.usd || 1;
@@ -228,6 +230,30 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         };
 
         checkUserWhiskeyBalance();
+    }, [connected, publicKey, connection]);
+
+    // Check SOL balance
+    useEffect(() => {
+        const checkUserSolBalance = async () => {
+            if (!connected || !publicKey) {
+                setSolBalanceLoading(false);
+                setUserSolBalance(0);
+                return;
+            }
+
+            setSolBalanceLoading(true);
+            try {
+                const balance = await connection.getBalance(publicKey);
+                setUserSolBalance(balance / LAMPORTS_PER_SOL); // Convert lamports to SOL
+            } catch (error) {
+                console.error('Error checking SOL balance:', error);
+                setUserSolBalance(0);
+            } finally {
+                setSolBalanceLoading(false);
+            }
+        };
+
+        checkUserSolBalance();
     }, [connected, publicKey, connection]);
 
  
@@ -1123,7 +1149,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         }
 
         try {
-            setIsMinting(true);
+        setIsMinting(true);
             setMintMessage('🥃 Starting whiskey-gated NFT mint...');
             console.log('[WHISKEY-GATED] 🥃 Starting whiskey-gated NFT minting process...');
             console.log('[WHISKEY-GATED] Collection:', displayName);
@@ -1138,7 +1164,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Use the wallet-compatible image URL for NFT metadata
             const nftImageUrl = walletImageUrl || imageUrl || `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(displayName)}`;
             console.log('[NEW-WHISKEY-GATED] 🖼️ Using NFT image URL:', nftImageUrl);
-
+            
             const metadataResponse = await fetch('/api/mints/create-nft-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1208,36 +1234,36 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log('[WHISKEY-GATED] 🔧 Building whiskey-gated transaction...');
 
             // Create NFT mint keypair
-            const nftMint = Keypair.generate();
+                const nftMint = Keypair.generate();
             console.log('[WHISKEY-GATED] 🔑 Generated NFT mint:', nftMint.publicKey.toString());
 
             // Get token account for NFT
-            const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, publicKey);
+                const nftTokenAccount = getAssociatedTokenAddressSync(nftMint.publicKey, publicKey);
 
             // Note: NFT token account will be created by the program itself
             // No need to manually create it as it's defined as a PDA in the IDL
             console.log('[NEW-WHISKEY-GATED] ℹ️ NFT token account will be created by program (PDA):', nftTokenAccount.toString());
 
-            // Get metadata PDA
-            const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("metadata"),
-                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                    nftMint.publicKey.toBuffer(),
-                ],
-                MPL_TOKEN_METADATA_PROGRAM_ID
-            );
-            
-            // Get master edition PDA  
-            const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("metadata"),
-                    MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-                    nftMint.publicKey.toBuffer(),
-                    Buffer.from("edition"),
-                ],
-                MPL_TOKEN_METADATA_PROGRAM_ID
-            );
+                // Get metadata PDA
+                const [nftMetadataAccount] = PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("metadata"),
+                        MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                        nftMint.publicKey.toBuffer(),
+                    ],
+                    MPL_TOKEN_METADATA_PROGRAM_ID
+                );
+
+                // Get master edition PDA
+                const [nftMasterEditionAccount] = PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("metadata"),
+                        MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+                        nftMint.publicKey.toBuffer(),
+                        Buffer.from("edition"),
+                    ],
+                    MPL_TOKEN_METADATA_PROGRAM_ID
+                );
 
             // Get user's WHISKEY account
             const userWhiskeyAccount = getAssociatedTokenAddressSync(
@@ -1285,19 +1311,19 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const finalMetadataUri = actualMetadataUri;
             console.log('[NEW-WHISKEY-GATED] 🔧 Using metadata URI:', finalMetadataUri);
             
-            const mintInstruction = await program.methods
-                .mintWithPaymentValidation(
-                    nftName,
-                    displaySymbol,
+                const mintInstruction = await program.methods
+                    .mintWithPaymentValidation(
+                        nftName,
+                        displaySymbol,
                     finalMetadataUri,
                     new BN(0), // current_whiskey_price_usd = 0
                     new BN(0), // whiskey_to_treasury_amount = 0
                     new BN(0)  // usdc_to_vault_amount = 0
-                )
-                .accounts({
-                    user: publicKey,
-                    collectionConfig: collectionConfigPda,
-                    nftMint: nftMint.publicKey,
+                    )
+                    .accounts({
+                        user: publicKey,
+                        collectionConfig: collectionConfigPda,
+                        nftMint: nftMint.publicKey,
                     nftTokenAccount,
                     nftMetadataAccount,
                     nftMasterEditionAccount,
@@ -1305,14 +1331,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     userWhiskeyAccount,
                     capitalVault,
                     treasuryWhiskeyAccount,
-                    tokenProgram: TOKEN_PROGRAM_ID,
-                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                    tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
-                    systemProgram: SystemProgram.programId,
-                    rent: SYSVAR_RENT_PUBKEY,
-                })
-                .instruction();
-            
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                        tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+                        systemProgram: SystemProgram.programId,
+                        rent: SYSVAR_RENT_PUBKEY,
+                    })
+                    .instruction();
+
             // Create and send mint transaction (same as regular mint)
             const mintTransaction = new Transaction();
             mintTransaction.add(mintInstruction);
@@ -1328,8 +1354,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log('[NEW-WHISKEY-GATED] 📝 Requesting wallet signature and sending transaction...');
             const signature = await wallet.adapter.sendTransaction(mintTransaction, connection, {
                 maxRetries: 3,
-                preflightCommitment: 'confirmed'
-            });
+                    preflightCommitment: 'confirmed'
+                });
 
             setMintMessage('⏳ Confirming transaction...');
             console.log('[NEW-WHISKEY-GATED] ⏳ Confirming transaction...');
@@ -1356,13 +1382,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage('💾 Recording purchase...');
             console.log('[NEW-WHISKEY-GATED] 💾 Recording purchase in database...');
             const recordResponse = await fetch('/api/mints/record-purchase', {
-                method: 'POST',
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    walletAddress: publicKey.toString(),
+                    body: JSON.stringify({
+                        walletAddress: publicKey.toString(),
                     nftMintAddress: nftMint.publicKey.toString(),
                     collectionMintAddress: collectionConfigPda.toString(),
-                    transactionSignature: signature
+                            transactionSignature: signature
                 })
             });
 
@@ -1415,6 +1441,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
         // This function should ONLY be called for regular (non-whiskey-gated) collections
         if (isWhiskeyGated) {
             setMintMessage('❌ This function is only for regular collections. Use whiskey-gated mint instead.');
+            return;
+        }
+
+        // Check SOL balance for transaction fees
+        if (userSolBalance < 0.04) {
+            setMintMessage(`❌ Insufficient SOL balance. Need at least 0.04 SOL for transaction fees`);
             return;
         }
 
@@ -1749,6 +1781,14 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
                             Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY to Swap
+                        </button>
+                    ) : !isWhiskeyGated && userSolBalance < 0.04 ? (
+                        // Regular collections: Check if user has enough SOL for transaction fees
+                        <button
+                            disabled
+                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
+                        >
+                            ⚠️ Need at least 0.04 SOL for transaction fees
                         </button>
                     ) : isWhiskeyGated ? (
                         // Whiskey-gated collections: Simple one-click mint (free if you have WHISKEY)
