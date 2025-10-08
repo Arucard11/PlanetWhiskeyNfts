@@ -473,4 +473,17 @@ select {
 
 .force-white-text::placeholder {
   color: #9ca3af !important;
+}
+
+/* Lending pages input styling - override global dark text */
+.lending-page input[type="text"],
+.lending-page input[type="number"],
+.lending-page input[type="email"],
+.lending-page input[type="password"],
+.lending-page input[type="search"],
+.lending-page input[type="tel"],
+.lending-page input[type="url"],
+.lending-page textarea,
+.lending-page select {
+  color: #ffffff !important; /* white text for dark backgrounds */
 } 

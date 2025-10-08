@@ -688,7 +688,7 @@ export default function BorrowPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 lending-page">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <motion.div
@@ -898,6 +898,7 @@ export default function BorrowPage() {
                     min="1"
                     step="0.01"
                     className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 force-white-text"
+                    style={{ color: '#ffffff !important' }}
                   />
                   <div className="text-sm text-gray-400 mt-2">
                     <p>Gross available: ${borrowingStats.availableToBorrow.toFixed(2)}</p>

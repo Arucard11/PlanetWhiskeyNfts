@@ -597,7 +597,7 @@ export default function MyLoansPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 lending-page">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <motion.div
@@ -877,6 +877,7 @@ export default function MyLoansPage() {
                     }}
                     max={lendingData ? Math.max(0, lendingData.totalBorrowingPower - lendingData.totalDebt) : 0}
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    style={{ color: '#ffffff !important' }}
                     placeholder="Enter amount to borrow"
                   />
                   <div className="text-xs text-gray-400 mt-1">
