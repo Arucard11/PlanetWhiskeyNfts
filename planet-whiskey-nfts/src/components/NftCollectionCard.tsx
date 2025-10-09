@@ -380,7 +380,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     // Step 2: Mint NFT with Address Lookup Table support
     const handleStep2MintNftWithLookupTable = async (): Promise<void> => {
         if (!connected || !publicKey || !sendTransaction) {
-            throw new Error('Wallet not connected or does not support required functions');
+            throw new Error('Wallet not connected or does not support sendTransaction');
         }
 
         console.log('[STEP2_ALT] Starting NFT mint with lookup table...');
@@ -630,20 +630,26 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             );
             console.log(`[STEP2_ALT] ✅ Versioned transaction created`);
 
-            // Sign with NFT mint keypair
-            console.log(`[STEP2_ALT] ✍️ Signing transaction with NFT mint keypair...`);
-            versionedTx.sign([nftMintKeypair]);
-            console.log(`[STEP2_ALT] ✅ Transaction signed with NFT mint keypair`);
-
-            // Sign and send transaction
+            // PHANTOM COMPATIBILITY: Sign with Phantom first (single signer)
             setMintMessage('Please sign the transaction...');
-            console.log(`[STEP2_ALT] 📝 Requesting wallet signature and sending transaction...`);
+            console.log(`[STEP2_ALT] 📝 Requesting Phantom signature first (single signer)...`);
             
-            if (!sendTransaction) {
-                throw new Error('Wallet does not support sendTransaction');
+            if (!signTransaction) {
+                throw new Error('Wallet does not support signTransaction');
             }
             
-            const signature = await sendTransaction(versionedTx, connection, {
+            // Sign with Phantom first (single signer to avoid malicious site warning)
+            const phantomSignedTx = await signTransaction(versionedTx);
+            console.log(`[STEP2_ALT] ✅ Phantom signature collected`);
+            
+            // Now add NFT mint keypair signature
+            console.log(`[STEP2_ALT] ✍️ Adding NFT mint keypair signature...`);
+            phantomSignedTx.sign([nftMintKeypair]);
+            console.log(`[STEP2_ALT] ✅ NFT mint keypair signature added`);
+            
+            // Send the fully signed transaction
+            console.log(`[STEP2_ALT] 📤 Sending fully signed transaction...`);
+            const signature = await connection.sendRawTransaction(phantomSignedTx.serialize(), {
                 maxRetries: 3,
                 preflightCommitment: 'confirmed'
             });
@@ -1142,8 +1148,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
     // 🥃 ULTRA SIMPLE: Whiskey-Gated Minting (Just creates metadata, no program calls)
     const handleNewWhiskeyGatedMint = async () => {
-        if (!publicKey || !wallet || !wallet.adapter) {
-            console.error('[NEW-WHISKEY-GATED] No wallet connected');
+        if (!publicKey || !sendTransaction) {
+            console.error('[NEW-WHISKEY-GATED] No wallet connected or sendTransaction not supported');
             setIsMinting(false);
             return;
         }
@@ -1347,15 +1353,29 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             mintTransaction.recentBlockhash = recentBlockhash;
             mintTransaction.feePayer = publicKey;
 
-            // Add NFT mint keypair as signer
-            mintTransaction.partialSign(nftMint);
-
-            setMintMessage('📝 Requesting wallet signature and sending transaction...');
-            console.log('[NEW-WHISKEY-GATED] 📝 Requesting wallet signature and sending transaction...');
-            const signature = await wallet.adapter.sendTransaction(mintTransaction, connection, {
+            // PHANTOM COMPATIBILITY: Sign with Phantom first (single signer)
+            setMintMessage('📝 Requesting wallet signature...');
+            console.log('[NEW-WHISKEY-GATED] 📝 Requesting Phantom signature first (single signer)...');
+            
+            if (!signTransaction) {
+                throw new Error('Wallet does not support signTransaction');
+            }
+            
+            // Sign with Phantom first (single signer to avoid malicious site warning)
+            const phantomSignedTx = await signTransaction(mintTransaction);
+            console.log('[NEW-WHISKEY-GATED] ✅ Phantom signature collected');
+            
+            // Now add NFT mint keypair signature
+            console.log('[NEW-WHISKEY-GATED] ✍️ Adding NFT mint keypair signature...');
+            phantomSignedTx.partialSign(nftMint);
+            console.log('[NEW-WHISKEY-GATED] ✅ NFT mint keypair signature added');
+            
+            // Send the fully signed transaction
+            console.log('[NEW-WHISKEY-GATED] 📤 Sending fully signed transaction...');
+            const signature = await connection.sendRawTransaction(phantomSignedTx.serialize(), {
                 maxRetries: 3,
-                    preflightCommitment: 'confirmed'
-                });
+                        preflightCommitment: 'confirmed'
+                    });
 
             setMintMessage('⏳ Confirming transaction...');
             console.log('[NEW-WHISKEY-GATED] ⏳ Confirming transaction...');
