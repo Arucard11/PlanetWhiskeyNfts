@@ -44,7 +44,8 @@ class LiquidationBot {
         const required = [
             'SOLANA_RPC_URL',
             'LENDING_PROGRAM_ID',
-            'GLOBAL_MARKET_PDA'
+            'GLOBAL_MARKET_PDA',
+            'KEYPAIR'
         ];
 
         for (const envVar of required) {
@@ -53,15 +54,14 @@ class LiquidationBot {
             }
         }
 
-        // Load liquidation keypair from keypairs folder
+        // Load liquidation keypair from environment variable
         try {
-            const liquidationKeypairPath = path.join(__dirname, '../keypairs/mainnet-liquidation-keypair.json');
-            
-            if (!fs.existsSync(liquidationKeypairPath)) {
-                throw new Error(`❌ Liquidation keypair file not found at: ${liquidationKeypairPath}`);
+            if (!process.env.KEYPAIR) {
+                throw new Error(`❌ KEYPAIR environment variable is not set`);
             }
             
-            const liquidationSecretKey = JSON.parse(fs.readFileSync(liquidationKeypairPath, 'utf8'));
+            // Parse the keypair from environment variable (JSON array format)
+            const liquidationSecretKey = JSON.parse(process.env.KEYPAIR);
             this.liquidationKeypair = Keypair.fromSecretKey(new Uint8Array(liquidationSecretKey));
             this.log(`🔑 Loaded liquidation keypair: ${this.liquidationKeypair.publicKey.toString()}`);
         } catch (error) {
