@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { Connection, PublicKey, Keypair } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 import { Program, AnchorProvider, Wallet } from '@coral-xyz/anchor';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import fs from 'fs';
 import path from 'path';
 import cron from 'node-cron';
@@ -74,13 +75,22 @@ class LiquidationBot {
         this.connection = new Connection(process.env.SOLANA_RPC_URL, 'confirmed');
         this.log('✅ Connection established');
         
-        // For now, skip the full Program setup due to IDL compatibility issues
-        // Just store the program ID for direct instruction building
-        this.programId = new PublicKey(process.env.LENDING_PROGRAM_ID);
-        this.log(`📋 Program ID stored: ${this.programId.toString()}`);
+        // Load IDL from JSON file
+        const idlPath = path.join(__dirname, 'lib/idl/lendingprogram.json');
+        const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
         
-        // TODO: Implement direct instruction building for liquidations
-        this.log('⚠️  Using simplified setup - IDL parsing bypassed');
+        // Set up Anchor provider and program
+        const wallet = new Wallet(this.liquidationKeypair);
+        const provider = new AnchorProvider(this.connection, wallet, {
+            commitment: 'confirmed',
+            preflightCommitment: 'confirmed'
+        });
+        
+        this.programId = new PublicKey(process.env.LENDING_PROGRAM_ID);
+        this.program = new Program(idl,provider);
+        
+        this.log(`📋 Program initialized: ${this.programId.toString()}`);
+        this.log('✅ Anchor program setup complete');
     }
 
     calculatePDAs() {
@@ -91,21 +101,35 @@ class LiquidationBot {
 
     async fetchExpiredLoans() {
         try {
-            this.log('🔍 Fetching expired loans...');
+            this.log('🔍 Fetching all loans from the program...');
             
-            // For now, since we bypassed the Program setup, we'll use a simplified approach
-            // In a real implementation, we'd need to:
-            // 1. Get all program accounts with the loan discriminator
-            // 2. Parse the account data manually
-            // 3. Filter for expired loans
+            // Get all loan accounts
+            const loanAccounts = await this.program.account.loan.all();
+            this.log(`📊 Found ${loanAccounts.length} total loans`);
             
-            this.log('⚠️  Direct account fetching not implemented yet - using mock data for testing');
+            const currentTime = Math.floor(Date.now() / 1000);
+            const expiredLoans = [];
             
-            // Mock some expired loans for testing (you can replace this with real data)
-            const mockExpiredLoans = [];
+            for (const loanAccount of loanAccounts) {
+                const { publicKey, account } = loanAccount;
+                
+                // Check if loan is active and expired
+                if (account.status.active && account.gracePeriodEndsTs.toNumber() < currentTime) {
+                    this.log(`⏰ Found expired loan: ${publicKey.toString()}`);
+                    this.log(`   Grace period ended: ${new Date(account.gracePeriodEndsTs.toNumber() * 1000).toISOString()}`);
+                    this.log(`   Principal: $${(account.principalAmountUsd.toNumber() / 1000000).toFixed(2)}`);
+                    
+                    expiredLoans.push({
+                        publicKey,
+                        account,
+                        borrowerAccount: account.borrowerAccount,
+                        nftMint: null // We'll need to fetch this from borrower account
+                    });
+                }
+            }
             
-            this.log(`📊 Found 0 total loans, ${mockExpiredLoans.length} expired (mock data)`);
-            return mockExpiredLoans;
+            this.log(`⚖️ Found ${expiredLoans.length} expired loans ready for liquidation`);
+            return expiredLoans;
             
         } catch (error) {
             this.log(`❌ Error fetching loans: ${error.message}`, 'error');
@@ -114,28 +138,106 @@ class LiquidationBot {
     }
 
     async liquidateExpiredLoan(loanInfo) {
-        const { publicKey: loanPda, account: loan } = loanInfo;
+        const { publicKey: loanPda, account: loan, borrowerAccount: borrowerAccountPda } = loanInfo;
         
         try {
             this.log(`⚖️ Processing loan liquidation: ${loanPda.toString()}`);
             
+            // Get borrower account to find NFT details
+            const borrowerAccount = await this.program.account.borrowerAccount.fetch(borrowerAccountPda);
+            this.log(`👤 Borrower: ${borrowerAccount.owner.toString()}`);
+            this.log(`📊 Deposited NFTs: ${borrowerAccount.depositedNfts.length}`);
+            
+            if (borrowerAccount.depositedNfts.length === 0) {
+                this.log(`⚠️ No NFTs found in borrower account - skipping liquidation`);
+                return;
+            }
+            
+            // For now, liquidate the first NFT (in a real implementation, you'd need to track which NFT corresponds to which loan)
+            const nftMint = borrowerAccount.depositedNfts[0];
+            this.log(`🎨 Liquidating NFT: ${nftMint.toString()}`);
+            
             if (this.dryRun) {
                 this.log(`🔍 DRY RUN: Would liquidate loan ${loanPda.toString()}`);
-                this.log(`   Borrower: ${loan.borrowerAccount.toString()}`);
+                this.log(`   Borrower: ${borrowerAccount.owner.toString()}`);
+                this.log(`   NFT Mint: ${nftMint.toString()}`);
                 this.log(`   Principal: $${(loan.principalAmountUsd.toNumber() / 1000000).toFixed(2)}`);
                 this.log(`   Grace period ended: ${new Date(loan.gracePeriodEndsTs.toNumber() * 1000).toISOString()}`);
                 return;
             }
 
-            // Get borrower account to find NFT details
-            const borrowerAccount = await this.program.account.borrowerAccount.fetch(loan.borrowerAccount);
+            // Build liquidation instruction
+            const liquidationInstruction = await this.buildLiquidationInstruction(loanPda, borrowerAccountPda, nftMint);
             
-            // For actual liquidation, we would need the NFT mint address
-            // This is a simplified version - in practice, you'd need to track which NFT corresponds to which loan
-            this.log(`✅ Loan marked for liquidation: ${loanPda.toString()}`);
+            // Create and send transaction
+            const transaction = new Transaction();
+            transaction.add(liquidationInstruction);
+            
+            const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
+            transaction.recentBlockhash = blockhash;
+            transaction.feePayer = this.liquidationKeypair.publicKey;
+            
+            // Sign and send transaction
+            transaction.sign(this.liquidationKeypair);
+            
+            this.log(`📤 Sending liquidation transaction...`);
+            const signature = await this.connection.sendRawTransaction(transaction.serialize(), {
+                maxRetries: 3,
+                preflightCommitment: 'confirmed'
+            });
+            
+            this.log(`✅ Liquidation transaction sent: ${signature}`);
+            
+            // Wait for confirmation
+            const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
+            if (confirmation.value.err) {
+                throw new Error(`Transaction failed: ${confirmation.value.err}`);
+            }
+            
+            this.log(`🔥 NFT successfully liquidated: ${nftMint.toString()}`);
             
         } catch (error) {
             this.log(`❌ Failed to liquidate loan ${loanPda.toString()}: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    async buildLiquidationInstruction(loanPda, borrowerAccountPda, nftMint) {
+        try {
+            this.log(`🔨 Building liquidation instruction for NFT: ${nftMint.toString()}`);
+            
+            // Derive NFT escrow PDA
+            const [nftEscrowPda] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("collateral_escrow"),
+                    borrowerAccountPda.toBuffer(),
+                    new PublicKey(nftMint).toBuffer()
+                ],
+                this.programId
+            );
+            
+            this.log(`🏦 NFT Escrow PDA: ${nftEscrowPda.toString()}`);
+            
+            // Build the liquidation instruction using Anchor
+            const liquidationInstruction = await this.program.methods
+                .liquidateExpiredLoan(loanPda)
+                .accounts({
+                    borrowerAccount: borrowerAccountPda,
+                    globalMarket: this.globalMarketPda,
+                    loan: loanPda,
+                    nftMint: new PublicKey(nftMint),
+                    nftEscrow: nftEscrowPda,
+                    liquidator: this.liquidationKeypair.publicKey,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    systemProgram: SystemProgram.programId
+                })
+                .instruction();
+            
+            this.log(`✅ Liquidation instruction built successfully`);
+            return liquidationInstruction;
+            
+        } catch (error) {
+            this.log(`❌ Failed to build liquidation instruction: ${error.message}`, 'error');
             throw error;
         }
     }
