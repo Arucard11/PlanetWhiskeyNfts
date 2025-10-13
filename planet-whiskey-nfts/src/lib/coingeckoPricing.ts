@@ -21,6 +21,7 @@ const API_BASE_URL = 'https://api.coingecko.com/api/v3';
 
 // In-memory cache
 let priceCache: PriceCache | null = null;
+let solPriceCache: PriceCache | null = null;
 
 /**
  * Fetch real-time WHISKEY price from CoinGecko
@@ -88,10 +89,78 @@ export async function fetchWhiskeyPrice(): Promise<WhiskeyPriceData> {
 }
 
 /**
+ * Fetch real-time SOL price from CoinGecko
+ */
+export async function fetchSolPrice(): Promise<WhiskeyPriceData> {
+  try {
+    // Check cache first
+    if (solPriceCache && Date.now() - solPriceCache.timestamp < CACHE_DURATION) {
+      return solPriceCache.data;
+    }
+
+    // CoinGecko API endpoint for SOL
+    const response = await fetch(
+      `${API_BASE_URL}/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_last_updated_at=true`
+    );
+
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.solana) {
+      throw new Error('SOL price data not found in response');
+    }
+
+    const priceData: WhiskeyPriceData = {
+      usd: data.solana.usd || 0,
+      usd_24h_change: data.solana.usd_24h_change || 0,
+      usd_24h_vol: data.solana.usd_24h_vol || 0,
+      usd_market_cap: data.solana.usd_market_cap || 0,
+      last_updated_at: data.solana.last_updated_at || Date.now() / 1000,
+    };
+
+    // Update cache
+    solPriceCache = {
+      data: priceData,
+      timestamp: Date.now(),
+    };
+
+    return priceData;
+
+  } catch (error) {
+    console.error('[CoinGecko] Error fetching SOL price:', error);
+    
+    // Return cached data if available, even if expired
+    if (solPriceCache) {
+      return solPriceCache.data;
+    }
+    
+    // Return default price if no cache available
+    return {
+      usd: 100, // Default fallback price for SOL
+      usd_24h_change: 0,
+      usd_24h_vol: 0,
+      usd_market_cap: 0,
+      last_updated_at: Date.now() / 1000,
+    };
+  }
+}
+
+/**
  * Get current WHISKEY price in USD
  */
 export async function getCurrentWhiskeyRate(): Promise<number> {
   const priceData = await fetchWhiskeyPrice();
+  return priceData.usd;
+}
+
+/**
+ * Get current SOL price in USD
+ */
+export async function getCurrentSolRate(): Promise<number> {
+  const priceData = await fetchSolPrice();
   return priceData.usd;
 }
 

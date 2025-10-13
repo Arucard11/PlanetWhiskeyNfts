@@ -30,7 +30,7 @@ import { Liquidity, LiquidityPoolKeys, Percent, Token, TokenAmount } from '@rayd
 import { Whiskeyprogram } from '@/lib/idl/whiskeyprogram';
 import whiskeyIdl from '@/lib/idl/whiskeyprogram.json';
 import MediaWithFallback from './MediaWithFallback';
-import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange, getCurrentWhiskeyRate } from '@/lib/coingeckoPricing';
+import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange, getCurrentWhiskeyRate, getCurrentSolRate } from '@/lib/coingeckoPricing';
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
 import { getSolanaConnection } from '@/lib/solanaUtils';
@@ -282,8 +282,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const devFeeWhiskey = displayMintPriceWhiskeyTokens * devFeePercentage;
             const baseWhiskeyToSwap = baseLendingWhiskey + devFeeWhiskey;
             
-            // Add 8% buffer to account for swap fees, slippage, and dev fee
-            const whiskeyToSwap = baseWhiskeyToSwap * 1.08;
+            // Add 4% buffer to account for swap fees, slippage, and dev fee
+            const whiskeyToSwap = baseWhiskeyToSwap * 1.04;
             const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * treasuryPercentageStep1;
             
             console.log(`[STEP1] Payment breakdown:`);
@@ -578,7 +578,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             instructions.push(mintInstruction);
             console.log(`[STEP2_ALT] 📋 Instructions after mint: ${instructions.length}`);
 
-            // Add dev wallet transfer instruction (2% fee)
+            // Add dev wallet transfer instructions (2% USDC + 3% SOL)
             const devWallet = new PublicKey(process.env.NEXT_PUBLIC_DEV_WALLET!);
             const devUsdcAccount = getAssociatedTokenAddressSync(
                 new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
@@ -588,7 +588,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Check if dev USDC account exists, create if needed
             const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
             if (devUsdcAccountInfo === null) {
-                console.log(`[STEP2_ALT] Creating dev USDC ATA...`);
                 const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
                     publicKey, // payer (user pays for creation)
                     devUsdcAccount, // ata
@@ -598,15 +597,29 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 instructions.push(createDevUsdcAtaIx);
             }
             
-            // Create dev fee transfer instruction (2% to dev wallet) - LAST INSTRUCTION
-            const devFeeTransferIx = createTransferInstruction(
+            // Create dev USDC transfer instruction (2% to dev wallet)
+            const devUsdcTransferIx = createTransferInstruction(
                 userUsdcAccount, // source
                 devUsdcAccount, // destination
                 publicKey, // authority
                 usdcToDevWalletLamports // amount
             );
-            instructions.push(devFeeTransferIx);
-            console.log(`[STEP2_ALT] 💰 Added dev wallet transfer: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
+            instructions.push(devUsdcTransferIx);
+            
+            // Create dev SOL transfer instruction (3% to dev wallet)
+            const solFeePercentage = 0.03; // 3% SOL fee
+            const currentSolPrice = await getCurrentSolRate();
+            const mintPriceUsdValue = mintPriceUsd || 0;
+            const solFeeUsd = mintPriceUsdValue * solFeePercentage;
+            const solToDevWallet = solFeeUsd / currentSolPrice; // Convert USD to SOL
+            const solToDevWalletLamports = Math.floor(solToDevWallet * LAMPORTS_PER_SOL);
+            
+            const devSolTransferIx = SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: devWallet,
+                lamports: solToDevWalletLamports,
+            });
+            instructions.push(devSolTransferIx);
             console.log(`[STEP2_ALT] 📋 Total instructions: ${instructions.length}`);
 
             // Get lookup table and create versioned transaction
@@ -994,19 +1007,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 mintTransaction.add(createWhiskeyAtaIx);
             }
             
-            // Add dev fee transfer instruction
+            // Add dev fee transfer instructions (2% USDC + 3% SOL)
             const devWallet = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n");
             const devUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, devWallet);
-            
-            console.log(`[STEP2] Adding dev fee transfer:`);
-            console.log(`  - Dev wallet: ${devWallet.toString()}`);
-            console.log(`  - Dev USDC account: ${devUsdcAccount.toString()}`);
-            console.log(`  - Dev fee amount: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
             
             // Check if dev USDC account exists, create if not
             const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
             if (devUsdcAccountInfo === null) {
-                console.log(`[STEP2] Creating dev USDC ATA...`);
                 const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
                     publicKey, // payer (user pays for creation)
                     devUsdcAccount, // ata
@@ -1019,14 +1026,29 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Add the mint instruction first
             mintTransaction.add(mintInstruction);
             
-            // Create dev fee transfer instruction (2% to dev wallet) - LAST INSTRUCTION
-            const devFeeTransferIx = createTransferInstruction(
+            // Create dev USDC transfer instruction (2% to dev wallet)
+            const devUsdcTransferIx = createTransferInstruction(
                 userUsdcAccount, // source
                 devUsdcAccount, // destination
                 publicKey, // authority
                 usdcToDevWalletLamports // amount
             );
-            mintTransaction.add(devFeeTransferIx);
+            mintTransaction.add(devUsdcTransferIx);
+            
+            // Create dev SOL transfer instruction (3% to dev wallet)
+            const solFeePercentage = 0.03; // 3% SOL fee
+            const currentSolPrice = await getCurrentSolRate();
+            const mintPriceUsdValue = mintPriceUsd || 0;
+            const solFeeUsd = mintPriceUsdValue * solFeePercentage;
+            const solToDevWallet = solFeeUsd / currentSolPrice; // Convert USD to SOL
+            const solToDevWalletLamports = Math.floor(solToDevWallet * LAMPORTS_PER_SOL);
+            
+            const devSolTransferIx = SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: devWallet,
+                lamports: solToDevWalletLamports,
+            });
+            mintTransaction.add(devSolTransferIx);
             mintTransaction.feePayer = publicKey;
             mintTransaction.recentBlockhash = blockhash;
             
@@ -1495,7 +1517,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             await handleStep1SwapAndDeposit();
             setStep1Complete(true);
             setShowSuccessPopup(true);
-            setMintMessage('✅ Step 1 Complete: USDC deposited to vault! Ready to mint NFT.');
+            setMintMessage('✅ Step 1 Complete: USDC deposited to vault! Mint your NFT now to complete the process.');
         } catch (error) {
             console.error('Step 1 failed:', error);
             
@@ -1950,7 +1972,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                                 ) : mintMessage.includes('Validating') ? (
                                     <>Verifying that your NFT was created properly with all required on-chain data...</>
                                 ) : (
-                                    <>Your WHISKEY has been swapped to USDC and deposited to the vault. You're now ready to receive your NFT!</>
+                                    <>Your WHISKEY has been swapped to USDC and deposited to the vault. Mint your NFT now to complete the process!</>
                                 )}
                             </p>
                             
@@ -2005,7 +2027,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                                         ) : mintMessage.includes('❌') ? (
                                             '🔄 Retry Mint NFT'
                                         ) : (
-                                            '🎨 Receive Your NFT'
+                                            '🎨 Mint Your NFT Now'
                                         )}
                                     </button>
                                 )}
@@ -2025,7 +2047,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                                         ? 'Close (NFT in wallet but broken)' 
                                         : mintMessage.includes('❌') 
                                             ? 'Close (Your deposit is safe)' 
-                                            : 'Close (You can mint later)'
+                                            : 'Close (Mint your NFT now)'
                                     }
                                 </button>
                             </div>
