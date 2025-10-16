@@ -80,6 +80,32 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
           sellerNftTokenAccount: sellerNftTokenAccount.toString()
       });
       
+      // Check account states before transaction
+      console.log(`[CANCEL_MODAL] 🔍 Checking account states before cancellation...`);
+      const listingAccountInfo = await connection.getAccountInfo(listingPda);
+      const escrowAccountInfo = await connection.getAccountInfo(escrowTokenAccount);
+      const sellerNftAccountInfo = await connection.getAccountInfo(sellerNftTokenAccount);
+      
+      console.log(`[CANCEL_MODAL] 📊 Account states:`, {
+          listingExists: listingAccountInfo !== null,
+          escrowExists: escrowAccountInfo !== null,
+          sellerNftExists: sellerNftAccountInfo !== null,
+          escrowBalance: escrowAccountInfo ? escrowAccountInfo.data.length : 'N/A',
+          sellerNftBalance: sellerNftAccountInfo ? sellerNftAccountInfo.data.length : 'N/A'
+      });
+      
+      if (!listingAccountInfo) {
+          console.log(`[CANCEL_MODAL] ❌ Listing does not exist on-chain!`);
+          setCancelMessage("❌ This listing does not exist on the blockchain. It may have already been cancelled.");
+          return;
+      }
+      
+      if (!escrowAccountInfo) {
+          console.log(`[CANCEL_MODAL] ❌ Escrow account does not exist!`);
+          setCancelMessage("❌ The escrow account for this listing does not exist. The NFT may already be back in your wallet.");
+          return;
+      }
+      
       // Build the cancel listing instruction
       const cancelInstruction = await program.methods
           .cancelListing()
@@ -91,7 +117,7 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
               nftToListMint: nftMint,
               systemProgram: SystemProgram.programId,
               tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as any)
           .instruction();
       
       // Create transaction
@@ -108,16 +134,36 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
       setCancelMessage("3/4: Please sign the transaction...");
       console.log(`[CANCEL_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
+      // Phantom compatibility: Sign with wallet first, then send raw transaction
       const signedTransaction = await signTransaction(transaction);
       
       setCancelMessage("4/4: Confirming cancellation...");
 
       // Send with proper retry settings
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed',
-        maxRetries: 2, // Reduced retries to prevent duplicate issues
-      });
+      let signature: string;
+      try {
+        signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+          skipPreflight: false, // Enable preflight to catch errors early
+          preflightCommitment: 'confirmed',
+          maxRetries: 2, // Reduced retries to prevent duplicate issues
+        });
+        console.log(`[CANCEL_MODAL] ✅ Transaction sent successfully! Signature: ${signature}`);
+      } catch (sendError: any) {
+        console.error(`[CANCEL_MODAL] ❌ Failed to send cancel transaction:`, sendError);
+        
+        let userMessage = sendError.message || "Failed to send cancel transaction";
+        
+        // Check for common Solana errors and provide better messages
+        if (userMessage.includes("This transaction has already been processed")) {
+          userMessage = "This listing was already cancelled. Please refresh the page to see the updated status.";
+        } else if (userMessage.includes("Account does not exist")) {
+          userMessage = "The listing or escrow account does not exist. The NFT may already be back in your wallet.";
+        } else if (userMessage.includes("insufficient funds")) {
+          userMessage = "Insufficient SOL for transaction fees. Please add some SOL to your wallet.";
+        }
+        
+        throw new Error(userMessage);
+      }
 
       // Fast confirmation with aggressive polling
       console.log('[CANCEL_MODAL] 🚀 Starting fast confirmation polling...');
@@ -130,9 +176,24 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
           console.log(`[CANCEL_MODAL] 📊 Attempt ${attempt}: Status = ${status.value?.confirmationStatus || 'pending'}`);
           
           if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
-            console.log(`[CANCEL_MODAL] ✅ Transaction confirmed on attempt ${attempt}!`);
-            confirmed = true;
-            break;
+        console.log(`[CANCEL_MODAL] ✅ Transaction confirmed on attempt ${attempt}!`);
+        
+        // Check account states after successful transaction
+        console.log(`[CANCEL_MODAL] 🔍 Checking account states after cancellation...`);
+        const listingAccountInfoAfter = await connection.getAccountInfo(listingPda);
+        const escrowAccountInfoAfter = await connection.getAccountInfo(escrowTokenAccount);
+        const sellerNftAccountInfoAfter = await connection.getAccountInfo(sellerNftTokenAccount);
+        
+        console.log(`[CANCEL_MODAL] 📊 Account states after:`, {
+            listingExists: listingAccountInfoAfter !== null,
+            escrowExists: escrowAccountInfoAfter !== null,
+            sellerNftExists: sellerNftAccountInfoAfter !== null,
+            escrowBalance: escrowAccountInfoAfter ? escrowAccountInfoAfter.data.length : 'N/A',
+            sellerNftBalance: sellerNftAccountInfoAfter ? sellerNftAccountInfoAfter.data.length : 'N/A'
+        });
+        
+        confirmed = true;
+        break;
           } else if (status.value?.err) {
             throw new Error(`Transaction failed: ${status.value.err}`);
           }

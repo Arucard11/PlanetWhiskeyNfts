@@ -38,6 +38,7 @@ import { getSolanaConnection } from '@/lib/solanaUtils';
 // Token addresses
 const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
 const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+const DEV_WALLET = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n"); // Dev wallet for fees
 
 // Jito tip accounts (mainnet)
 
@@ -579,7 +580,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log(`[STEP2_ALT] 📋 Instructions after mint: ${instructions.length}`);
 
             // Add dev wallet transfer instructions (2% USDC + 3% SOL)
-            const devWallet = new PublicKey(process.env.NEXT_PUBLIC_DEV_WALLET!);
+            const devWallet = DEV_WALLET;
             const devUsdcAccount = getAssociatedTokenAddressSync(
                 new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
                 devWallet
@@ -1008,7 +1009,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             }
             
             // Add dev fee transfer instructions (2% USDC + 3% SOL)
-            const devWallet = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n");
+            const devWallet = DEV_WALLET;
             const devUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, devWallet);
             
             // Check if dev USDC account exists, create if not

@@ -110,7 +110,7 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
                 systemProgram: SystemProgram.programId,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 rent: SYSVAR_RENT_PUBKEY,
-            })
+            } as any)
             .instruction();
         
         // Create transaction
@@ -126,6 +126,7 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
         setListingMessage("2/4: Please sign the transaction in your wallet...");
         console.log(`[LIST_NFT_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
+        // Phantom compatibility: Sign with wallet first, then send raw transaction
         const signedTransaction = await signTransaction(transaction);
         
         console.log(`[LIST_NFT_MODAL] ✅ Transaction signed successfully`);
@@ -147,7 +148,7 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
             if (userMessage.includes("This transaction has already been processed")) {
                 userMessage = "It seems this listing was already submitted. Please check 'My NFTs' to see if it's active.";
             } else if (sendError instanceof SendTransactionError) {
-                const detailedLogs = await sendError.getLogs();
+                const detailedLogs = await sendError.getLogs(connection);
                 console.log("📋 Transaction simulation logs:", detailedLogs);
                 const errorSummary = detailedLogs?.find(log => log.toLowerCase().includes('error'));
                 if (errorSummary) {
@@ -341,18 +342,102 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
                         className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-amber-500 force-white-text"
                         style={{ 
                             color: 'white !important',
-                            WebkitTextFillColor: 'white',
-                            textFillColor: 'white'
+                            WebkitTextFillColor: 'white'
                         }}
                     />
                 </div>
               </div>
 
-              {listingMessage && (
-                <p className={`text-sm text-center p-2 rounded-md ${listingMessage.includes('❌') ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                    {listingMessage}
-                </p>
-              )}
+                {listingMessage && (
+                 <div className="space-y-2">
+                   <p className={`text-sm text-center p-2 rounded-md ${listingMessage.includes('❌') ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                       {listingMessage}
+                   </p>
+                   
+                   {/* Show NFT retrieval button if listing failed but NFT is stuck */}
+                   {listingMessage.includes('On-chain transaction could not be verified') && (
+                     <button
+                       type="button"
+                       onClick={async () => {
+                         try {
+                           if (!publicKey || !signTransaction) {
+                             setListingMessage("❌ Wallet not connected");
+                             return;
+                           }
+                           
+                           setListingMessage("🔄 Attempting to retrieve NFT from escrow...");
+                           
+                           const program = getMarketplaceProgram();
+                           const nftMint = new PublicKey(nftMintAddress);
+                           const seller = publicKey;
+                           
+                           // Derive listing PDA
+                           const [listingPda] = PublicKey.findProgramAddressSync(
+                               [Buffer.from("listing"), seller.toBuffer(), nftMint.toBuffer()],
+                               program.programId
+                           );
+                           
+                           // Derive escrow token account PDA
+                           const [escrowTokenAccount] = PublicKey.findProgramAddressSync(
+                               [Buffer.from("escrow"), listingPda.toBuffer()],
+                               program.programId
+                           );
+                           
+                           // Get seller's NFT token account
+                           const sellerNftTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
+                           
+                           // Check if escrow has the NFT
+                           const escrowAccountInfo = await connection.getAccountInfo(escrowTokenAccount);
+                           if (!escrowAccountInfo) {
+                               setListingMessage("❌ No escrow account found. NFT may already be in your wallet.");
+                               return;
+                           }
+                           
+                           // Try to cancel the listing to get NFT back
+                           const cancelInstruction = await program.methods
+                               .cancelListing()
+                               .accounts({
+                                   seller: seller,
+                                   listing: listingPda,
+                                   sellerNftTokenAccount: sellerNftTokenAccount,
+                                   escrowTokenAccount: escrowTokenAccount,
+                                   nftToListMint: nftMint,
+                                   systemProgram: SystemProgram.programId,
+                                   tokenProgram: TOKEN_PROGRAM_ID,
+                               } as any)
+                               .instruction();
+                           
+                           const transaction = new Transaction();
+                           transaction.add(cancelInstruction);
+                           
+                           const { blockhash } = await connection.getLatestBlockhash('confirmed');
+                           transaction.recentBlockhash = blockhash;
+                           transaction.feePayer = publicKey;
+                           
+                           const signedTransaction = await signTransaction(transaction);
+                           const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+                               skipPreflight: false,
+                               preflightCommitment: 'confirmed',
+                           });
+                           
+                           setListingMessage("✅ NFT retrieval transaction sent! Please wait for confirmation...");
+                           
+                           // Wait for confirmation
+                           await connection.confirmTransaction(signature, 'confirmed');
+                           setListingMessage("🎉 NFT successfully retrieved! Please refresh the page to see it in your wallet.");
+                           
+                         } catch (error) {
+                           console.error('NFT retrieval error:', error);
+                           setListingMessage(`❌ NFT retrieval failed: ${error.message}`);
+                         }
+                       }}
+                       className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                     >
+                       🔄 Retrieve My NFT
+                     </button>
+                   )}
+                 </div>
+                )}
 
               <button
                 type="submit"

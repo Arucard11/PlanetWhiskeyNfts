@@ -141,6 +141,7 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
         setBuyMessage("2/4: Please sign the transaction...");
         console.log(`[BUY_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
+        // Phantom compatibility: Sign with wallet first, then send raw transaction
         const signedTransaction = await signTransaction(transaction);
         
         console.log("🔍 DEBUG: About to send transaction to network...");

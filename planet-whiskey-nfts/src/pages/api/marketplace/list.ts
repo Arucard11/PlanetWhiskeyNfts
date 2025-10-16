@@ -84,6 +84,10 @@ async function verifyListTransaction(
         }
 
         console.log(`[VERIFY_LIST_TX] ✅ Instruction decoded successfully: ${decodedInstruction.name}`);
+        console.log(`[VERIFY_LIST_TX] 🔍 Decoded instruction details:`, {
+            name: decodedInstruction.name,
+            data: decodedInstruction.data
+        });
         console.log(`[VERIFY_LIST_TX] 💰 On-chain price: ${decodedInstruction.data.price.toString()}`);
         
         // Extract accounts from the parsed transaction message

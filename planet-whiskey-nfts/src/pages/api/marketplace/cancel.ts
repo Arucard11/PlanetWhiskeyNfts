@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import MarketplaceListing from '@/models/MarketplaceListing';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { getMarketplaceProgram } from '@/lib/solanaUtils';
+import { BorshInstructionCoder } from '@coral-xyz/anchor';
 
 // Verify that the transaction was a successful `cancel_listing` call for the specific NFT
 async function verifyCancelTransaction(
@@ -12,6 +13,7 @@ async function verifyCancelTransaction(
     expectedNftMint: string,
 ): Promise<boolean> {
     try {
+        console.log(`[CANCEL_VERIFY] 🔍 Verifying cancel transaction: ${signature}`);
         const tx = await connection.getParsedTransaction(signature, { maxSupportedTransactionVersion: 0 });
 
         if (!tx || tx.meta?.err) {
@@ -19,15 +21,58 @@ async function verifyCancelTransaction(
             return false;
         }
 
+        console.log(`[CANCEL_VERIFY] ✅ Transaction found and successful`);
         const program = getMarketplaceProgram();
+        const instructionCoder = new BorshInstructionCoder(program.idl);
+        
+        console.log(`[CANCEL_VERIFY] 📋 Looking for instructions from program: ${program.programId.toBase58()}`);
+        console.log(`[CANCEL_VERIFY] 📋 Transaction has ${tx.transaction.message.instructions.length} instructions`);
+        
         const cancelInstruction = tx.transaction.message.instructions.find(
             (ix) => ix.programId.equals(program.programId)
         );
 
         if (!cancelInstruction) {
-            console.error("No marketplace 'cancel' instruction found in the transaction.");
+            console.error("No marketplace instruction found in the transaction.");
+            console.log(`[CANCEL_VERIFY] 📋 Available program IDs:`, tx.transaction.message.instructions.map(ix => ix.programId.toBase58()));
             return false;
         }
+
+        console.log(`[CANCEL_VERIFY] ✅ Found marketplace instruction`);
+
+        // Decode the instruction to verify it's a cancel_listing instruction
+        if (!('data' in cancelInstruction)) {
+            console.error("Instruction has no data field");
+            return false;
+        }
+
+        console.log(`[CANCEL_VERIFY] 📋 Instruction data:`, cancelInstruction.data);
+        
+        let decodedInstruction;
+        try {
+            decodedInstruction = instructionCoder.decode(cancelInstruction.data, 'base58');
+        } catch (decodeError) {
+            console.error(`[CANCEL_VERIFY] ❌ Failed to decode instruction:`, decodeError);
+            return false;
+        }
+        
+        if (!decodedInstruction) {
+            console.error("Failed to decode instruction");
+            return false;
+        }
+        
+        console.log(`[CANCEL_VERIFY] 🔍 Decoded instruction details:`, {
+            name: decodedInstruction.name,
+            data: decodedInstruction.data
+        });
+        
+        // Check for both possible instruction names
+        if (decodedInstruction.name !== 'cancel_listing' && decodedInstruction.name !== 'cancelListing') {
+            console.error(`Wrong instruction type: ${decodedInstruction.name}. Expected 'cancel_listing' or 'cancelListing'`);
+            return false;
+        }
+
+        console.log(`✅ Cancel instruction verified: ${decodedInstruction.name}`);
 
         // Verify the seller was a signer
         const sellerPubkey = new PublicKey(expectedSeller);
