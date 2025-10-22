@@ -8,11 +8,6 @@ import ListNftModal from '@/components/ListNftModal';
 import ListedNftCard from '@/components/ListedNftCard';
 import CancelListingModal from '@/components/CancelListingModal';
 import { toast } from 'react-toastify';
-import { getMarketplaceProgram } from '@/lib/solanaUtils';
-import { getAssociatedTokenAddress } from '@solana/spl-token';
-import { Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { useConnection } from '@solana/wallet-adapter-react';
 //do not in any way change the way the image is being fetched from the api or the way the image is being displayed in the marketplace page
 
 // Interface to match the simplified API response
@@ -61,8 +56,7 @@ interface ListingForCancel {
 }
 
 export default function MyNftsPage() {
-  const { connected, wallet, publicKey, signTransaction } = useWallet();
-  const { connection } = useConnection();
+  const { connected, wallet } = useWallet();
   const [ownedCollectionNfts, setOwnedCollectionNfts] = useState<SerializableNft[]>([]);
   const [listedNfts, setListedNfts] = useState<ListedNft[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,8 +67,6 @@ export default function MyNftsPage() {
   const [selectedNft, setSelectedNft] = useState<NftForListing | null>(null);
   const [selectedListing, setSelectedListing] = useState<ListingForCancel | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [nftRetrievalMessage, setNftRetrievalMessage] = useState<string>('');
-  const [isRetrievingNft, setIsRetrievingNft] = useState(false);
 
   useEffect(() => {
     // Only add mouse listener on client side
@@ -194,102 +186,6 @@ export default function MyNftsPage() {
     fetchListings(); // Refresh listings after cancellation
   };
 
-  // NFT Retrieval function for the specific stuck NFT
-  const handleRetrieveStuckNft = async () => {
-    if (!publicKey || !signTransaction) {
-      setNftRetrievalMessage("❌ Wallet not connected");
-      return;
-    }
-
-    setIsRetrievingNft(true);
-    setNftRetrievalMessage("🔄 Attempting to retrieve NFT from escrow...");
-
-    try {
-      const program = getMarketplaceProgram();
-      const nftMint = new PublicKey("5RgAntxESeEbGqA5TbNeRwjEWVhb6iCVA9VbeANEfeZ5"); // The specific NFT from your transaction
-      const seller = publicKey;
-
-      // Derive listing PDA
-      const [listingPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from("listing"), seller.toBuffer(), nftMint.toBuffer()],
-          program.programId
-      );
-
-      // Derive escrow token account PDA
-      const [escrowTokenAccount] = PublicKey.findProgramAddressSync(
-          [Buffer.from("escrow"), listingPda.toBuffer()],
-          program.programId
-      );
-
-      // Get seller's NFT token account
-      const sellerNftTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
-
-      console.log(`[NFT_RETRIEVAL] 📍 Account addresses:`, {
-          nftMint: nftMint.toBase58(),
-          seller: seller.toBase58(),
-          listingPda: listingPda.toBase58(),
-          escrowTokenAccount: escrowTokenAccount.toBase58(),
-          sellerNftTokenAccount: sellerNftTokenAccount.toBase58()
-      });
-
-      // Check if escrow has the NFT
-      const escrowAccountInfo = await connection.getAccountInfo(escrowTokenAccount);
-      if (!escrowAccountInfo) {
-          setNftRetrievalMessage("❌ No escrow account found. NFT may already be in your wallet.");
-          return;
-      }
-
-      console.log(`[NFT_RETRIEVAL] ✅ Escrow account exists, proceeding with cancellation...`);
-
-      // Try to cancel the listing to get NFT back
-      const cancelInstruction = await program.methods
-          .cancelListing()
-          .accounts({
-              seller: seller,
-              listing: listingPda,
-              sellerNftTokenAccount: sellerNftTokenAccount,
-              escrowTokenAccount: escrowTokenAccount,
-              nftToListMint: nftMint,
-              systemProgram: SystemProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-          } as any)
-          .instruction();
-
-      const transaction = new Transaction();
-      transaction.add(cancelInstruction);
-
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-
-      console.log(`[NFT_RETRIEVAL] 🔐 Signing transaction...`);
-      const signedTransaction = await signTransaction(transaction);
-
-      console.log(`[NFT_RETRIEVAL] 📡 Sending transaction...`);
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
-          skipPreflight: false,
-          preflightCommitment: 'confirmed',
-      });
-
-      setNftRetrievalMessage("✅ NFT retrieval transaction sent! Please wait for confirmation...");
-      console.log(`[NFT_RETRIEVAL] 📝 Transaction signature: ${signature}`);
-
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
-      setNftRetrievalMessage("🎉 NFT successfully retrieved! Please refresh the page to see it in your wallet.");
-      
-      // Refresh the NFTs after successful retrieval
-      setTimeout(() => {
-        fetchNfts();
-      }, 2000);
-
-    } catch (error) {
-      console.error('[NFT_RETRIEVAL] ❌ Error:', error);
-      setNftRetrievalMessage(`❌ NFT retrieval failed: ${error.message}`);
-    } finally {
-      setIsRetrievingNft(false);
-    }
-  };
 
   if (!connected) {
     return (
@@ -399,53 +295,6 @@ export default function MyNftsPage() {
           My NFTs
         </motion.h1>
 
-        {/* NFT Retrieval Section - Always visible at the top */}
-        <motion.div 
-          className="mb-8"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-        >
-          <div className="bg-orange-500/20 border-2 border-orange-500/40 rounded-lg p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-2xl font-bold text-orange-300 mb-2">🚨 NFT Recovery Tool</h3>
-                <p className="text-orange-200 text-base">
-                  <strong>URGENT:</strong> If you have an NFT stuck in escrow from a failed listing, use this tool to retrieve it immediately.
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <button
-                onClick={handleRetrieveStuckNft}
-                disabled={isRetrievingNft || !connected}
-                className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-4 px-6 rounded-lg text-lg font-bold transition-colors shadow-lg"
-              >
-                {isRetrievingNft ? (
-                  <span className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                    Retrieving NFT...
-                  </span>
-                ) : (
-                  "🔄 RETRIEVE STUCK NFT (5RgAntx...ANEfeZ5)"
-                )}
-              </button>
-              
-              {nftRetrievalMessage && (
-                <div className={`text-base p-4 rounded-md font-medium ${
-                  nftRetrievalMessage.includes('❌') 
-                    ? 'bg-red-500/20 text-red-300' 
-                    : nftRetrievalMessage.includes('🎉')
-                    ? 'bg-green-500/20 text-green-300'
-                    : 'bg-blue-500/20 text-blue-300'
-                }`}>
-                  {nftRetrievalMessage}
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
 
         {loading && (
           <div className="flex justify-center items-center py-16">

@@ -275,7 +275,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Calculate swap amount (lending portion + dev fee portion that needs to be USDC)
             const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.02; // 2% dev fee
+            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
             const treasuryPercentageStep1 = 0.20; // 20% to treasury (unchanged)
             const lendingPercentage = lendingShareBps / 10000; // e.g., 8000/10000 = 0.80
             
@@ -283,8 +283,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const devFeeWhiskey = displayMintPriceWhiskeyTokens * devFeePercentage;
             const baseWhiskeyToSwap = baseLendingWhiskey + devFeeWhiskey;
             
-            // Add 4% buffer to account for swap fees, slippage, and dev fee
-            const whiskeyToSwap = baseWhiskeyToSwap * 1.04;
+            // Add 8% buffer to account for swap fees, slippage, and dev fee
+            const whiskeyToSwap = baseWhiskeyToSwap * 1.08;
             const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * treasuryPercentageStep1;
             
             console.log(`[STEP1] Payment breakdown:`);
@@ -458,7 +458,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             const whiskeyRate = await getCurrentWhiskeyRate();
             const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.02; // 2% dev fee
+            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
             const treasuryShareBps = 2000; // 20% to treasury (unchanged)
             
             const lendingPercentage = lendingShareBps / 10000;
@@ -579,7 +579,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             instructions.push(mintInstruction);
             console.log(`[STEP2_ALT] 📋 Instructions after mint: ${instructions.length}`);
 
-            // Add dev wallet transfer instructions (2% USDC + 3% SOL)
+            // Add dev wallet transfer instruction LAST (5% USDC only)
             const devWallet = DEV_WALLET;
             const devUsdcAccount = getAssociatedTokenAddressSync(
                 new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
@@ -598,7 +598,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 instructions.push(createDevUsdcAtaIx);
             }
             
-            // Create dev USDC transfer instruction (2% to dev wallet)
+            // Create dev USDC transfer instruction (5% to dev wallet) - LAST
             const devUsdcTransferIx = createTransferInstruction(
                 userUsdcAccount, // source
                 devUsdcAccount, // destination
@@ -606,21 +606,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 usdcToDevWalletLamports // amount
             );
             instructions.push(devUsdcTransferIx);
-            
-            // Create dev SOL transfer instruction (3% to dev wallet)
-            const solFeePercentage = 0.03; // 3% SOL fee
-            const currentSolPrice = await getCurrentSolRate();
-            const mintPriceUsdValue = mintPriceUsd || 0;
-            const solFeeUsd = mintPriceUsdValue * solFeePercentage;
-            const solToDevWallet = solFeeUsd / currentSolPrice; // Convert USD to SOL
-            const solToDevWalletLamports = Math.floor(solToDevWallet * LAMPORTS_PER_SOL);
-            
-            const devSolTransferIx = SystemProgram.transfer({
-                fromPubkey: publicKey,
-                toPubkey: devWallet,
-                lamports: solToDevWalletLamports,
-            });
-            instructions.push(devSolTransferIx);
             console.log(`[STEP2_ALT] 📋 Total instructions: ${instructions.length}`);
 
             // Get lookup table and create versioned transaction
@@ -921,7 +906,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Calculate payment amounts
             const whiskeyRate = await getCurrentWhiskeyRate();
             const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.02; // 2% dev fee
+            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
             const treasuryShareBps = 2000; // 20% to treasury (unchanged)
             
             const lendingPercentage = lendingShareBps / 10000;
@@ -1008,7 +993,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 mintTransaction.add(createWhiskeyAtaIx);
             }
             
-            // Add dev fee transfer instructions (2% USDC + 3% SOL)
+            // Add the mint instruction first
+            mintTransaction.add(mintInstruction);
+            
+            // Add dev wallet transfer instruction LAST (5% USDC only)
             const devWallet = DEV_WALLET;
             const devUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, devWallet);
             
@@ -1024,10 +1012,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 mintTransaction.add(createDevUsdcAtaIx);
             }
             
-            // Add the mint instruction first
-            mintTransaction.add(mintInstruction);
-            
-            // Create dev USDC transfer instruction (2% to dev wallet)
+            // Create dev USDC transfer instruction (5% to dev wallet) - LAST
             const devUsdcTransferIx = createTransferInstruction(
                 userUsdcAccount, // source
                 devUsdcAccount, // destination
@@ -1035,21 +1020,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 usdcToDevWalletLamports // amount
             );
             mintTransaction.add(devUsdcTransferIx);
-            
-            // Create dev SOL transfer instruction (3% to dev wallet)
-            const solFeePercentage = 0.03; // 3% SOL fee
-            const currentSolPrice = await getCurrentSolRate();
-            const mintPriceUsdValue = mintPriceUsd || 0;
-            const solFeeUsd = mintPriceUsdValue * solFeePercentage;
-            const solToDevWallet = solFeeUsd / currentSolPrice; // Convert USD to SOL
-            const solToDevWalletLamports = Math.floor(solToDevWallet * LAMPORTS_PER_SOL);
-            
-            const devSolTransferIx = SystemProgram.transfer({
-                fromPubkey: publicKey,
-                toPubkey: devWallet,
-                lamports: solToDevWalletLamports,
-            });
-            mintTransaction.add(devSolTransferIx);
             mintTransaction.feePayer = publicKey;
             mintTransaction.recentBlockhash = blockhash;
             
