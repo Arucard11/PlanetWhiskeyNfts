@@ -34,6 +34,7 @@ import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRea
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
 import { getSolanaConnection } from '@/lib/solanaUtils';
+import MintDebugPanel from './MintDebugPanel';
 
 // Token addresses
 const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
@@ -274,8 +275,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log('[STEP1] 🚀 Starting Step 1 - Swap Only (New Atomic Flow)');
             
             // Calculate swap amount (lending portion + dev fee portion that needs to be USDC)
-            const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
+            const lendingShareBps = 9800; // 98% to lending (reduced from 80% to account for 2% buffer instead of 8%)
+            const devFeePercentage = 0.05; // 5% dev fee (now in SOL instead of USDC)
             const treasuryPercentageStep1 = 0.20; // 20% to treasury (unchanged)
             const lendingPercentage = lendingShareBps / 10000; // e.g., 8000/10000 = 0.80
             
@@ -283,8 +284,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const devFeeWhiskey = displayMintPriceWhiskeyTokens * devFeePercentage;
             const baseWhiskeyToSwap = baseLendingWhiskey + devFeeWhiskey;
             
-            // Add 8% buffer to account for swap fees, slippage, and dev fee
-            const whiskeyToSwap = baseWhiskeyToSwap * 1.08;
+            // Add 2% buffer to account for swap fees, slippage, and dev fee
+            const whiskeyToSwap = baseWhiskeyToSwap * 1.02;
             const whiskeyToKeepForTreasury = displayMintPriceWhiskeyTokens * treasuryPercentageStep1;
             
             console.log(`[STEP1] Payment breakdown:`);
@@ -292,7 +293,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log(`  - Lending portion (${(lendingPercentage * 100).toFixed(1)}%): ${baseLendingWhiskey} WHISKEY`);
             
             console.log(`  - Base amount to swap: ${baseWhiskeyToSwap} WHISKEY`);
-            console.log(`  - Total with 8% buffer: ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
+            console.log(`  - Total with 2% buffer: ${whiskeyToSwap} WHISKEY → USDC (Step 1)`);
             console.log(`  - Treasury portion (${(treasuryPercentageStep1 * 100).toFixed(1)}%): ${whiskeyToKeepForTreasury} WHISKEY → Treasury (Step 2)`);
             
             // Import the direct swap function
@@ -457,27 +458,45 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage('Calculating payment amounts...');
             
             const whiskeyRate = await getCurrentWhiskeyRate();
-            const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
-            const treasuryShareBps = 2000; // 20% to treasury (unchanged)
+            const devFeePercentage = 0.05; // 5% dev fee (now in SOL instead of USDC)
             
-            const lendingPercentage = lendingShareBps / 10000;
-            const treasuryPercentage = treasuryShareBps / 10000;
+            // FIXED: Split the exact expected USD amount, ensuring percentages add up to 100%
+            const expectedTotalUsd = mintPriceUsd || 0;
+            const lendingPercentage = 0.80; // 80% to lending (reduced from 98%)
+            const treasuryPercentage = 0.20; // 20% to treasury (unchanged)
+            const usdcToVault = expectedTotalUsd * lendingPercentage;
+            const whiskeyToTreasuryUsd = expectedTotalUsd * treasuryPercentage;
+            const whiskeyToTreasury = whiskeyToTreasuryUsd / whiskeyRate; // Convert USD to WHISKEY tokens
             
-            const whiskeyToTreasury = displayMintPriceWhiskeyTokens * treasuryPercentage;
-            const usdcToVault = (mintPriceUsd || 0) * lendingPercentage;
-            const usdcToDevWallet = (mintPriceUsd || 0) * devFeePercentage;
+            // Calculate dev fee in SOL instead of USDC
+            const solPrice = await getCurrentSolRate();
+            const devFeeUsd = (mintPriceUsd || 0) * devFeePercentage;
+            const devFeeSol = devFeeUsd / solPrice;
             
             // Convert to lamports/micro-units
             const whiskeyToTreasuryLamports = Math.floor(whiskeyToTreasury * 1000000); // WHISKEY has 6 decimals
             const usdcToVaultLamports = Math.floor(usdcToVault * 1000000); // USDC has 6 decimals
-            const usdcToDevWalletLamports = Math.floor(usdcToDevWallet * 1000000); // USDC has 6 decimals
+            const devFeeSolLamports = Math.floor(devFeeSol * 1000000000); // SOL has 9 decimals
             const currentWhiskeyPriceUsdMicro = Math.floor(whiskeyRate * 1000000); // Price in micro-USD
             
-            console.log(`[STEP2_ALT] Payment calculation:`);
-            console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury} tokens (${whiskeyToTreasuryLamports} lamports)`);
-            console.log(`  - USDC to vault: ${usdcToVault} USDC (${usdcToVaultLamports} lamports)`);
+            // Validate payment calculation
+            const totalPaymentUsd = whiskeyToTreasuryUsd + usdcToVault;
+            const paymentMatches = Math.abs(totalPaymentUsd - expectedTotalUsd) < 0.01;
+            
+            console.log(`[STEP2_ALT] Payment calculation (FIXED):`);
+            console.log(`  - Expected total USD: $${expectedTotalUsd}`);
+            console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury.toFixed(6)} tokens = $${whiskeyToTreasuryUsd.toFixed(6)} (${whiskeyToTreasuryLamports} lamports)`);
+            console.log(`  - USDC to vault: $${usdcToVault.toFixed(6)} (${usdcToVaultLamports} lamports)`);
+            console.log(`  - Total payment: $${totalPaymentUsd.toFixed(6)} (should match expected $${expectedTotalUsd})`);
+            console.log(`  - Payment matches: ${paymentMatches ? '✅' : '❌'} (difference: $${Math.abs(totalPaymentUsd - expectedTotalUsd).toFixed(6)})`);
+            console.log(`  - SOL to dev wallet: ${devFeeSol} SOL (${devFeeSolLamports} lamports)`);
             console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
+            console.log(`  - Current SOL price: $${solPrice}`);
+            
+            // CRITICAL: Validate payment before proceeding
+            if (!paymentMatches) {
+                throw new Error(`Payment calculation error: Total payment ($${totalPaymentUsd.toFixed(6)}) does not match expected ($${expectedTotalUsd}). This will cause the transaction to fail.`);
+            }
 
             // Build minting transaction on frontend
             setMintMessage('Building transaction on frontend...');
@@ -547,6 +566,15 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
             // Create the mint instruction
             console.log(`[STEP2_ALT] 🏗️ Creating mint instruction...`);
+            console.log(`[STEP2_ALT] 📊 Instruction parameters:`);
+            console.log(`  - nftName: ${nftName}`);
+            console.log(`  - displaySymbol: ${displaySymbol}`);
+            console.log(`  - nftMetadataUri: ${nftMetadataUri}`);
+            console.log(`  - currentWhiskeyPriceUsdMicro: ${currentWhiskeyPriceUsdMicro} ($${whiskeyRate})`);
+            console.log(`  - whiskeyToTreasuryLamports: ${whiskeyToTreasuryLamports} (${whiskeyToTreasury} tokens = $${whiskeyToTreasuryUsd})`);
+            console.log(`  - usdcToVaultLamports: ${usdcToVaultLamports} ($${usdcToVault})`);
+            console.log(`  - Total payment in micro-USD: ${whiskeyToTreasuryLamports * currentWhiskeyPriceUsdMicro / 1000000 + usdcToVaultLamports}`);
+            
             const mintInstruction = await program.methods
                 .mintWithPaymentValidation(
                     nftName,
@@ -579,33 +607,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             instructions.push(mintInstruction);
             console.log(`[STEP2_ALT] 📋 Instructions after mint: ${instructions.length}`);
 
-            // Add dev wallet transfer instruction LAST (5% USDC only)
+            // Add dev wallet SOL transfer instruction LAST (5% in SOL instead of USDC)
             const devWallet = DEV_WALLET;
-            const devUsdcAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
-                devWallet
-            );
             
-            // Check if dev USDC account exists, create if needed
-            const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
-            if (devUsdcAccountInfo === null) {
-                const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
-                    publicKey, // payer (user pays for creation)
-                    devUsdcAccount, // ata
-                    devWallet, // owner (dev wallet)
-                    new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!) // mint
-                );
-                instructions.push(createDevUsdcAtaIx);
-            }
-            
-            // Create dev USDC transfer instruction (5% to dev wallet) - LAST
-            const devUsdcTransferIx = createTransferInstruction(
-                userUsdcAccount, // source
-                devUsdcAccount, // destination
-                publicKey, // authority
-                usdcToDevWalletLamports // amount
-            );
-            instructions.push(devUsdcTransferIx);
+            // Create dev SOL transfer instruction (5% to dev wallet in SOL) - LAST
+            const devSolTransferIx = SystemProgram.transfer({
+                fromPubkey: publicKey, // source (user)
+                toPubkey: devWallet, // destination (dev wallet)
+                lamports: devFeeSolLamports // amount in lamports
+            });
+            instructions.push(devSolTransferIx);
             console.log(`[STEP2_ALT] 📋 Total instructions: ${instructions.length}`);
 
             // Get lookup table and create versioned transaction
@@ -905,8 +916,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Calculate payment amounts
             const whiskeyRate = await getCurrentWhiskeyRate();
-            const lendingShareBps = 8000; // 80% to lending
-            const devFeePercentage = 0.05; // 5% dev fee (USDC only)
+            const lendingShareBps = 9800; // 98% to lending (reduced from 80% to account for 2% buffer instead of 8%)
+            const devFeePercentage = 0.05; // 5% dev fee (now in SOL instead of USDC)
             const treasuryShareBps = 2000; // 20% to treasury (unchanged)
             
             const lendingPercentage = lendingShareBps / 10000;
@@ -914,19 +925,24 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             const whiskeyToTreasury = displayMintPriceWhiskeyTokens * treasuryPercentage;
             const usdcToVault = (mintPriceUsd || 0) * lendingPercentage;
-            const usdcToDevWallet = (mintPriceUsd || 0) * devFeePercentage;
+            
+            // Calculate dev fee in SOL instead of USDC
+            const solPrice = await getCurrentSolRate();
+            const devFeeUsd = (mintPriceUsd || 0) * devFeePercentage;
+            const devFeeSol = devFeeUsd / solPrice;
             
             // Convert to lamports/micro-units
             const whiskeyToTreasuryLamports = Math.floor(whiskeyToTreasury * 1000000); // WHISKEY has 6 decimals
             const usdcToVaultLamports = Math.floor(usdcToVault * 1000000); // USDC has 6 decimals
-            const usdcToDevWalletLamports = Math.floor(usdcToDevWallet * 1000000); // USDC has 6 decimals
+            const devFeeSolLamports = Math.floor(devFeeSol * 1000000000); // SOL has 9 decimals
             const currentWhiskeyPriceUsdMicro = Math.floor(whiskeyRate * 1000000); // Price in micro-USD
             
             console.log(`[STEP2] Payment calculation:`);
             console.log(`  - WHISKEY to treasury: ${whiskeyToTreasury} tokens (${whiskeyToTreasuryLamports} lamports)`);
             console.log(`  - USDC to vault: ${usdcToVault} USDC (${usdcToVaultLamports} lamports)`);
-            console.log(`  - USDC to dev wallet: ${usdcToDevWallet} USDC (${usdcToDevWalletLamports} lamports)`);
+            console.log(`  - SOL to dev wallet: ${devFeeSol} SOL (${devFeeSolLamports} lamports)`);
             console.log(`  - Current WHISKEY price: $${whiskeyRate} (${currentWhiskeyPriceUsdMicro} micro-USD)`);
+            console.log(`  - Current SOL price: $${solPrice}`);
 
             // Create secure mint instruction using new function
             // Convert numbers to BN for proper Anchor serialization (use BN directly like API)
@@ -996,30 +1012,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Add the mint instruction first
             mintTransaction.add(mintInstruction);
             
-            // Add dev wallet transfer instruction LAST (5% USDC only)
+            // Add dev wallet SOL transfer instruction LAST (5% in SOL instead of USDC)
             const devWallet = DEV_WALLET;
-            const devUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, devWallet);
             
-            // Check if dev USDC account exists, create if not
-            const devUsdcAccountInfo = await connection.getAccountInfo(devUsdcAccount);
-            if (devUsdcAccountInfo === null) {
-                const createDevUsdcAtaIx = createAssociatedTokenAccountInstruction(
-                    publicKey, // payer (user pays for creation)
-                    devUsdcAccount, // ata
-                    devWallet, // owner (dev wallet)
-                    USDC_MINT // mint
-                );
-                mintTransaction.add(createDevUsdcAtaIx);
-            }
-            
-            // Create dev USDC transfer instruction (5% to dev wallet) - LAST
-            const devUsdcTransferIx = createTransferInstruction(
-                userUsdcAccount, // source
-                devUsdcAccount, // destination
-                publicKey, // authority
-                usdcToDevWalletLamports // amount
-            );
-            mintTransaction.add(devUsdcTransferIx);
+            // Create dev SOL transfer instruction (5% to dev wallet in SOL) - LAST
+            const devSolTransferIx = SystemProgram.transfer({
+                fromPubkey: publicKey, // source (user)
+                toPubkey: devWallet, // destination (dev wallet)
+                lamports: devFeeSolLamports // amount in lamports
+            });
+            mintTransaction.add(devSolTransferIx);
             mintTransaction.feePayer = publicKey;
             mintTransaction.recentBlockhash = blockhash;
             
@@ -1042,13 +1044,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 });
             });
             
-            // Sign with NFT mint keypair first
-            console.log(`[STEP2] Signing transaction with NFT mint keypair: ${nftMint.publicKey.toString()}`);
-            mintTransaction.partialSign(nftMint);
-            console.log(`[STEP2] ✅ NFT mint keypair signature added`);
-            
-            // Now request wallet signature
-            console.log(`[STEP2] Requesting wallet signature for transaction...`);
+            // PHANTOM COMPATIBILITY: Request wallet signature first, then add NFT mint signature
+            console.log(`[STEP2] Requesting wallet signature for transaction (Phantom compatibility)...`);
             console.log(`[STEP2] Wallet connected: ${connected}`);
             console.log(`[STEP2] Public key: ${publicKey?.toString()}`);
             console.log(`[STEP2] signTransaction available: ${!!signTransaction}`);
@@ -1057,7 +1054,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 throw new Error('Wallet signTransaction method not available');
             }
             
+            // Sign with wallet first (Phantom compatibility)
             const signedMintTx = await signTransaction(mintTransaction);
+            console.log(`[STEP2] ✅ Wallet signature obtained`);
+            
+            // Then add NFT mint keypair signature
+            console.log(`[STEP2] Adding NFT mint keypair signature: ${nftMint.publicKey.toString()}`);
+            signedMintTx.partialSign(nftMint);
             console.log(`[STEP2] ✅ Transaction signed by wallet`);
             
             // Log final transaction size
@@ -1445,43 +1448,69 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
     // New handler for Step 1: Swap & Deposit (REGULAR COLLECTIONS ONLY)
     const handleStep1 = async () => {
+        console.log('[STEP1_HANDLER] 🚀 Starting Step 1 validation...');
+        console.log('[STEP1_HANDLER] 📊 Current state:', {
+            connected,
+            publicKey: publicKey?.toString(),
+            isWhiskeyGated,
+            userSolBalance,
+            userWhiskeyBalance,
+            displayMintPriceWhiskeyTokens,
+            walletNftCount,
+            displayItemsMinted,
+            displayItemLimit
+        });
+
         // Pre-mint validation
         if (!connected || !publicKey) {
+            console.log('[STEP1_HANDLER] ❌ Wallet not connected');
             setMintMessage('❌ Please connect your wallet first');
             return;
         }
 
         // This function should ONLY be called for regular (non-whiskey-gated) collections
         if (isWhiskeyGated) {
+            console.log('[STEP1_HANDLER] ❌ Called on whiskey-gated collection');
             setMintMessage('❌ This function is only for regular collections. Use whiskey-gated mint instead.');
             return;
         }
 
         // Check SOL balance for transaction fees
         if (userSolBalance < 0.04) {
+            console.log('[STEP1_HANDLER] ❌ Insufficient SOL balance:', userSolBalance);
             setMintMessage(`❌ Insufficient SOL balance. Need at least 0.04 SOL for transaction fees`);
             return;
         }
 
         // Check WHISKEY balance for swap (regular collections need WHISKEY to swap to USDC)
         if (userWhiskeyBalance < displayMintPriceWhiskeyTokens) {
+            console.log('[STEP1_HANDLER] ❌ Insufficient WHISKEY balance:', {
+                userBalance: userWhiskeyBalance,
+                required: displayMintPriceWhiskeyTokens
+            });
             setMintMessage(`❌ Insufficient WHISKEY balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} WHISKEY to swap for minting`);
             return;
         }
 
         // Check wallet NFT limit (max 5 per collection for regular collections)
         if (walletNftCount >= 5) {
+            console.log('[STEP1_HANDLER] ❌ Wallet NFT limit reached:', walletNftCount);
             setMintMessage('❌ Wallet limit reached (5 NFTs max per collection)');
             return;
         }
 
         // Check collection limit
         if (displayItemsMinted >= displayItemLimit) {
+            console.log('[STEP1_HANDLER] ❌ Collection sold out:', {
+                minted: displayItemsMinted,
+                limit: displayItemLimit
+            });
             setMintMessage('❌ Collection is sold out');
             return;
         }
 
-            setIsMinting(true);
+        console.log('[STEP1_HANDLER] ✅ All validations passed, starting mint process...');
+        setIsMinting(true);
         setMintMessage('🔄 Step 1: Swapping WHISKEY to USDC and depositing to vault...');
         
         try {
@@ -1518,11 +1547,27 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
     // New handler for Step 2: Mint NFT
     const handleStep2 = async () => {
+        console.log('[STEP2_HANDLER] 🚀 Starting Step 2 validation...');
+        console.log('[STEP2_HANDLER] 📊 Current state:', {
+            step1Complete,
+            connected,
+            publicKey: publicKey?.toString(),
+            isMinting,
+            userSolBalance,
+            userWhiskeyBalance,
+            displayMintPriceWhiskeyTokens,
+            walletNftCount,
+            displayItemsMinted,
+            displayItemLimit
+        });
+
         if (!step1Complete) {
+            console.log('[STEP2_HANDLER] ❌ Step 1 not complete');
             setMintMessage('❌ Please complete Step 1 first');
             return;
         }
         
+        console.log('[STEP2_HANDLER] ✅ Step 1 complete, starting Step 2...');
         setIsMinting(true);
         setMintMessage('🔄 Step 2: Minting your NFT...');
         
@@ -1854,27 +1899,20 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         </div>
                     )}
                     
+                    {/* Debug Panel - Only show for regular collections when connected */}
+                    {connected && publicKey && !isWhiskeyGated && (
+                        <MintDebugPanel
+                            collectionOnChainAddress={collectionOnChainAddress}
+                            displayName={displayName}
+                            displaySymbol={displaySymbol}
+                            displayMintPriceWhiskeyTokens={displayMintPriceWhiskeyTokens}
+                            mintPriceUsd={mintPriceUsd}
+                            isWhiskeyGated={isWhiskeyGated}
+                        />
+                    )}
+                    
                     {/* Info for whiskey-gated collections */}
                     
-                    {/* Two-step process info for regular collections */}
-                    {connected && !isWhiskeyGated && (
-                        <div className="mt-4 space-y-2">
-                            <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/40">
-                                <p className="text-xs text-green-400 text-center">
-                                    💰 <strong>Paid Mint:</strong> WHISKEY tokens are swapped to USDC and used to mint your NFT • Two-step process
-                                </p>
-                            </div>
-                            {/* 5 NFT Limit Warning */}
-                            <div className="p-3 bg-yellow-900/30 rounded-lg border border-yellow-600/50">
-                                <p className="text-sm text-yellow-300 text-center font-bold">
-                                    ⚠️ LIMIT: 5 NFTs per wallet maximum
-                                </p>
-                                <p className="text-xs text-yellow-400 text-center mt-1">
-                                    You can mint up to 5 NFTs from this collection
-                                </p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -2014,12 +2052,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                                     disabled={isMinting}
                                     className="w-full py-2 px-4 text-slate-400 hover:text-slate-200 transition-colors duration-200 text-sm"
                                 >
-                                    {mintMessage.includes('⚠️') 
-                                        ? 'Close (NFT in wallet but broken)' 
-                                        : mintMessage.includes('❌') 
-                                            ? 'Close (Your deposit is safe)' 
-                                            : 'Close (Mint your NFT now)'
-                                    }
                                 </button>
                             </div>
                         </div>
