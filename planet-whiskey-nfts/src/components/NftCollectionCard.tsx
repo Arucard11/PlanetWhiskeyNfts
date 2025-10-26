@@ -34,7 +34,6 @@ import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRea
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
 import { getSolanaConnection } from '@/lib/solanaUtils';
-import MintDebugPanel from './MintDebugPanel';
 
 // Token addresses
 const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
@@ -1897,18 +1896,6 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         <div className="mt-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
                             <p className="text-sm text-center text-amber-400">{mintMessage}</p>
                         </div>
-                    )}
-                    
-                    {/* Debug Panel - Only show for regular collections when connected */}
-                    {connected && publicKey && !isWhiskeyGated && (
-                        <MintDebugPanel
-                            collectionOnChainAddress={collectionOnChainAddress}
-                            displayName={displayName}
-                            displaySymbol={displaySymbol}
-                            displayMintPriceWhiskeyTokens={displayMintPriceWhiskeyTokens}
-                            mintPriceUsd={mintPriceUsd}
-                            isWhiskeyGated={isWhiskeyGated}
-                        />
                     )}
                     
                     {/* Info for whiskey-gated collections */}

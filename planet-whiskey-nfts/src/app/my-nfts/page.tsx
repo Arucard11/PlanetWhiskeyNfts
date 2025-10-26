@@ -70,10 +70,6 @@ export default function MyNftsPage() {
   const [selectedNft, setSelectedNft] = useState<NftForListing | null>(null);
   const [selectedListing, setSelectedListing] = useState<ListingForCancel | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  
-  // NFT Retrieval state
-  const [isRetrievingNft, setIsRetrievingNft] = useState(false);
-  const [nftRetrievalMessage, setNftRetrievalMessage] = useState('');
 
   useEffect(() => {
     // Only add mouse listener on client side
@@ -193,133 +189,6 @@ export default function MyNftsPage() {
     fetchListings(); // Refresh listings after cancellation
   };
 
-  // NFT Retrieval function for the specific stuck NFT
-  const handleRetrieveStuckNft = async () => {
-    if (!wallet?.adapter.publicKey || !signTransaction) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    setIsRetrievingNft(true);
-    setNftRetrievalMessage('Starting NFT retrieval...');
-
-    try {
-      // Transaction details from the user's stuck NFT
-      const nftMint = new PublicKey("5RgAntxESeEbGqA5TbNeRwjEWVhb6iCVA9VbeANEfeZ5");
-      const seller = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n");
-      const listingPda = new PublicKey("B2rPo6u8ggHrX3dThBGGVSwJrTLZAQDfdi1VM2tDLPnq");
-      const escrowAccount = new PublicKey("DvpcK1zgLcF8rV7Td3GhR7k6TPwy1ujMXEzZFtVcBSuN");
-      const marketplaceProgramId = new PublicKey("BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT");
-
-      setNftRetrievalMessage('Creating cancel listing instruction...');
-
-      let cancelInstruction;
-      
-      try {
-        // Try using the existing utility first
-        const { getMarketplaceProgram } = await import('@/lib/solanaUtils');
-        const program = getMarketplaceProgram();
-
-        cancelInstruction = await program.methods
-          .cancelListing()
-          .accounts({
-            seller: seller,
-            listing: listingPda,
-            sellerNftTokenAccount: getAssociatedTokenAddressSync(nftMint, seller),
-            escrowTokenAccount: escrowAccount,
-            nftToListMint: nftMint,
-            systemProgram: SystemProgram.programId,
-            tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-          })
-          .instruction();
-          
-        console.log('✅ Successfully created cancel instruction using program methods');
-        
-      } catch (programError) {
-        console.warn('⚠️ Program method failed, trying alternative approach:', programError);
-        
-        // Fallback: Use the API endpoint instead
-        setNftRetrievalMessage('Using alternative retrieval method...');
-        
-        try {
-          const response = await fetch('/api/marketplace/transactions/cancel', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              sellerAddress: seller.toString(),
-              nftMintAddress: nftMint.toString(),
-              timestamp: Date.now().toString()
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error(`API request failed: ${response.status}`);
-          }
-
-          const { transaction: serializedTransaction } = await response.json();
-          
-          // Deserialize the transaction
-          const transaction = Transaction.from(Buffer.from(serializedTransaction, 'base64'));
-          cancelInstruction = transaction.instructions[0]; // Get the first (and only) instruction
-          
-          console.log('✅ Successfully created cancel instruction using API fallback');
-          
-        } catch (apiError) {
-          console.error('❌ Both program method and API fallback failed:', apiError);
-          throw new Error(`Failed to create cancel instruction: ${apiError.message}`);
-        }
-      }
-
-      setNftRetrievalMessage('Building transaction...');
-
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.add(cancelInstruction);
-
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = seller;
-
-      setNftRetrievalMessage('Signing transaction...');
-
-      // Phantom compatibility: Sign with wallet first, then send raw transaction
-      const signedTransaction = await signTransaction(transaction);
-
-      setNftRetrievalMessage('Sending transaction to blockchain...');
-
-      // Send transaction
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
-        skipPreflight: true,
-        preflightCommitment: 'confirmed'
-      });
-
-      setNftRetrievalMessage('Confirming transaction...');
-
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
-
-      toast.success(`NFT retrieved successfully! Transaction: ${signature}`);
-      setNftRetrievalMessage('NFT retrieved successfully!');
-
-      // Refresh NFTs after successful retrieval
-      setTimeout(() => {
-        fetchNfts();
-        fetchListings();
-      }, 2000);
-
-    } catch (error: any) {
-      console.error('Error retrieving NFT:', error);
-      toast.error(`Failed to retrieve NFT: ${error.message}`);
-      setNftRetrievalMessage(`Error: ${error.message}`);
-    } finally {
-      setIsRetrievingNft(false);
-    }
-  };
-
-
   if (!connected) {
     return (
       <div className="min-h-screen bg-black text-white overflow-hidden relative">
@@ -427,38 +296,6 @@ export default function MyNftsPage() {
         >
           My NFTs
         </motion.h1>
-
-        {/* NFT Recovery Tool */}
-        <motion.div 
-          className="mb-8 p-6 bg-gradient-to-r from-red-900/30 to-orange-900/30 border border-red-500/50 rounded-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-red-400 mb-2">🚨 NFT Recovery Tool</h3>
-              <p className="text-gray-300 mb-2">
-                Retrieve stuck NFT: Master Distiller Rewards #2 (5RgAntxESeEbGqA5TbNeRwjEWVhb6iCVA9VbeANEfeZ5)
-              </p>
-              {nftRetrievalMessage && (
-                <p className="text-sm text-yellow-400">{nftRetrievalMessage}</p>
-              )}
-            </div>
-            <button
-              onClick={handleRetrieveStuckNft}
-              disabled={isRetrievingNft || !connected}
-              className={`px-6 py-3 rounded-lg font-bold transition-all duration-300 ${
-                isRetrievingNft || !connected
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-400 hover:to-orange-400 text-white hover:shadow-lg hover:scale-105'
-              }`}
-            >
-              {isRetrievingNft ? 'Retrieving...' : 'Retrieve NFT'}
-            </button>
-          </div>
-        </motion.div>
-
 
         {loading && (
           <div className="flex justify-center items-center py-16">
