@@ -13,7 +13,7 @@ interface FAQItem {
 const faqData: FAQItem[] = [
   {
     question: "$WHISKEY NFT MINT",
-    answer: "• NFTs are priced in $WHISKEY (+real-time USD conversion)\n\n• Each NFT represents a fraction of the assets in the Planet Whiskey Treasury: Whiskey Barrels, Gold, or Bitcoin.\n\n• As a Distiller, you can mint up to five NFTs per wallet."
+    answer: "• NFTs are priced in $WHISKEY (+real-time USD conversion)\n\n• Each NFT represents a fraction of the assets in the Three Gold Treasury:  Gold, or Bitcoin.\n\n• As a Distiller, you can mint up to five NFTs per wallet."
   },
   {
     question: "$WHISKEY NFT LEND / BORROW",
@@ -21,7 +21,7 @@ const faqData: FAQItem[] = [
   },
   {
     question: "$WHISKEY NFT MARKETPLACE",
-    answer: "• List your NFTs on the Planet Whiskey Marketplace\n\n• Set your own asking price.\n\n• Enjoy smooth seamless transactions via this P2P exchange"
+    answer: "• List your NFTs on the Three Gold Treasury Marketplace\n\n• Set your own asking price.\n\n• Enjoy smooth seamless transactions via this P2P exchange"
   }
 ];
 
@@ -46,11 +46,11 @@ export default function FAQPage() {
           className="max-w-4xl mx-auto"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">
-            Planet Whiskey FAQs
+            Three Gold Treasury FAQs
           </h1>
           
           <p className="text-xl text-gray-400 text-center mb-12 max-w-3xl mx-auto">
-            Everything you need to know about Planet Whiskey NFTs, our lending protocol, marketplace, and how to get started.
+            Everything you need to know about Three Gold Treasury NFTs, our lending protocol, marketplace, and how to get started.
           </p>
 
           <div className="space-y-4">

@@ -704,7 +704,7 @@ export default function BorrowPage() {
             as Collateral
           </h1>
           <p className="text-xl text-gray-300">
-            Use your Planet Whiskey NFTs to unlock borrowing power
+            Use your Three Gold Treasury NFTs to unlock borrowing power
           </p>
         </motion.div>
 
@@ -807,7 +807,7 @@ export default function BorrowPage() {
             <div className="text-center py-12">
               <p className="text-xl text-gray-300 mb-4">No approved NFTs found</p>
               <p className="text-gray-400 mb-8">
-                You need NFTs from approved Planet Whiskey collections to use as collateral.<br/>
+                You need NFTs from approved Three Gold Treasury collections to use as collateral.<br/>
                 Only certain collections are approved for lending.
               </p>
               <Link

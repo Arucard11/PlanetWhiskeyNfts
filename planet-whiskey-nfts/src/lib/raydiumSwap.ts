@@ -141,12 +141,65 @@ export async function createWhiskeyToUsdcDirectSwap(
             txVersion === 'V0' ? VersionedTransaction.deserialize(txBuf) : Transaction.from(txBuf)
         );
         
-        console.log(`[API_SWAP] ✅ Created ${allTransactions.length} swap transactions via API`);
+        // Ensure user's wallet is the first signer for all transactions
+        const { TransactionMessage } = await import('@solana/web3.js');
+        const processedTransactions = await Promise.all(allTransactions.map(async (tx, index) => {
+            if (tx instanceof VersionedTransaction) {
+                // For VersionedTransaction, check if wallet is first signer
+                const message = tx.message;
+                const staticAccountKeys = message.staticAccountKeys;
+                
+                // Check if user's wallet is the first account (fee payer)
+                const isFirstSigner = staticAccountKeys.length > 0 && staticAccountKeys[0].equals(userPublicKey);
+                
+                if (isFirstSigner) {
+                    console.log(`[API_SWAP] Transaction ${index + 1}: Wallet is first signer ✅`);
+                    return tx;
+                } else {
+                    // Wallet is not first, rebuild transaction with wallet as payer
+                    console.log(`[API_SWAP] Transaction ${index + 1}: Rebuilding with wallet as first signer`);
+                    
+                    // Extract instructions from the message (keys are already resolved)
+                    const instructions = message.instructions.map(ix => ({
+                        programId: ix.programId,
+                        keys: ix.keys,
+                        data: ix.data
+                    }));
+                    
+                    // Get fresh blockhash
+                    const { blockhash } = await connection.getLatestBlockhash();
+                    
+                    // Rebuild with user as payer (first signer)
+                    // The TransactionMessage will automatically place the payerKey as the first account
+                    const newMessage = new TransactionMessage({
+                        payerKey: userPublicKey,
+                        recentBlockhash: blockhash,
+                        instructions: instructions
+                    }).compileToV0Message(message.addressTableLookups);
+                    
+                    return new VersionedTransaction(newMessage);
+                }
+            } else {
+                // For legacy Transaction, set fee payer
+                if (!tx.feePayer || !tx.feePayer.equals(userPublicKey)) {
+                    console.log(`[API_SWAP] Transaction ${index + 1}: Setting feePayer to wallet`);
+                    tx.feePayer = userPublicKey;
+                    // Get fresh blockhash for legacy transaction
+                    const { blockhash } = await connection.getLatestBlockhash();
+                    tx.recentBlockhash = blockhash;
+                } else {
+                    console.log(`[API_SWAP] Transaction ${index + 1}: FeePayer is already wallet ✅`);
+                }
+            }
+            return tx;
+        }));
+        
+        console.log(`[API_SWAP] ✅ Created ${processedTransactions.length} swap transactions via API`);
         console.log(`[API_SWAP] Expected USDC output: ${parseFloat(swapResponse.data.outputAmount) / Math.pow(10, 6)} USDC`);
         console.log(`[API_SWAP] This represents the lending portion of the total payment`);
         
         // Log transaction sizes
-        allTransactions.forEach((tx, index) => {
+        processedTransactions.forEach((tx, index) => {
             const serialized = tx.serialize();
             const isVersioned = tx instanceof VersionedTransaction;
             console.log(`[API_SWAP] Transaction ${index + 1} size: ${serialized.length} bytes (${isVersioned ? 'V0' : 'Legacy'})`);
@@ -156,7 +209,7 @@ export async function createWhiskeyToUsdcDirectSwap(
             }
         });
         
-        return allTransactions;
+        return processedTransactions;
     
   } catch (error) {
         console.error('[API_SWAP] Error creating WHISKEY->USDC swap via API:', error);

@@ -10,7 +10,7 @@ export type Lendingprogram = {
     "name": "lendingprogram",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Lending and Borrowing Protocol for Planet Whiskey NFTs"
+    "description": "Lending and Borrowing Protocol for Three Gold Treasury NFTs"
   },
   "instructions": [
     {

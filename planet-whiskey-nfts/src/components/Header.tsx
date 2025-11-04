@@ -19,7 +19,7 @@ const Header = () => {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500 font-serif">
-                  Planet Whiskey
+                  Three Gold Treasury
                 </h1>
                 <p className="text-xs text-gray-400 font-medium tracking-wider uppercase">
                   Exchange

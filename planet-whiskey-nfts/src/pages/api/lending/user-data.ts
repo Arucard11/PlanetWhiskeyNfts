@@ -204,7 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                       mintAddress: nftMint.toString(),
                       name: nftName,
                       imageUrl: imageUrl,
-                      collectionName: metadata.collection?.name || nft.collection?.name || 'Planet Whiskey Collection',
+                      collectionName: metadata.collection?.name || nft.collection?.name || 'Three Gold Treasury Collection',
                       value: collectionValue
                     });
                     

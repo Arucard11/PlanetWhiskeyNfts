@@ -122,7 +122,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       console.log(`🔄 [metadata-api] Generating fallback metadata for broken URI: ${metadataUri}`);
       
       // Try to extract collection info from the URI pattern
-      let collectionName = 'Planet Whiskey NFT';
+      let collectionName = 'Three Gold Treasury NFT';
       let nftName = 'Treasury NFT';
       
       // If the URI contains a number at the end, it's likely an individual NFT
@@ -135,7 +135,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const fallbackMetadata = {
         name: nftName,
         symbol: 'PWN',
-        description: `${nftName} - A premium treasury-backed NFT from Planet Whiskey`,
+        description: `${nftName} - A premium treasury-backed NFT from Three Gold Treasury`,
         image: `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(collectionName)}`,
         attributes: [
           { trait_type: 'Type', value: 'Treasury NFT' },
@@ -145,7 +145,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         ],
         collection: {
           name: collectionName,
-          family: 'Planet Whiskey NFTs'
+          family: 'Three Gold Treasury NFTs'
         },
         properties: {
           files: [

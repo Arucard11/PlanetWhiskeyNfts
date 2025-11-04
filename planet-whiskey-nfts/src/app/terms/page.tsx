@@ -26,7 +26,7 @@ export default function TermsOfServicePage() {
               <section>
                 <h2 className="text-2xl font-semibold text-amber-400 mb-4">1. Acceptance of Terms</h2>
                 <p className="leading-relaxed">
-                  By accessing and using Planet Whiskey NFTs ("Platform"), you accept and agree to be bound by the terms and provision of this agreement. 
+                  By accessing and using Three Gold Treasury NFTs ("Platform"), you accept and agree to be bound by the terms and provision of this agreement. 
                   If you do not agree to abide by the above, please do not use this service.
                 </p>
               </section>
@@ -52,7 +52,7 @@ export default function TermsOfServicePage() {
               <section>
                 <h2 className="text-2xl font-semibold text-amber-400 mb-4">3. No Liability for Losses</h2>
                 <p className="leading-relaxed">
-                  <strong className="text-red-400">DISCLAIMER:</strong> Planet Whiskey NFTs, its owners, operators, developers, and affiliates 
+                  <strong className="text-red-400">DISCLAIMER:</strong> Three Gold Treasury NFTs, its owners, operators, developers, and affiliates 
                   SHALL NOT BE LIABLE for any direct, indirect, incidental, special, consequential, or punitive damages, including but not limited to:
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4 mt-4">
@@ -111,7 +111,7 @@ export default function TermsOfServicePage() {
               <section>
                 <h2 className="text-2xl font-semibold text-amber-400 mb-4">8. Indemnification</h2>
                 <p className="leading-relaxed">
-                  You agree to indemnify, defend, and hold harmless Planet Whiskey NFTs and its affiliates from and against any and all claims, 
+                  You agree to indemnify, defend, and hold harmless Three Gold Treasury NFTs and its affiliates from and against any and all claims, 
                   damages, obligations, losses, liabilities, costs, and expenses arising from your use of the Platform.
                 </p>
               </section>
@@ -134,7 +134,7 @@ export default function TermsOfServicePage() {
                 <h3 className="text-xl font-semibold text-red-400 mb-3">⚠️ Important Warning</h3>
                 <p className="text-red-300">
                   By using this Platform, you acknowledge that you understand the risks involved with cryptocurrency, NFTs, and DeFi protocols. 
-                  You agree that you may lose all funds you invest and that Planet Whiskey NFTs bears no responsibility for such losses.
+                  You agree that you may lose all funds you invest and that Three Gold Treasury NFTs bears no responsibility for such losses.
                 </p>
               </div>
             </div>

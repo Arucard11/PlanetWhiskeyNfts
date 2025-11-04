@@ -70,7 +70,7 @@ export default function MyNftsPage() {
   const [selectedNft, setSelectedNft] = useState<NftForListing | null>(null);
   const [selectedListing, setSelectedListing] = useState<ListingForCancel | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
+  
   useEffect(() => {
     // Only add mouse listener on client side
     if (typeof window === 'undefined') return;

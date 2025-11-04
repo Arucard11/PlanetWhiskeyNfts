@@ -119,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       attributes: attributes || [],
       collection: {
         name: collectionName,
-        family: collectionFamily || "Planet Whiskey NFTs"
+        family: collectionFamily || "Three Gold Treasury NFTs"
       },
       properties: {
         files: [
@@ -196,7 +196,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           attributes: req.body.attributes || [],
           collection: {
             name: req.body.collectionName,
-            family: req.body.collectionFamily || "Planet Whiskey NFTs"
+            family: req.body.collectionFamily || "Three Gold Treasury NFTs"
           },
           properties: {
             files: [

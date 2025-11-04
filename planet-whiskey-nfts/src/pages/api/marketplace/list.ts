@@ -337,7 +337,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             // Generate fallback metadata
             console.log(`[LIST_SAVE_API] 🔄 Generating fallback metadata for broken URI: ${nft.uri}`);
             
-            let collectionName = 'Planet Whiskey NFT';
+            let collectionName = 'Three Gold Treasury NFT';
             let nftName = 'Treasury NFT';
             
             const numberMatch = hash.match(/(\d+)$/);
@@ -349,7 +349,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             loadedJson = {
               name: nftName,
               symbol: 'PWN',
-              description: `${nftName} - A premium treasury-backed NFT from Planet Whiskey`,
+              description: `${nftName} - A premium treasury-backed NFT from Three Gold Treasury`,
               image: `https://via.placeholder.com/512x512/1f2937/f59e0b?text=${encodeURIComponent(collectionName)}`,
               attributes: [
                 { trait_type: 'Type', value: 'Treasury NFT' },
@@ -359,7 +359,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               ],
               collection: {
                 name: collectionName,
-                family: 'Planet Whiskey NFTs'
+                family: 'Three Gold Treasury NFTs'
               }
             };
             
@@ -371,19 +371,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           // Generate fallback metadata as last resort
           console.log(`[LIST_SAVE_API] 🔄 Generating emergency fallback metadata`);
           loadedJson = {
-            name: `Planet Whiskey NFT #${nftMintAddress.slice(-4)}`,
+            name: `Three Gold Treasury NFT #${nftMintAddress.slice(-4)}`,
             symbol: 'PWN',
-            description: `Planet Whiskey NFT - A premium treasury-backed NFT`,
-            image: `https://via.placeholder.com/512x512/1f2937/f59e0b?text=Planet%20Whiskey`,
+            description: `Three Gold Treasury NFT - A premium treasury-backed NFT`,
+            image: `https://via.placeholder.com/512x512/1f2937/f59e0b?text=Three%20Gold%20Treasury`,
             attributes: [
               { trait_type: 'Type', value: 'Treasury NFT' },
-              { trait_type: 'Collection', value: 'Planet Whiskey NFTs' },
+              { trait_type: 'Collection', value: 'Three Gold Treasury NFTs' },
               { trait_type: 'Status', value: 'Emergency Fallback' },
               { trait_type: 'Rarity', value: 'Legendary' }
             ],
             collection: {
-              name: 'Planet Whiskey NFTs',
-              family: 'Planet Whiskey NFTs'
+              name: 'Three Gold Treasury NFTs',
+              family: 'Three Gold Treasury NFTs'
             }
           };
         }
