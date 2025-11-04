@@ -300,7 +300,7 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
             <div>
               <p className="text-sm text-red-400">{collectionName}</p>
               <h4 className="font-bold text-2xl text-white">{nftName}</h4>
-              <p className="text-white text-sm">Listed for {(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</p>
+              <p className="text-white text-sm">Listed for {(priceInWhiskey / 1e6).toLocaleString()} Three Gold Treasury</p>
             </div>
           </div>
 

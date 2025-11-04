@@ -46,7 +46,7 @@ const Footer = () => {
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-bold text-xl text-white font-serif">Planet Whiskey</span>
+            <span className="font-bold text-xl text-white font-serif">Three Gold Treasury</span>
           </div>
             
           {/* Navigation Links */}
@@ -81,7 +81,7 @@ const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-white/10 text-center text-sm text-gray-500">
-          <p>&copy; {new Date().getFullYear()} Planet Whiskey. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Three Gold Treasury. All rights reserved.</p>
           <p className="mt-1">Powered by the Solana Blockchain.</p>
         </div>
       </div>

@@ -99,7 +99,7 @@ const Navbar = () => {
                   className="text-xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 font-serif"
                   whileHover={{ scale: 1.05 }}
                 >
-                  Planet Whiskey
+                  Three Gold Treasury
                 </motion.h1>
                 <motion.p 
                   className="text-[8px] sm:text-xs text-amber-200/80 font-medium tracking-[0.1em] sm:tracking-[0.2em] uppercase"

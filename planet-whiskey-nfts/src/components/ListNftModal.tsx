@@ -324,7 +324,7 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-gray-300 text-sm font-medium mb-2" htmlFor="price">
-                  Set Price (in WHISKEY tokens)
+                  Set Price (in Three Gold Treasury tokens)
                 </label>
                 <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">

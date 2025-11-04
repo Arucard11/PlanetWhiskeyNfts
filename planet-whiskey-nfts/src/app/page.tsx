@@ -195,7 +195,7 @@ export default function Home() {
                 backgroundSize: "200% 200%",
               }}
             >
-              Planet Whiskey Treasury
+              Three Gold Treasury
               <motion.div
                 className="absolute -top-4 -right-4 text-amber-400"
                 animate={{ 
@@ -219,7 +219,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
           >
-            Mint NFTs backed by <span className="text-amber-400 font-semibold">Whiskey, Gold, or Bitcoin</span>.
+            Mint NFTs backed by <span className="text-amber-400 font-semibold">Three Gold Treasury, Gold, or Bitcoin</span>.
           </motion.p>
           
           {/* Premium Action Button */}
@@ -316,7 +316,7 @@ export default function Home() {
               </span>
             </h2>
             <p className="text-2xl text-gray-400 max-w-5xl mx-auto leading-relaxed mb-8">
-              Explore asset-backed NFT collections of <span className="text-amber-400">Whiskey barrels, Gold, and Bitcoin</span>.
+              Explore asset-backed NFT collections of <span className="text-amber-400">Three Gold Treasury, Gold, and Bitcoin</span>.
             </p>
             <div className="flex justify-center mb-12">
               <motion.div
@@ -458,7 +458,7 @@ export default function Home() {
                       
                       {/* Description */}
                       <p className="text-gray-400 text-center leading-relaxed mb-6">
-                        NFT collections for WHISKEY token holders with <span className="text-green-400 font-semibold">FREE mints</span>.
+                        NFT collections for Three Gold Treasury token holders with <span className="text-green-400 font-semibold">FREE mints</span>.
                       </p>
                       
                       {/* Features */}
@@ -627,7 +627,7 @@ export default function Home() {
               </span>
             </h2>
             <p className="text-2xl text-gray-400 max-w-4xl mx-auto leading-relaxed">
-              Four simple steps to claim your share of the Planet Whiskey Treasury
+              Four simple steps to claim your share of the Three Gold Treasury
             </p>
           </motion.div>
           
@@ -638,7 +638,7 @@ export default function Home() {
                 { 
                   step: "1", 
                   title: "Browse Collections", 
-                  description: "Explore asset-backed NFT collections of Whiskey barrels, Gold, and Bitcoin.",
+                  description: "Explore asset-backed NFT collections of Three Gold Treasury, Gold, and Bitcoin.",
                   image: "/connect.jpg",
                   gradient: "from-blue-400 to-blue-600",
                   bgGradient: "from-blue-500/10 to-blue-600/10"
@@ -654,7 +654,7 @@ export default function Home() {
                 { 
                   step: "3", 
                   title: "Mint Your NFT", 
-                  description: "Mint your NFT and obtain fractional ownership of assets in the Planet Whiskey Treasury.",
+                  description: "Mint your NFT and obtain fractional ownership of assets in the Three Gold Treasury.",
                   image: "/mint.jpg",
                   gradient: "from-amber-400 to-amber-600",
                   bgGradient: "from-amber-500/10 to-amber-600/10"

@@ -22,7 +22,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Planet Whiskey Reserve Vault",
+  title: "Three Gold Treasury Reserve Vault",
   description: "Mint unique NFT collections from your favorite distilleries.",
   icons: {
     icon: [

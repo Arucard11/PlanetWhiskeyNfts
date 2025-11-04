@@ -300,7 +300,7 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
           <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
              <div className="flex justify-between items-center text-lg">
                 <span className="text-gray-300">Price:</span>
-                <span className="font-bold text-white">{(priceInWhiskey / 1e6).toLocaleString()} WHISKEY</span>
+                <span className="font-bold text-white">{(priceInWhiskey / 1e6).toLocaleString()} Three Gold Treasury</span>
              </div>
              <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Transaction Fee:</span>

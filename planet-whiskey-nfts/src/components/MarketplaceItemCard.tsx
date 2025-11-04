@@ -167,7 +167,7 @@ const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <div className="text-center">
                   <p className="text-amber-400/80 text-sm font-medium">Price</p>
-                  <p className="text-2xl font-bold text-white">{(priceInWhiskey / 1e6).toFixed(0)} <span className="text-sm text-white">WHISKEY</span></p>
+                  <p className="text-2xl font-bold text-white">{(priceInWhiskey / 1e6).toFixed(0)} <span className="text-sm text-white">Three Gold Treasury</span></p>
                 </div>
                 <div className="flex items-center text-amber-200/60 text-sm">
                   <Tag className="h-4 w-4 mr-1" />

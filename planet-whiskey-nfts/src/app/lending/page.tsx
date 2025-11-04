@@ -12,7 +12,7 @@ export default function LendingPage() {
   const features = [
     {
       title: "NFT Collateral",
-      description: "Use your Planet Whiskey NFTs as collateral to unlock liquidity",
+      description: "Use your Three Gold Treasury NFTs as collateral to unlock liquidity",
       image: "/connect.jpg",
       color: "from-blue-500 to-blue-600"
     },
@@ -57,7 +57,7 @@ export default function LendingPage() {
               Protocol
             </h1>
             <p className="text-xl text-gray-300 mb-8 leading-relaxed">
-              Unlock the value of your Planet Whiskey NFTs with our decentralized lending protocol. 
+              Unlock the value of your Three Gold Treasury NFTs with our decentralized lending protocol. 
               Borrow stablecoins using your NFTs as collateral.
             </p>
             
@@ -92,7 +92,7 @@ export default function LendingPage() {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-white mb-4">Why Choose Our Lending Protocol?</h2>
-          <p className="text-xl text-gray-300">Built specifically for Planet Whiskey NFT holders</p>
+          <p className="text-xl text-gray-300">Built specifically for Three Gold Treasury NFT holders</p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

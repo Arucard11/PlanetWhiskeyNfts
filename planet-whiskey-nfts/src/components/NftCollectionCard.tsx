@@ -335,8 +335,20 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             });
             
             // Sign and send swap transactions only (no payment processing in Step 1 anymore)
-            console.log('[STEP1] Requesting wallet signatures for swap transactions...');
-            const signedTransactions = await signAllTransactions(swapTransactions);
+            // PHANTOM COMPATIBILITY: Sign each transaction individually to ensure user's wallet is first signer
+            console.log('[STEP1] Requesting wallet signatures for swap transactions (Phantom first)...');
+            if (!signTransaction) {
+                throw new Error('Wallet does not support signTransaction');
+            }
+            
+            const signedTransactions: (Transaction | VersionedTransaction)[] = [];
+            for (let i = 0; i < swapTransactions.length; i++) {
+                console.log(`[STEP1] Signing swap transaction ${i + 1} of ${swapTransactions.length}...`);
+                // Sign with Phantom first (ensures user's wallet is first signer)
+                const signedTx = await signTransaction(swapTransactions[i]);
+                signedTransactions.push(signedTx);
+                console.log(`[STEP1] ✅ Swap transaction ${i + 1} signed by wallet`);
+            }
             console.log('[STEP1] ✅ All swap transactions signed by wallet');
             
             // Log transaction sizes after signing
@@ -1422,13 +1434,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.error('[NEW-WHISKEY-GATED] Error:', error);
             setIsMinting(false);
             
-            let errorMessage = 'Failed to mint whiskey-gated NFT';
+            let errorMessage = 'Failed to mint three gold treasury-gated NFT';
             if (error.message?.includes('Insufficient WHISKEY balance') || error.message?.includes('InsufficientWhiskeyBalance')) {
-                errorMessage = `Insufficient WHISKEY balance. You need ${requiredWhiskeyAmount} WHISKEY tokens to mint.`;
+                errorMessage = `Insufficient Three Gold Treasury balance. You need ${requiredWhiskeyAmount} Three Gold Treasury tokens to mint.`;
             } else if (error.message?.includes('already minted') || error.message?.includes('WalletNftLimitExceeded') || error.message?.includes('WhiskeyGatedCollectionLimitExceeded')) {
-                errorMessage = 'You have already minted from this whiskey-gated collection. Only 1 NFT per wallet allowed.';
+                errorMessage = 'You have already minted from this three gold treasury-gated collection. Only 1 NFT per wallet allowed.';
             } else if (error.message?.includes('NotWhiskeyGated')) {
-                errorMessage = 'This collection is not whiskey-gated.';
+                errorMessage = 'This collection is not three gold treasury-gated.';
             } else if (error.message?.includes('Transaction failed')) {
                 errorMessage = 'Transaction failed. Please try again.';
             } else if (error.message?.includes('Metadata creation failed')) {
@@ -1467,10 +1479,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // This function should ONLY be called for regular (non-whiskey-gated) collections
+        // This function should ONLY be called for regular (non-three gold treasury-gated) collections
         if (isWhiskeyGated) {
-            console.log('[STEP1_HANDLER] ❌ Called on whiskey-gated collection');
-            setMintMessage('❌ This function is only for regular collections. Use whiskey-gated mint instead.');
+            console.log('[STEP1_HANDLER] ❌ Called on three gold treasury-gated collection');
+            setMintMessage('❌ This function is only for regular collections. Use three gold treasury-gated mint instead.');
             return;
         }
 
@@ -1481,13 +1493,13 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // Check WHISKEY balance for swap (regular collections need WHISKEY to swap to USDC)
+        // Check Three Gold Treasury balance for swap (regular collections need Three Gold Treasury to swap to USDC)
         if (userWhiskeyBalance < displayMintPriceWhiskeyTokens) {
-            console.log('[STEP1_HANDLER] ❌ Insufficient WHISKEY balance:', {
+            console.log('[STEP1_HANDLER] ❌ Insufficient Three Gold Treasury balance:', {
                 userBalance: userWhiskeyBalance,
                 required: displayMintPriceWhiskeyTokens
             });
-            setMintMessage(`❌ Insufficient WHISKEY balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} WHISKEY to swap for minting`);
+            setMintMessage(`❌ Insufficient Three Gold Treasury balance. Need ${displayMintPriceWhiskeyTokens.toFixed(6)} Three Gold Treasury to swap for minting`);
             return;
         }
 
@@ -1527,7 +1539,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             if (errorStr.includes('Insufficient funds') || errorStr.includes('insufficient funds') || errorStr.includes('InsufficientFunds')) {
                 userMessage += 'Not enough SOL. Add more SOL to your wallet.';
             } else if (errorStr.includes('Insufficient balance') || errorStr.includes('insufficient balance') || errorStr.includes('InsufficientBalance')) {
-                userMessage += 'Not enough WHISKEY tokens. Get more WHISKEY to mint.';
+                userMessage += 'Not enough Three Gold Treasury tokens. Get more Three Gold Treasury to mint.';
             } else if (errorStr.includes('User rejected') || errorStr.includes('user rejected') || errorStr.includes('User cancelled')) {
                 userMessage += 'You cancelled the transaction.';
             } else if (errorStr.includes('Network') || errorStr.includes('network') || errorStr.includes('RPC')) {
@@ -1669,12 +1681,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             <div className="flex items-center justify-between">
                                 <span className="text-amber-400 text-sm font-medium">Master Distiller Collection</span>
                                 <span className="text-xs bg-amber-900/20 text-amber-400 px-2 py-1 rounded-full border border-amber-700/40">
-                                    🥃 WHISKEY GATED
+                                    🥃 THREE GOLD TREASURY GATED
                                 </span>
                                     </div>
                             <div className="text-white">
                                 <p className="text-lg font-bold">
-                                    {requiredWhiskeyAmount?.toLocaleString()} WHISKEY Required
+                                    {requiredWhiskeyAmount?.toLocaleString()} Three Gold Treasury Required
                                 </p>
                                 <p className="text-xs text-slate-400">
                                     Must hold tokens to mint • 1 NFT per wallet
@@ -1699,9 +1711,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             <div className="text-white">
                                 <p className="text-2xl font-bold">
                                     {priceLoadingState || !whiskeyRate || displayMintPriceWhiskeyTokens === 0 ? (
-                                        <span className="text-slate-400">Loading... WHISKEY</span>
+                                        <span className="text-slate-400">Loading... Three Gold Treasury</span>
                                     ) : (
-                                        `${formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY`
+                                        `${formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} Three Gold Treasury`
                                     )}
                                 </p>
                                 {mintPriceUsd && (
@@ -1728,7 +1740,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             <span className="text-amber-400 font-medium">
                                 {walletNftCount} / {isWhiskeyGated ? '1' : '5'} 
                                 <span className="text-xs text-slate-500 ml-1">
-                                    ({isWhiskeyGated ? 'whiskey-gated limit' : 'wallet limit'})
+                                    ({isWhiskeyGated ? 'three gold treasury-gated limit' : 'wallet limit'})
                                 </span>
                             </span>
                         </div>
@@ -1749,22 +1761,22 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                     </div>
                 </div>
                 
-                {/* Whiskey-Gated Warning - Only show for whiskey-gated collections */}
+                {/* Three Gold Treasury-Gated Warning - Only show for three gold treasury-gated collections */}
                 {isWhiskeyGated && (
                     <div className="bg-red-600/20 border-2 border-red-500 rounded-xl p-4 mb-4">
                         <div className="flex items-center space-x-2 mb-2">
                             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                            <h3 className="text-red-400 font-bold text-lg">⚠️ WHISKEY GATED COLLECTION</h3>
+                            <h3 className="text-red-400 font-bold text-lg">⚠️ THREE GOLD TREASURY GATED COLLECTION</h3>
                         </div>
                         <div className="text-red-300 font-semibold text-base leading-relaxed">
                             <p className="mb-2">
-                                🥃 <span className="text-red-200 font-bold text-xl">{requiredWhiskeyAmount?.toLocaleString() || 0} WHISKEY</span> tokens required to mint
+                                🥃 <span className="text-red-200 font-bold text-xl">{requiredWhiskeyAmount?.toLocaleString() || 0} Three Gold Treasury</span> tokens required to mint
                             </p>
                             <p className="mb-2">
                                 ⚡ <span className="text-red-200 font-bold text-xl">0.03 SOL</span> required for transaction fees
                             </p>
                             <p className="text-sm text-red-400">
-                                • You must HOLD the required WHISKEY amount (not spend it)
+                                • You must HOLD the required Three Gold Treasury amount (not spend it)
                             </p>
                             <p className="text-sm text-red-400">
                                 • Only 1 NFT per wallet allowed
@@ -1800,7 +1812,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            You already minted from this collection (1 max for whiskey-gated)
+                            You already minted from this collection (1 max for three gold treasury-gated)
                         </button>
                     ) : !isWhiskeyGated && walletNftCount >= 5 ? (
                         <button
@@ -1814,22 +1826,22 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-amber-800/50 text-amber-400 rounded-xl font-bold cursor-not-allowed border border-amber-700/50"
                         >
-                            Loading WHISKEY Balance...
+                            Loading Three Gold Treasury Balance...
                         </button>
                     ) : userWhiskeyBalance === 0 ? (
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Need WHISKEY to {isWhiskeyGated ? 'Hold' : 'Swap'}
+                            Need Three Gold Treasury to {isWhiskeyGated ? 'Hold' : 'Swap'}
                         </button>
                     ) : isWhiskeyGated && (!requiredWhiskeyAmount || userWhiskeyBalance < requiredWhiskeyAmount) ? (
-                        // Whiskey-gated collections: Check if user has required WHISKEY holdings
+                        // Three Gold Treasury-gated collections: Check if user has required Three Gold Treasury holdings
                         <button
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Need {requiredWhiskeyAmount?.toLocaleString() || 0} WHISKEY to Hold
+                            Need {requiredWhiskeyAmount?.toLocaleString() || 0} Three Gold Treasury to Hold
                         </button>
                     ) : !isWhiskeyGated && displayMintPriceWhiskeyTokens > 0 && userWhiskeyBalance < displayMintPriceWhiskeyTokens ? (
                         // Regular collections: Check if user has enough WHISKEY to swap
@@ -1837,7 +1849,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             disabled
                             className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
                         >
-                            Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} WHISKEY to Swap
+                            Need {formatWhiskeyTokens(displayMintPriceWhiskeyTokens)} Three Gold Treasury to Swap
                         </button>
                     ) : !isWhiskeyGated && userSolBalance < 0.04 ? (
                         // Regular collections: Check if user has enough SOL for transaction fees
@@ -1848,7 +1860,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             ⚠️ Need at least 0.04 SOL for transaction fees
                         </button>
                     ) : isWhiskeyGated ? (
-                        // Whiskey-gated collections: Simple one-click mint (free if you have WHISKEY)
+                        // Three Gold Treasury-gated collections: Simple one-click mint (free if you have Three Gold Treasury)
                         <button 
                             onClick={handleNewWhiskeyGatedMint}
                             disabled={isMinting}

@@ -347,7 +347,7 @@ export default function MyNftsPage() {
                 transition={{ duration: 0.8, delay: 0.4 }}
               >
                 <h2 className="text-2xl font-bold text-white mb-6">
-                  Your Planet Whiskey NFTs ({ownedCollectionNfts.length})
+                  Your Three Gold Treasury NFTs ({ownedCollectionNfts.length})
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {ownedCollectionNfts.map((nft) => {

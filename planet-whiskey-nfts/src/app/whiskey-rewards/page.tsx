@@ -116,7 +116,7 @@ export default function WhiskeyRewardsPage() {
                     </div>
                     
                     <p className="text-xl text-gray-300 max-w-4xl mx-auto mb-8">
-                        NFT collections for true whiskey connoisseurs. Hold WHISKEY tokens to unlock access to premium collections and special rewards.
+                        NFT collections for true Three Gold Treasury connoisseurs. Hold Three Gold Treasury tokens to unlock access to premium collections and special rewards.
                     </p>
 
                     {/* Features */}
@@ -128,7 +128,7 @@ export default function WhiskeyRewardsPage() {
                         >
                             <Zap className="w-12 h-12 text-amber-400 mx-auto mb-4" />
                             <h3 className="text-xl font-bold text-white mb-2">Token Gated</h3>
-                            <p className="text-gray-400">Hold WHISKEY tokens to unlock exclusive minting privileges</p>
+                            <p className="text-gray-400">Hold Three Gold Treasury tokens to unlock exclusive minting privileges</p>
                         </motion.div>
 
                         <motion.div 
@@ -148,7 +148,7 @@ export default function WhiskeyRewardsPage() {
                         >
                             <Gift className="w-12 h-12 text-amber-400 mx-auto mb-4" />
                             <h3 className="text-xl font-bold text-white mb-2">Exclusive Rewards</h3>
-                            <p className="text-gray-400">Special collections only available to WHISKEY holders</p>
+                            <p className="text-gray-400">Special collections only available to Three Gold Treasury holders</p>
                         </motion.div>
                     </div>
                 </motion.div>
@@ -191,7 +191,7 @@ export default function WhiskeyRewardsPage() {
                                 <Trophy className="w-16 h-16 text-amber-400 mx-auto mb-6" />
                                 <h3 className="text-2xl font-bold text-white mb-4">No Rewards Available</h3>
                                 <p className="text-gray-300 mb-6">
-                                    No whiskey-gated collections are currently available. Check back soon for exclusive rewards!
+                                    No three gold treasury-gated collections are currently available. Check back soon for exclusive rewards!
                                 </p>
                                 <button 
                                     onClick={fetchWhiskeyGatedCollections}
@@ -208,7 +208,7 @@ export default function WhiskeyRewardsPage() {
                                     Available Rewards
                                 </h2>
                                 <p className="text-gray-300 text-lg">
-                                    {collections.length} exclusive collection{collections.length !== 1 ? 's' : ''} available for WHISKEY holders
+                                    {collections.length} exclusive collection{collections.length !== 1 ? 's' : ''} available for Three Gold Treasury holders
                                 </p>
                             </div>
 
@@ -227,7 +227,7 @@ export default function WhiskeyRewardsPage() {
                                         {/* Whiskey Gated Badge */}
                                         <div className="absolute -top-2 -right-2 z-20 bg-gradient-to-r from-amber-400 to-orange-500 text-black px-3 py-1 rounded-full text-sm font-bold shadow-lg">
                                             <Zap className="w-4 h-4 inline mr-1" />
-                                            {collection.requiredWhiskeyAmount.toLocaleString()} WHISKEY
+                                            {collection.requiredWhiskeyAmount.toLocaleString()} Three Gold Treasury
                                         </div>
                                         
                                         <NftCollectionCard
