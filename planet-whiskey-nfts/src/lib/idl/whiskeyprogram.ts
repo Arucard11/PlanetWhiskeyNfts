@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "Gf4thBmzMFmhAe4yo5oZXRTiZwUeTAVsWUzo6s7LywG5",
+  "address": "9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -867,7 +867,7 @@ export type Whiskeyprogram = {
         {
           "name": "capitalVault",
           "writable": true,
-          "address": "DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs"
+          "address": "BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo"
         },
         {
           "name": "treasuryWhiskeyAccount",

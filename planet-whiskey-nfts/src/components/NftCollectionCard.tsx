@@ -30,14 +30,30 @@ import { Liquidity, LiquidityPoolKeys, Percent, Token, TokenAmount } from '@rayd
 import { Whiskeyprogram } from '@/lib/idl/whiskeyprogram';
 import whiskeyIdl from '@/lib/idl/whiskeyprogram.json';
 import MediaWithFallback from './MediaWithFallback';
-import { convertUsdToWhiskeyTokens, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice, getPriceChangeColor, formatPercentageChange, getCurrentWhiskeyRate, getCurrentSolRate } from '@/lib/coingeckoPricing';
+import {
+    convertUsdToWhiskeyTokens,
+    formatWhiskeyTokens,
+    formatUsdAmount,
+    useRealTimeWhiskeyPrice,
+    getPriceChangeColor,
+    formatPercentageChange,
+    getCurrentWhiskeyRate,
+    getCurrentSolRate,
+} from '@/lib/coingeckoPricing';
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
-import { getSolanaConnection } from '@/lib/solanaUtils';
+import { getSolanaConnection, getSolanaProgram } from '@/lib/solanaUtils';
 
-// Token addresses
+// IMPORTANT: For Next.js, NEXT_PUBLIC_* env vars must be accessed
+// statically (process.env.NEXT_PUBLIC_...) so they can be inlined.
+// Do NOT use bracket access like process.env[envName] in client code.
+
+// Token / program addresses from env (inlined at build time)
 const WHISKEY_MINT = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!);
 const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+const TREASURY_WALLET = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+const CAPITAL_VAULT = new PublicKey(process.env.NEXT_PUBLIC_CAPITAL_VAULT_PDA!); // must match on-chain constant
+const WHISKEY_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!);
 const DEV_WALLET = new PublicKey("CbjG3a2CKEkjPUsku3V65q5Ff19hoPbyL49eSMsypt1n"); // Dev wallet for fees
 
 // Jito tip accounts (mainnet)
@@ -501,10 +517,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             setMintMessage('Building transaction on frontend...');
             console.log(`[STEP2_ALT] 🔧 Building transaction on frontend...`);
             
-            // Setup program connection
+            // Setup program connection using shared helper to ensure IDL/coder are correct
             console.log(`[STEP2_ALT] 🔗 Setting up program connection...`);
             const provider = new AnchorProvider(connection, { publicKey: publicKey } as any, { commitment: 'confirmed' });
-            const program = new Program(whiskeyIdl as Whiskeyprogram, provider);
+            const program = getSolanaProgram(provider as any);
             console.log(`[STEP2_ALT] ✅ Program connected: ${program.programId.toString()}`);
 
             // Generate new NFT mint keypair
@@ -514,16 +530,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             // Derive collection config PDA
             const [collectionConfigPda] = PublicKey.findProgramAddressSync(
                 [Buffer.from("collection"), Buffer.from(displayName)],
-                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!)
+                WHISKEY_PROGRAM_ID
             );
 
             // Get user's token accounts
             const userUsdcAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!),
+                USDC_MINT,
                 publicKey
             );
             const userWhiskeyAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                WHISKEY_MINT,
                 publicKey
             );
             const nftTokenAccount = getAssociatedTokenAddressSync(nftMintKeypair.publicKey, publicKey);
@@ -549,10 +565,11 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             );
 
             // Get treasury and vault accounts
-            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+            // Must match CAPITAL_VAULT_USDC in on-chain program
+            const capitalVault = CAPITAL_VAULT;
             const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
-                new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!)
+                WHISKEY_MINT,
+                TREASURY_WALLET
             );
 
             // Create instructions array
@@ -747,9 +764,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 preflightCommitment: 'confirmed'
             });
             
-            console.log('[STEP2] Loading program IDL...');
-            const idl = await import('../lib/idl/whiskeyprogram.json');
-            const program = new Program(idl as any, provider);
+            // Use shared helper to ensure IDL/coder is configured correctly
+            const program = getSolanaProgram(provider as any);
             console.log('[STEP2] ✅ Anchor program setup complete');
 
             // Get recent blockhash
@@ -890,7 +906,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             
             // Get user token accounts
             const userUsdcAccount = getAssociatedTokenAddressSync(USDC_MINT, publicKey);
-            const userWhiskeyAccount = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), publicKey);
+            const userWhiskeyAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, publicKey);
             
             console.log(`[STEP2] User token accounts:`);
             console.log(`  - USDC account: ${userUsdcAccount.toString()}`);
@@ -907,11 +923,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             console.log(`  - WHISKEY account exists: ${whiskeyAccountInfo !== null}`);
             
             // Get treasury whiskey account
-            const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
-            const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(new PublicKey(WHISKEY_MINT), treasuryWallet);
+            const treasuryWallet = TREASURY_WALLET;
+            const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(WHISKEY_MINT, treasuryWallet);
             
             // Hardcoded capital vault from program
-            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+            // Must match CAPITAL_VAULT_USDC in on-chain program
+            const capitalVault = CAPITAL_VAULT;
             
             // Calculate payment amounts
             const whiskeyRate = await getCurrentWhiskeyRate();
@@ -1216,14 +1233,12 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             const connection = getSolanaConnection();
             const provider = new AnchorProvider(connection, { publicKey: publicKey } as any, { commitment: 'confirmed' });
             
-            // Use DYNAMIC import like regular mint does
-            console.log('[NEW-WHISKEY-GATED] Loading program IDL...');
-            const idl = await import('../lib/idl/whiskeyprogram.json');
-            const program = new Program(idl as any, provider);
+            // Use shared helper to ensure IDL/coder is configured correctly
+            const program = getSolanaProgram(provider as any);
             console.log('[NEW-WHISKEY-GATED] ✅ Program initialized with ID:', program.programId.toString());
             
             // Verify environment program ID matches
-            const expectedProgramId = process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID;
+            const expectedProgramId = WHISKEY_PROGRAM_ID.toBase58();
             console.log('[NEW-WHISKEY-GATED] 🔧 Environment program ID:', expectedProgramId);
             console.log('[NEW-WHISKEY-GATED] 🔧 Actual program ID:', program.programId.toString());
             if (expectedProgramId !== program.programId.toString()) {
@@ -1268,15 +1283,16 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
 
             // Get user's WHISKEY account
             const userWhiskeyAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                WHISKEY_MINT,
                 publicKey
             );
 
             // Get correct vault addresses (same as regular mint)
-            const capitalVault = new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
-            const treasuryWallet = new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!);
+            // Must match CAPITAL_VAULT_USDC in on-chain program
+            const capitalVault = CAPITAL_VAULT;
+            const treasuryWallet = TREASURY_WALLET;
             const treasuryWhiskeyAccount = getAssociatedTokenAddressSync(
-                new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!),
+                WHISKEY_MINT,
                 treasuryWallet
             );
 

@@ -57,12 +57,14 @@ export default function MyLoansPage() {
   const [whiskeyPrice, setWhiskeyPrice] = useState<number>(0);
   const [loanPreview, setLoanPreview] = useState<any>(null);
 
+  const walletAddress = publicKey?.toBase58();
+
   useEffect(() => {
-    if (connected && publicKey) {
+    if (connected && walletAddress) {
       fetchUserLendingData();
       fetchWhiskeyPrice();
     }
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   const fetchWhiskeyPrice = async () => {
     try {

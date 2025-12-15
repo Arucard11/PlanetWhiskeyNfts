@@ -20,7 +20,7 @@ async function debugCollection() {
         const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
         
         // Load program
-        const programId = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || 'Gf4thBmzMFmhAe4yo5oZXRTiZwUeTAVsWUzo6s7LywG5');
+        const programId = new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID || '9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q');
         const idlPath = path.join(__dirname, 'src/lib/idl/whiskeyprogram.json');
         const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
         

@@ -32,7 +32,7 @@ async function testSwapDirectly() {
         
         // Calculate PDAs
         const WHISKEY_PROGRAM_ID = new PublicKey('9QgLBW5ezK86ouvvQ25mjgvFpLjVm1J9k9bvaFvohw2t');
-        const LENDING_PROGRAM_ID = new PublicKey('48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3');
+        const LENDING_PROGRAM_ID = new PublicKey('CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1');
         
         const [lendingPoolConfigPda] = PublicKey.findProgramAddressSync(
             [Buffer.from('lending_pool')], 

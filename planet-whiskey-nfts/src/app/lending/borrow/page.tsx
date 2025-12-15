@@ -157,9 +157,11 @@ export default function BorrowPage() {
     }
   }, []);
 
+  const walletAddress = publicKey?.toBase58();
+
   useEffect(() => {
     const fetchPageData = async () => {
-      if (connected && publicKey) {
+      if (connected && walletAddress) {
         setLoading(true);
         // Reset state for new wallet connection
         setUserNfts([]);
@@ -167,8 +169,8 @@ export default function BorrowPage() {
         setSelectedNfts(new Set());
         
         await Promise.all([
-          fetchUserNfts(publicKey.toString()),
-          fetchBorrowingStats(publicKey.toString())
+          fetchUserNfts(walletAddress),
+          fetchBorrowingStats(walletAddress)
         ]);
         
         setLoading(false);
@@ -181,7 +183,7 @@ export default function BorrowPage() {
     };
 
     fetchPageData();
-  }, [connected, publicKey, fetchUserNfts, fetchBorrowingStats]);
+  }, [connected, walletAddress, fetchUserNfts, fetchBorrowingStats]);
   
   const handleNftSelection = (mintAddress: string) => {
     const nft = userNfts.find(n => n.mintAddress === mintAddress);
@@ -636,13 +638,8 @@ export default function BorrowPage() {
 
   const calculateBorrowingPower = () => {
     if (!borrowingStats) return 0;
-    const transactionFee = borrowingStats.transactionFeeBps / 10000; // Convert from basis points to decimal
-    
-    const grossBorrowingPower = calculateGrossBorrowingPower();
-    // Subtract transaction fee from the borrowable amount
-    const netBorrowingPower = grossBorrowingPower * (1 - transactionFee);
-    
-    return netBorrowingPower;
+    // No fee on loan origination - return full borrowing power
+    return calculateGrossBorrowingPower();
   };
 
   const calculateTotalValue = () => {
@@ -723,18 +720,8 @@ export default function BorrowPage() {
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h3 className="text-lg font-semibold text-gray-300 mb-2">Available to Borrow</h3>
               <div className="text-right">
-                <p className="text-lg font-medium text-gray-400">
-                  Gross: ${borrowingStats.availableToBorrow.toFixed(2)}
-                </p>
                 <p className="text-3xl font-bold text-purple-400">
-                  ${(() => {
-                    const transactionFee = borrowingStats.transactionFeeBps / 10000;
-                    const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
-                    return Math.max(0, netAvailable).toFixed(2);
-                  })()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                  ${borrowingStats.availableToBorrow.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -767,14 +754,8 @@ export default function BorrowPage() {
               <div>
                 <p className="text-gray-300">Borrowing Power</p>
                 <div className="text-right">
-                  <p className="text-sm text-gray-400">
-                    Gross: ${calculateGrossBorrowingPower().toFixed(2)}
-                  </p>
                   <p className="text-2xl font-bold text-purple-400">
-                    ${calculateBorrowingPower()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    (after {(borrowingStats?.transactionFeeBps || 0 / 100).toFixed(1)}% fee)
+                    ${calculateBorrowingPower().toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -901,13 +882,8 @@ export default function BorrowPage() {
                     style={{ color: '#ffffff !important' }}
                   />
                   <div className="text-sm text-gray-400 mt-2">
-                    <p>Gross available: ${borrowingStats.availableToBorrow.toFixed(2)}</p>
                     <p className="font-bold text-green-400">
-                      Net available: ${(() => {
-                        const transactionFee = borrowingStats.transactionFeeBps / 10000;
-                        const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
-                        return Math.max(0, netAvailable).toFixed(2);
-                      })()} (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
+                      Available: ${borrowingStats.availableToBorrow.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -990,17 +966,9 @@ export default function BorrowPage() {
                       <span className="text-green-400 font-medium">
                         ${selectedNfts.size > 0 
                           ? calculateBorrowingPower().toFixed(2)
-                          : (() => {
-                              // Calculate available amount after fees from current borrowing stats
-                              const transactionFee = borrowingStats.transactionFeeBps / 10000;
-                              const netAvailable = borrowingStats.availableToBorrow * (1 - transactionFee);
-                              return Math.max(0, netAvailable).toFixed(2);
-                            })()
+                          : borrowingStats.availableToBorrow.toFixed(2)
                         }
                       </span>
-                      <div className="text-xs text-gray-500">
-                        (after {(borrowingStats.transactionFeeBps / 100).toFixed(1)}% fee)
-                      </div>
                     </div>
                   </div>
                   <div className="flex justify-between">

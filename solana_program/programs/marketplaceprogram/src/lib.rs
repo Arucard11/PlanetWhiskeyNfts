@@ -31,7 +31,7 @@ fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u
 // ADMIN WALLET - This wallet controls ALL marketplace administrative functions
 pub const ADMIN_WALLET: Pubkey = pubkey!("F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 
-pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("HegC6oTgMNyHW1g1kDSP8bWe22uCdoQhBxKXfu3joXpK");
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
 pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
 
 // Default transaction fee (can be updated by admin)

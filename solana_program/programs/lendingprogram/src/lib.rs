@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3");
+declare_id!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
 
 // Removed hardcoded whiskey program reference - no longer needed
 
@@ -906,33 +906,9 @@ pub mod lendingprogram {
         let global_market_seeds = [GLOBAL_MARKET_SEED, &global_market_bump];
         let signer_seeds = [&global_market_seeds[..]];
 
-        // Calculate transaction fee on loan origination
-        let transaction_fee = (loan_amount_usd as u128 * global_market.transaction_fee_bps as u128) / 10000;
-        let net_loan_amount = loan_amount_usd - transaction_fee as u64;
-
-        // Transfer transaction fee to treasury
-        if transaction_fee > 0 {
-            msg!("💸 Transferring transaction fee:");
-            msg!("  Fee amount: {}", transaction_fee);
-            msg!("  From: {}", ctx.accounts.capital_vault.key());
-            msg!("  To: {}", ctx.accounts.treasury_token_account.key());
-            
-            let fee_transfer_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.capital_vault.to_account_info(),
-                    to: ctx.accounts.treasury_token_account.to_account_info(),
-                    authority: ctx.accounts.global_market.to_account_info(),
-                },
-                &signer_seeds
-            );
-            token::transfer(fee_transfer_ctx, transaction_fee as u64)?;
-            msg!("✅ Transaction fee transferred successfully");
-        }
-
-        // Transfer net loan amount to borrower
+        // Transfer full loan amount to borrower (no fee on loan origination)
         msg!("💰 Transferring loan amount to borrower:");
-        msg!("  Net loan amount: {}", net_loan_amount);
+        msg!("  Loan amount: {}", loan_amount_usd);
         msg!("  From: {}", ctx.accounts.capital_vault.key());
         msg!("  To: {}", ctx.accounts.borrower_token_account.key());
         
@@ -945,7 +921,7 @@ pub mod lendingprogram {
             },
             &signer_seeds
         );
-        token::transfer(transfer_ctx, net_loan_amount)?;
+        token::transfer(transfer_ctx, loan_amount_usd)?;
         msg!("✅ Loan amount transferred successfully");
 
         // Initialize loan

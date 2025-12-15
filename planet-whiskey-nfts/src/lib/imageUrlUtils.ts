@@ -135,3 +135,35 @@ export async function testImageAccessibility(imageUrl: string): Promise<boolean>
     return false;
   }
 }
+
+/**
+ * Resolves an IPFS URI to a gateway URL using the configured custom gateway
+ * This bypasses the internal proxy for better performance on client-side
+ */
+export function resolveIpfsToGateway(uri: string): string {
+  if (!uri) return '';
+  
+  // Get the configured gateway or fallback to a known public one
+  // IMPORTANT: We must access process.env.NEXT_PUBLIC_PINATA_GATEWAY directly for Next.js inlining
+  const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://pink-obvious-bee-185.mypinata.cloud';
+  const gatewayBase = pinataGateway.endsWith('/') ? pinataGateway : `${pinataGateway}/ipfs/`;
+  
+  // Handle direct ipfs:// URIs
+  if (uri.startsWith('ipfs://')) {
+    const hash = uri.substring(7);
+    return `${gatewayBase}${hash}`;
+  }
+  
+  // Handle existing gateway URLs (convert to our preferred gateway)
+  if (uri.includes('/ipfs/')) {
+    const parts = uri.split('/ipfs/');
+    if (parts.length > 1) {
+      const hash = parts[parts.length - 1];
+      // Clean up hash if it contains query params
+      const cleanHash = hash.split('?')[0];
+      return `${gatewayBase}${cleanHash}`;
+    }
+  }
+  
+  return uri;
+}

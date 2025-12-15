@@ -180,22 +180,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const metadata = await response.json();
     console.log(`[metadata-api] Successfully fetched metadata:`, metadata);
 
-    // Convert any image URLs to use our proxy for mobile compatibility
-    if (metadata.image) {
-      if (metadata.image.startsWith('ipfs://')) {
-        const hash = metadata.image.substring(7);
-        metadata.image = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-        console.log(`[metadata-api] Converted IPFS URL to proxy: ${metadata.image}`);
-      } else if (metadata.image.includes('/ipfs/') || metadata.image.includes('gateway.pinata.cloud') || metadata.image.includes('pink-obvious-bee-185.mypinata.cloud')) {
-        // Convert any IPFS gateway URL to use our proxy for mobile compatibility
-        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
-        console.log(`[metadata-api] Converted gateway URL to proxy: ${metadata.image}`);
-      } else if (metadata.image.startsWith('http') && !metadata.image.includes(req.headers.host || '')) {
-        // Convert external URLs to use proxy for mobile compatibility
-        metadata.image = `/api/images/proxy?imageUrl=${encodeURIComponent(metadata.image)}`;
-        console.log(`[metadata-api] Converted external URL to proxy for mobile: ${metadata.image}`);
-      }
-    }
+    // DO NOT convert IPFS URLs to proxy here.
+    // The frontend MediaWithFallback component will resolve IPFS/Gateway URLs 
+    // to the optimal custom gateway client-side for better performance.
+    // We only want to proxy if absolutely necessary (handled by frontend if needed).
 
     // Cache the result
     metadataCache.set(metadataUri, { data: metadata, timestamp: Date.now() });

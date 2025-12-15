@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/lendingprogram.json`.
  */
 export type Lendingprogram = {
-  "address": "48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3",
+  "address": "CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1",
   "metadata": {
     "name": "lendingprogram",
     "version": "0.1.0",

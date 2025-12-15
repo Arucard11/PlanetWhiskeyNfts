@@ -134,15 +134,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               // Use stored metadata from database instead of fetching from blockchain
               let imageUrl = listing.nftImageUrl || '/placeholder-image.svg';
               
-              // Convert IPFS URLs to use our proxy (same as my-nfts API)
-              if (imageUrl && imageUrl.startsWith('ipfs://')) {
-                const hash = imageUrl.substring(7);
-                imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                console.log(`[marketplace-listings] Converted IPFS URL to proxy: ${imageUrl}`);
-              } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
-                imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-                console.log(`[marketplace-listings] Converted Pinata URL to proxy: ${imageUrl}`);
-              }
+              // DO NOT convert IPFS/Gateway URLs to proxy here.
+              // Client-side MediaWithFallback will resolve them to the optimal gateway.
               
               return {
                 ...listing,
@@ -164,23 +157,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         let collectionImageUrl;
         if (collection?.metadataUri) {
             try {
-                // Use our server-side proxy to avoid CORS issues
-                const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-                const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(collection.metadataUri)}`;
-                const metadataResponse = await fetch(apiUrl);
-                if (metadataResponse.ok) {
-                    const result = await metadataResponse.json();
-                    if (result.success && result.data && result.data.image) {
-                        collectionImageUrl = result.data.image;
-                        
-                        // Convert IPFS URLs to use our proxy
-                        if (collectionImageUrl && collectionImageUrl.startsWith('ipfs://')) {
-                          const hash = collectionImageUrl.substring(7);
-                          collectionImageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                        } else if (collectionImageUrl && (collectionImageUrl.includes('gateway.pinata.cloud/ipfs/') || collectionImageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
-                          collectionImageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(collectionImageUrl)}`;
-                        }
-                    }
+                // Use cached metadata fetcher
+                const metadata = await fetchMetadataWithProxy(collection.metadataUri);
+                if (metadata && metadata.image) {
+                    collectionImageUrl = metadata.image;
                 }
             } catch (error) {
                 console.error('Error fetching collection metadata:', error);
@@ -230,23 +210,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             let imageUrl;
             if (col.metadataUri) {
                 try {
-                    // Use our server-side proxy to avoid CORS issues
-                    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-                    const apiUrl = `${baseUrl}/api/collections/metadata?metadataUri=${encodeURIComponent(col.metadataUri)}`;
-                    const metadataResponse = await fetch(apiUrl);
-                    if (metadataResponse.ok) {
-                        const result = await metadataResponse.json();
-                        if (result.success && result.data && result.data.image) {
-                            imageUrl = result.data.image;
-                            
-                            // Convert IPFS URLs to use our proxy
-                            if (imageUrl && imageUrl.startsWith('ipfs://')) {
-                              const hash = imageUrl.substring(7);
-                              imageUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-                            } else if (imageUrl && (imageUrl.includes('gateway.pinata.cloud/ipfs/') || imageUrl.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/'))) {
-                              imageUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(imageUrl)}`;
-                            }
-                        }
+                    // Use cached metadata fetcher
+                    const metadata = await fetchMetadataWithProxy(col.metadataUri);
+                    if (metadata && metadata.image) {
+                        imageUrl = metadata.image;
                     }
                 } catch (error) {
                     console.error('Error fetching collection metadata:', error);

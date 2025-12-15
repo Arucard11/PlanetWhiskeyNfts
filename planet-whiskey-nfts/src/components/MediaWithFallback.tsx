@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { resolveIpfsToGateway } from '@/lib/imageUrlUtils';
 
 interface MediaWithFallbackProps {
     src: string;
@@ -14,45 +15,40 @@ interface MediaWithFallbackProps {
     controls?: boolean;
 }
 
-// Convert IPFS URI to our server-side proxy URL to avoid CORS issues
-const convertIpfsToProxy = (uri: string): string => {
+// Resolve media URL using custom gateway and avoid unnecessary proxying
+const resolveMediaUrl = (uri: string): string => {
     if (!uri) return '';
     
     // If it's already a proxy URL, don't convert it again
     if (uri.startsWith('/api/images/proxy')) {
-        console.log(`[MediaWithFallback] Already a proxy URL, not converting: ${uri}`);
         return uri;
     }
     
-    if (uri.startsWith('ipfs://')) {
-        const hash = uri.substring(7);
-        const proxyUrl = `/api/images/proxy?imageUrl=ipfs://${hash}`;
-        console.log(`[MediaWithFallback] Converting IPFS URL to proxy: ${uri} -> ${proxyUrl}`);
-        return proxyUrl;
+    // 1. Resolve IPFS content to our custom gateway
+    const resolvedUri = resolveIpfsToGateway(uri);
+    
+    // 2. If it's using our custom gateway or Pinata, return directly (Client-side fetch)
+    // This avoids the server-side bottleneck
+    if (resolvedUri.includes('mypinata.cloud') || resolvedUri.includes('pinata.cloud')) {
+        console.log(`[MediaWithFallback] Using Gateway directly: ${resolvedUri}`);
+        return resolvedUri;
     }
     
-    // If it's already a Pinata gateway URL (old or new), convert it to use our proxy
-    if (uri.includes('gateway.pinata.cloud/ipfs/') || uri.includes('pink-obvious-bee-185.mypinata.cloud/ipfs/')) {
-        const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
-        console.log(`[MediaWithFallback] Converting Pinata URL to proxy: ${uri} -> ${proxyUrl}`);
-        return proxyUrl;
-    }
-    
-    // For mobile compatibility: Always use proxy for external URLs to avoid CORS and network issues
-    if (uri.startsWith('http')) {
+    // 3. For other external URLs, keep using proxy to avoid CORS issues on mobile/web
+    if (resolvedUri.startsWith('http')) {
         // Check if it's an external URL (not from current domain)
         const isExternal = typeof window !== 'undefined' ? 
-            !uri.includes(window.location.hostname) : 
-            !uri.includes('localhost') && !uri.includes('127.0.0.1'); // Fallback for SSR
+            !resolvedUri.includes(window.location.hostname) : 
+            !resolvedUri.includes('localhost') && !resolvedUri.includes('127.0.0.1'); // Fallback for SSR
             
         if (isExternal) {
-            const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(uri)}`;
-            console.log(`[MediaWithFallback] Converting external URL to proxy for mobile compatibility: ${uri} -> ${proxyUrl}`);
+            const proxyUrl = `/api/images/proxy?imageUrl=${encodeURIComponent(resolvedUri)}`;
+            console.log(`[MediaWithFallback] Proxying external non-gateway URL: ${resolvedUri}`);
             return proxyUrl;
         }
     }
     
-    return uri;
+    return resolvedUri;
 };
 
 // Determine if the URL points to a video file
@@ -94,9 +90,9 @@ const MediaWithFallback: React.FC<MediaWithFallbackProps> = ({
             return;
         }
 
-        // Convert IPFS URI to our server-side proxy URL to avoid CORS issues
-        const convertedSrc = convertIpfsToProxy(src);
-        console.log(`[MediaWithFallback] Converting: ${src} -> ${convertedSrc}`);
+        // Resolve URL (use gateway directly for IPFS)
+        const convertedSrc = resolveMediaUrl(src);
+        console.log(`[MediaWithFallback] Resolved: ${src} -> ${convertedSrc}`);
         
         setMediaSrc(convertedSrc);
         setIsVideo(isVideoFile(convertedSrc));

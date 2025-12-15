@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Gf4thBmzMFmhAe4yo5oZXRTiZwUeTAVsWUzo6s7LywG5");
+declare_id!("9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q");
 
 use anchor_spl::{
     token::{self, Mint, Token, TokenAccount, MintTo, mint_to},
@@ -29,10 +29,10 @@ pub const LENDING_WALLET_SHARE_BPS: u16 = 8000; // 80% to lending (converted to 
 pub const TREASURY_WALLET_SHARE_BPS: u16 = 2000; // 20% to treasury (stays as WHISKEY)
 
 // Lending Program ID (mainnet) - for CPI validation
-pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("48bkD2oooWuDmsXojVP9ez1UFnX77Q2NnbxE8wjgeLU3");
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
 
 // HARDCODED CAPITAL VAULT ADDRESS - CANNOT BE MANIPULATED BY USERS
-pub const CAPITAL_VAULT_USDC: Pubkey = pubkey!("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs");
+pub const CAPITAL_VAULT_USDC: Pubkey = pubkey!("BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo");
 
 
 // Account structs

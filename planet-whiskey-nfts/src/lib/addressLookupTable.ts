@@ -1,27 +1,37 @@
-import { 
-  Connection, 
-  PublicKey, 
-  AddressLookupTableProgram, 
+import {
+  Connection,
+  PublicKey,
+  AddressLookupTableProgram,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
   AddressLookupTableAccount,
-  Keypair
+  Keypair,
 } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+
+// NOTE: For Next.js, env vars with NEXT_PUBLIC_ must be accessed statically
+// (process.env.NEXT_PUBLIC_...) so the bundler can inline them. Dynamic
+// indexing like process.env[envName] will always be undefined in the browser.
+
+const WHISKEY_PROGRAM_ID = process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!;
+const TREASURY_WALLET = process.env.NEXT_PUBLIC_TREASURY_WALLET!;
+const WHISKEY_MINT = process.env.NEXT_PUBLIC_WHISKEY_MINT!;
+const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT!;
+const CAPITAL_VAULT_PDA = process.env.NEXT_PUBLIC_CAPITAL_VAULT_PDA!;
 
 // Common addresses used in minting transactions
 export const MINTING_COMMON_ADDRESSES = [
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"), // MPL Token Metadata Program
-  new PublicKey("11111111111111111111111111111111"), // System Program
-  new PublicKey("SysvarRent111111111111111111111111111111111"), // Rent Sysvar
-  new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_PROGRAM_ID!), // Whiskey Program
-  new PublicKey(process.env.NEXT_PUBLIC_TREASURY_WALLET!), // Treasury Wallet
-  new PublicKey(process.env.NEXT_PUBLIC_WHISKEY_MINT!), // WHISKEY Token Mint
-  new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!), // USDC Token Mint
-  new PublicKey("DxEz7UCRnRUPUKCvWQJLGud8eCCtMdDd4onM7HJFHcZs"), // Capital Vault
+  new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'), // MPL Token Metadata Program
+  new PublicKey('11111111111111111111111111111111'), // System Program
+  new PublicKey('SysvarRent111111111111111111111111111111111'), // Rent Sysvar
+  new PublicKey(WHISKEY_PROGRAM_ID), // Whiskey Program
+  new PublicKey(TREASURY_WALLET), // Treasury Wallet
+  new PublicKey(WHISKEY_MINT), // WHISKEY Token Mint
+  new PublicKey(USDC_MINT), // USDC Token Mint
+  new PublicKey(CAPITAL_VAULT_PDA), // Capital Vault (must match on-chain constant)
 ];
 
 export interface AddressLookupTableInfo {
