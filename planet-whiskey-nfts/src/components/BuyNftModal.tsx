@@ -7,7 +7,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, SendTransactionError, PublicKey, SystemProgram } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import * as anchor from '@coral-xyz/anchor';
-import { getMarketplaceProgram } from '@/lib/solanaUtils';
+import { getMarketplaceProgram, simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface BuyNftModalProps {
@@ -138,7 +138,19 @@ const BuyNftModal: React.FC<BuyNftModalProps> = ({
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = publicKey;
 
-        setBuyMessage("2/4: Please sign the transaction...");
+        // Phantom compatibility: Simulate transaction first (Phantom requirement)
+        setBuyMessage("2/4: Simulating transaction...");
+        console.log(`[BUY_MODAL] 🔍 Simulating transaction before signing (Phantom requirement)...`);
+        
+        try {
+          await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+          console.log(`[BUY_MODAL] ✅ Transaction simulation passed`);
+        } catch (simError) {
+          console.error(`[BUY_MODAL] ❌ Transaction simulation failed:`, simError);
+          throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+        }
+
+        setBuyMessage("3/4: Please sign the transaction...");
         console.log(`[BUY_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
         // Phantom compatibility: Sign with wallet first, then send raw transaction

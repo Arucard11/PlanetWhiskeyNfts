@@ -42,7 +42,7 @@ import {
 } from '@/lib/coingeckoPricing';
 import { getSwapPools, extractPoolAccounts, type RaydiumLiquidityPoolKeys } from '@/lib/raydiumApi';
 import { createVersionedTransaction, getMintingLookupTableAddress, fetchLookupTable } from '@/lib/addressLookupTable';
-import { getSolanaConnection, getSolanaProgram } from '@/lib/solanaUtils';
+import { getSolanaConnection, getSolanaProgram, simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 
 // IMPORTANT: For Next.js, NEXT_PUBLIC_* env vars must be accessed
 // statically (process.env.NEXT_PUBLIC_...) so they can be inlined.
@@ -656,6 +656,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             );
             console.log(`[STEP2_ALT] ✅ Versioned transaction created`);
 
+            // PHANTOM COMPATIBILITY: Simulate transaction first (Phantom requirement)
+            setMintMessage('Simulating transaction...');
+            console.log(`[STEP2_ALT] 🔍 Simulating transaction before signing (Phantom requirement)...`);
+            
+            try {
+                await simulateTransactionBeforeSigning(connection, versionedTx, publicKey);
+                console.log(`[STEP2_ALT] ✅ Transaction simulation passed`);
+            } catch (simError) {
+                console.error(`[STEP2_ALT] ❌ Transaction simulation failed:`, simError);
+                throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+            }
+            
             // PHANTOM COMPATIBILITY: Sign with Phantom first (single signer)
             setMintMessage('Please sign the transaction...');
             console.log(`[STEP2_ALT] 📝 Requesting Phantom signature first (single signer)...`);
@@ -1060,6 +1072,17 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                 });
             });
             
+            // PHANTOM COMPATIBILITY: Simulate transaction first (Phantom requirement)
+            console.log(`[STEP2] 🔍 Simulating transaction before signing (Phantom requirement)...`);
+            
+            try {
+                await simulateTransactionBeforeSigning(connection, mintTransaction, publicKey);
+                console.log(`[STEP2] ✅ Transaction simulation passed`);
+            } catch (simError) {
+                console.error(`[STEP2] ❌ Transaction simulation failed:`, simError);
+                throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+            }
+            
             // PHANTOM COMPATIBILITY: Request wallet signature first, then add NFT mint signature
             console.log(`[STEP2] Requesting wallet signature for transaction (Phantom compatibility)...`);
             console.log(`[STEP2] Wallet connected: ${connected}`);
@@ -1364,6 +1387,18 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             mintTransaction.recentBlockhash = recentBlockhash;
             mintTransaction.feePayer = publicKey;
 
+            // PHANTOM COMPATIBILITY: Simulate transaction first (Phantom requirement)
+            setMintMessage('🔍 Simulating transaction...');
+            console.log('[NEW-WHISKEY-GATED] 🔍 Simulating transaction before signing (Phantom requirement)...');
+            
+            try {
+                await simulateTransactionBeforeSigning(connection, mintTransaction, publicKey);
+                console.log('[NEW-WHISKEY-GATED] ✅ Transaction simulation passed');
+            } catch (simError) {
+                console.error('[NEW-WHISKEY-GATED] ❌ Transaction simulation failed:', simError);
+                throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+            }
+            
             // PHANTOM COMPATIBILITY: Sign with Phantom first (single signer)
             setMintMessage('📝 Requesting wallet signature...');
             console.log('[NEW-WHISKEY-GATED] 📝 Requesting Phantom signature first (single signer)...');

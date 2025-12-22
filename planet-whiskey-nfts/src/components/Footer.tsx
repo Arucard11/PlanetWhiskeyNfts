@@ -22,6 +22,7 @@ const Footer = () => {
     { name: 'X (Twitter)', icon: XIcon, href: 'https://x.com/planetwhiskey' },
     { name: 'Telegram', icon: Send, href: 'https://t.me/PlanetWhiskey' },
     { name: 'Website', icon: Globe, href: 'https://www.planetwhiskey.xyz' },
+    { name: 'Three Gold Treasury', icon: Globe, href: 'https://www.threegoldtreasury.com/' },
   ];
 
   const footerLinks = [

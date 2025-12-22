@@ -7,7 +7,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as anchor from '@coral-xyz/anchor';
-import { getMarketplaceProgram } from '@/lib/solanaUtils';
+import { getMarketplaceProgram, simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface CancelListingModalProps {
@@ -131,13 +131,25 @@ const CancelListingModal: React.FC<CancelListingModalProps> = ({
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
 
-      setCancelMessage("3/4: Please sign the transaction...");
+      // Phantom compatibility: Simulate transaction first (Phantom requirement)
+      setCancelMessage("3/4: Simulating transaction...");
+      console.log(`[CANCEL_MODAL] 🔍 Simulating transaction before signing (Phantom requirement)...`);
+      
+      try {
+        await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+        console.log(`[CANCEL_MODAL] ✅ Transaction simulation passed`);
+      } catch (simError) {
+        console.error(`[CANCEL_MODAL] ❌ Transaction simulation failed:`, simError);
+        throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+      }
+
+      setCancelMessage("4/4: Please sign the transaction...");
       console.log(`[CANCEL_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
       // Phantom compatibility: Sign with wallet first, then send raw transaction
       const signedTransaction = await signTransaction(transaction);
-      
-      setCancelMessage("4/4: Confirming cancellation...");
+
+      setCancelMessage("5/5: Confirming cancellation...");
 
       // Send with proper retry settings
       let signature: string;

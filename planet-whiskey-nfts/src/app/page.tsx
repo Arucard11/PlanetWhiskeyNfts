@@ -327,7 +327,7 @@ export default function Home() {
                 className="relative"
               >
                 <a
-                  href="https://www.planetwhiskey.xyz/angelshareventures"
+                  href="https://www.threegoldtreasury.com/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group relative inline-flex items-center"

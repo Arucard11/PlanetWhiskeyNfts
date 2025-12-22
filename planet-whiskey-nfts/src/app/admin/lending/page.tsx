@@ -6,7 +6,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { getSolanaConnection, getAnchorProvider } from '../../../lib/solanaUtils';
+import { getSolanaConnection, getAnchorProvider, simulateTransactionBeforeSigning } from '../../../lib/solanaUtils';
 
 interface LendingConfig {
   // Interest rates (2.5% - 25%)
@@ -419,6 +419,17 @@ export default function LendingAdminPage() {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
       
+      // Simulate transaction before signing (Phantom requirement)
+      console.log('🔍 Simulating transaction before signing...');
+      toast('Simulating transaction...');
+      try {
+        await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+        console.log('✅ Transaction simulation passed');
+      } catch (simError) {
+        console.error('❌ Transaction simulation failed:', simError);
+        throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+      }
+      
       console.log('🔐 Requesting wallet signature...');
       toast('Please sign the transaction in your wallet');
       
@@ -565,6 +576,16 @@ export default function LendingAdminPage() {
           const transaction = Transaction.from(transactionBuffer);
           
           if (signTransaction) {
+            // Simulate transaction before signing (Phantom requirement)
+            console.log('🔍 Simulating add collection transaction before signing...');
+            try {
+              await simulateTransactionBeforeSigning(connection, transaction, publicKey!);
+              console.log('✅ Transaction simulation passed');
+            } catch (simError) {
+              console.error('❌ Transaction simulation failed:', simError);
+              throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+            }
+            
             const signedTransaction = await signTransaction(transaction);
             
             // Send signed transaction
@@ -631,6 +652,16 @@ export default function LendingAdminPage() {
           const transaction = Transaction.from(transactionBuffer);
           
           if (signTransaction) {
+            // Simulate transaction before signing (Phantom requirement)
+            console.log('🔍 Simulating toggle approval transaction before signing...');
+            try {
+              await simulateTransactionBeforeSigning(connection, transaction, publicKey!);
+              console.log('✅ Transaction simulation passed');
+            } catch (simError) {
+              console.error('❌ Transaction simulation failed:', simError);
+              throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+            }
+            
             const signedTransaction = await signTransaction(transaction);
             
             // Send signed transaction

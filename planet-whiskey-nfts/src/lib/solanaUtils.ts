@@ -12,7 +12,7 @@
  */
 
 import { AnchorProvider, Program, type Idl, setProvider } from '@coral-xyz/anchor';
-import { Connection, Keypair, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction, VersionedTransaction, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 
 // Ensure this is the correct import for your version
 // For newer @metaplex-foundation/js:
@@ -223,4 +223,65 @@ export function getLendingProgram(provider: AnchorProvider) {
   const program = new Program(patchedIdl, provider);
   console.log("DEBUG: Lending program initialized successfully with program ID:", programId.toBase58());
   return program as unknown as Program<any>;
+}
+
+/**
+ * Simulates a transaction with sigVerify: false before signing.
+ * This is required by Phantom to prevent warnings.
+ * 
+ * @param connection - Solana connection
+ * @param transaction - Transaction or VersionedTransaction to simulate
+ * @param signerPubkey - The public key of the signer
+ * @returns True if simulation succeeds, throws error otherwise
+ */
+export async function simulateTransactionBeforeSigning(
+  connection: Connection,
+  transaction: Transaction | VersionedTransaction,
+  signerPubkey: PublicKey
+): Promise<boolean> {
+  try {
+    console.log('🔍 [Simulation] Simulating transaction before signing...');
+    
+    // For regular Transaction
+    if (transaction instanceof Transaction) {
+      const simulation = await connection.simulateTransaction(transaction, undefined, {
+        sigVerify: false,
+        commitment: 'confirmed'
+      });
+      
+      if (simulation.value.err) {
+        console.error('❌ [Simulation] Transaction simulation failed:', simulation.value.err);
+        console.error('📋 [Simulation] Simulation logs:', simulation.value.logs);
+        throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+      }
+      
+      console.log('✅ [Simulation] Transaction simulation succeeded');
+      console.log('📋 [Simulation] Simulation logs:', simulation.value.logs);
+      return true;
+    }
+    
+    // For VersionedTransaction
+    if (transaction instanceof VersionedTransaction) {
+      const simulation = await connection.simulateTransaction(transaction, {
+        sigVerify: false,
+        commitment: 'confirmed'
+      });
+      
+      if (simulation.value.err) {
+        console.error('❌ [Simulation] Versioned transaction simulation failed:', simulation.value.err);
+        console.error('📋 [Simulation] Simulation logs:', simulation.value.logs);
+        throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+      }
+      
+      console.log('✅ [Simulation] Versioned transaction simulation succeeded');
+      console.log('📋 [Simulation] Simulation logs:', simulation.value.logs);
+      return true;
+    }
+    
+    throw new Error('Invalid transaction type');
+    
+  } catch (error) {
+    console.error('❌ [Simulation] Error during simulation:', error);
+    throw error;
+  }
 } 

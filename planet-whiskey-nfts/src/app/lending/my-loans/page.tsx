@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Connection, Transaction, PublicKey, SystemProgram } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
-import { getLendingProgram } from '@/lib/solanaUtils';
+import { getLendingProgram, simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 import { Lendingprogram } from '@/lib/idl/lendingprogram';
 import lendingIdl from '@/lib/idl/lendingprogram.json';
 import { getCurrentWhiskeyRate } from '../../../lib/coingeckoPricing';
@@ -282,6 +282,16 @@ export default function MyLoansPage() {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
 
+      // Simulate transaction before signing (Phantom requirement)
+      console.log('🔍 Simulating NFT withdrawal transaction before signing...');
+      try {
+        await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+        console.log('✅ Transaction simulation passed');
+      } catch (simError) {
+        console.error('❌ Transaction simulation failed:', simError);
+        throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+      }
+
       const signedTransaction = await signTransaction(transaction);
       
       toast.loading('⏳ Sending transaction...', { id: toastId });
@@ -450,6 +460,16 @@ export default function MyLoansPage() {
       const { blockhash } = await connection.getLatestBlockhash('confirmed');
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
+
+      // Simulate transaction before signing (Phantom requirement)
+      console.log('🔍 Simulating loan repayment transaction before signing...');
+      try {
+        await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+        console.log('✅ Transaction simulation passed');
+      } catch (simError) {
+        console.error('❌ Transaction simulation failed:', simError);
+        throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+      }
 
       const signedTransaction = await signTransaction(transaction);
       

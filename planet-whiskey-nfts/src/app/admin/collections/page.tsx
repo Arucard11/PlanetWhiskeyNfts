@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Transaction, Connection } from '@solana/web3.js';
+import { simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 import { ICompany } from '@/models/Company';
 import { convertUsdToWhiskeyTokens, getCurrentWhiskeyRate, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice } from '@/lib/coingeckoPricing';
 
@@ -187,6 +188,17 @@ export default function ManageCollectionsPage() {
       const transactionBuffer = Buffer.from(transaction, 'base64');
       const transactionToSign = Transaction.from(transactionBuffer);
       
+      // Simulate transaction before signing (Phantom requirement)
+      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
+      console.log('🔍 Simulating transaction before signing...');
+      try {
+        await simulateTransactionBeforeSigning(connection, transactionToSign, publicKey!);
+        console.log('✅ Transaction simulation passed');
+      } catch (simError) {
+        console.error('❌ Transaction simulation failed:', simError);
+        throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+      }
+      
       const signedTransaction = await signTransaction(transactionToSign);
       
       // Step 3: Send the signed transaction for confirmation
@@ -345,12 +357,24 @@ export default function ManageCollectionsPage() {
           transaction.feePayer = publicKey;
         }
 
+        // Create connection instance for blockhash and simulation
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
+        
         // Get fresh blockhash if needed
         if (!transaction.recentBlockhash) {
           console.log('🔄 Getting fresh blockhash...');
-          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
           const { blockhash } = await connection.getLatestBlockhash();
           transaction.recentBlockhash = blockhash;
+        }
+        
+        // Simulate transaction before signing (Phantom requirement)
+        console.log('🔍 Simulating transaction before signing...');
+        try {
+          await simulateTransactionBeforeSigning(connection, transaction, publicKey!);
+          console.log('✅ Transaction simulation passed');
+        } catch (simError) {
+          console.error('❌ Transaction simulation failed:', simError);
+          throw new Error(`Transaction would fail on-chain: ${simError.message}`);
         }
         
         // Sign and send transaction
@@ -374,7 +398,6 @@ export default function ManageCollectionsPage() {
           console.error('❌ Full error object:', signError);
           throw new Error(`Failed to sign transaction: ${signError instanceof Error ? signError.message : 'Unknown signing error'}`);
         }
-        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
         console.log('📡 Transaction sent:', signature);

@@ -7,7 +7,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, SendTransactionError, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import * as anchor from '@coral-xyz/anchor';
-import { getMarketplaceProgram } from '@/lib/solanaUtils';
+import { getMarketplaceProgram, simulateTransactionBeforeSigning } from '@/lib/solanaUtils';
 import MediaWithFallback from './MediaWithFallback';
 
 export interface ListNftModalProps {
@@ -123,7 +123,19 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = publicKey;
 
-        setListingMessage("2/4: Please sign the transaction in your wallet...");
+        // Phantom compatibility: Simulate transaction first (Phantom requirement)
+        setListingMessage("2/4: Simulating transaction...");
+        console.log(`[LIST_NFT_MODAL] 🔍 Simulating transaction before signing (Phantom requirement)...`);
+        
+        try {
+          await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+          console.log(`[LIST_NFT_MODAL] ✅ Transaction simulation passed`);
+        } catch (simError) {
+          console.error(`[LIST_NFT_MODAL] ❌ Transaction simulation failed:`, simError);
+          throw new Error(`Transaction would fail on-chain: ${simError.message}`);
+        }
+
+        setListingMessage("3/4: Please sign the transaction in your wallet...");
         console.log(`[LIST_NFT_MODAL] ✅ Transaction built client-side, requesting signature...`);
 
         // Phantom compatibility: Sign with wallet first, then send raw transaction
@@ -413,6 +425,17 @@ const ListNftModal: React.FC<ListNftModalProps> = ({
                            const { blockhash } = await connection.getLatestBlockhash('confirmed');
                            transaction.recentBlockhash = blockhash;
                            transaction.feePayer = publicKey;
+                           
+                           // Simulate transaction before signing (Phantom requirement)
+                           console.log(`[LIST_NFT_MODAL] 🔍 Simulating cancel transaction before signing...`);
+                           try {
+                             await simulateTransactionBeforeSigning(connection, transaction, publicKey);
+                             console.log(`[LIST_NFT_MODAL] ✅ Cancel transaction simulation passed`);
+                           } catch (simError) {
+                             console.error(`[LIST_NFT_MODAL] ❌ Cancel transaction simulation failed:`, simError);
+                             console.warn('⚠️ Skipping cancel - transaction would fail on-chain');
+                             return; // Skip this cleanup if it would fail
+                           }
                            
                            const signedTransaction = await signTransaction(transaction);
                            const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
