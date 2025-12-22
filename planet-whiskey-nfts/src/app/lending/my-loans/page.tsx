@@ -803,7 +803,7 @@ export default function MyLoansPage() {
                                 disabled={whiskeyPrice === 0}
                               >
                                 {whiskeyPrice === 0 ? 'Loading WHISKEY Price...' : 
-                                  `Repay Loan (${breakdown.principalUSDC.toFixed(0)} USDC + ${breakdown.interestWhiskey.toFixed(2)} WHISKEY)`
+                                  `Repay Loan (${breakdown.principalUSDC.toFixed(2)} USDC + ${breakdown.interestWhiskey.toFixed(2)} WHISKEY)`
                                 }
                               </button>
                             </div>
