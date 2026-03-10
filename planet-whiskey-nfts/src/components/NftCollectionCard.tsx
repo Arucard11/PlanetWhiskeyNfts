@@ -69,6 +69,9 @@ export interface NftCollectionCardProps {
     mintPriceLamports: number; 
     mintPriceWhiskeyTokens: number;
     mintPriceUsd?: number;
+    baseMintPriceUsd?: number;
+    priceIncreaseBps?: number;
+    nftsPerPriceStep?: number;
     itemLimit: number; 
     itemsMintedOnChain?: number; 
     onMintSuccess?: () => void;
@@ -86,6 +89,9 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
     mintPriceLamports,
     mintPriceWhiskeyTokens,
     mintPriceUsd,
+    baseMintPriceUsd,
+    priceIncreaseBps = 0,
+    nftsPerPriceStep = 0,
     itemLimit,
     itemsMintedOnChain = 0,
     onMintSuccess,
@@ -1798,6 +1804,27 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                             {supplyRemaining > 0 ? `${supplyRemaining.toLocaleString()} remaining` : 'SOLD OUT'}
                         </span>
                     </div>
+
+                    {/* Dynamic Pricing Info */}
+                    {!isWhiskeyGated && priceIncreaseBps > 0 && nftsPerPriceStep > 0 && (
+                        <div className="bg-emerald-900/30 border border-emerald-700/30 rounded-xl p-3 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="text-emerald-400 font-medium">Price increases {(priceIncreaseBps / 100).toFixed(1)}% every {nftsPerPriceStep} NFTs</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-400">Next increase in</span>
+                                <span className="text-emerald-300 font-semibold">
+                                    {nftsPerPriceStep - (displayItemsMinted % nftsPerPriceStep)} NFTs
+                                </span>
+                            </div>
+                            {baseMintPriceUsd != null && baseMintPriceUsd > 0 && (
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-400">Starting price</span>
+                                    <span className="text-slate-300">${(baseMintPriceUsd).toFixed(2)}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
                 
                 {/* Whiskey-Gated Warning - Only show for whiskey-gated collections */}

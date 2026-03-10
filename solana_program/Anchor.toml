@@ -12,9 +12,9 @@ marketplaceprogram = "E9rdfVCukatP1LxyMun3mnw28pprwpTJtzkqtw1YVQ7n"
 whiskeyprogram = "GPFBomrtSWuJdMEbijKwZPz7u2HqoxYAzQYNPMpF8XiS"
 
 [programs.mainnet]
-lendingprogram = "CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1"
-marketplaceprogram = "BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT"
-whiskeyprogram = "9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q"
+lendingprogram = "C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh"
+marketplaceprogram = "92fRX5EHunEt6jRnihu6xcE91pbC9VKkFcUNgf2V7g4X"
+whiskeyprogram = "4df1dfijcippEaFeGMHYGumJdvLqqE4ATC4AANqdXr45"
 
 [registry]
 url = "https://api.apr.dev"

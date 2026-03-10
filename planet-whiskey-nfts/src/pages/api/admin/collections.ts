@@ -68,9 +68,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: collection.name,
         symbol: collection.symbol,
         mintPriceWhiskeyTokens: collection.mintPriceWhiskeyTokens,
-        mintPriceUsd: collection.mintPriceUsd, // NEW: Include USD price
+        mintPriceUsd: collection.mintPriceUsd,
+        baseMintPriceUsd: (collection as any).baseMintPriceUsd,
+        priceIncreaseBps: (collection as any).priceIncreaseBps,
+        nftsPerPriceStep: (collection as any).nftsPerPriceStep,
         itemLimit: collection.itemLimit,
         itemsMintedOnChain: collection.itemsMintedOnChain,
+        collectionOnChainAddress: (collection as any).collectionOnChainAddress,
         companyId: collection.companyId,
         companyName: collection.companyId?.name || 'Unknown',
         createdAt: collection.createdAt,
@@ -112,14 +116,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       collectionSymbol,
       collectionDescription,
       mintPriceWhiskey,
-      mintPriceUsd, // NEW: USD price field
+      mintPriceUsd,
       itemLimit,
       companyId,
-      nftBaseName, // e.g., "Whiskey Barrel #{ID}"
+      nftBaseName,
       nftBaseDescription,
-      adminWalletAddress, // NEW: Admin wallet address from frontend
-      // Attributes will be an array of { trait_type: string, value: string }
-      // It needs to be parsed from JSON string if sent as such
+      adminWalletAddress,
+      priceIncreaseBps: rawPriceIncreaseBps,
+      nftsPerPriceStep: rawNftsPerPriceStep,
     } = fields;
 
     // Handle potential string[] from formidable, ensure single string values
@@ -133,6 +137,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sNftBaseName = (Array.isArray(nftBaseName) ? nftBaseName[0] : nftBaseName) ?? '' as string;
     const sNftBaseDescription = (Array.isArray(nftBaseDescription) ? nftBaseDescription[0] : nftBaseDescription) ?? '' as string;
     const sAdminWalletAddress = Array.isArray(adminWalletAddress) ? adminWalletAddress[0] : adminWalletAddress;
+    const sPriceIncreaseBps = Array.isArray(rawPriceIncreaseBps) ? rawPriceIncreaseBps[0] : rawPriceIncreaseBps;
+    const sNftsPerPriceStep = Array.isArray(rawNftsPerPriceStep) ? rawNftsPerPriceStep[0] : rawNftsPerPriceStep;
     const attributesString = (Array.isArray(fields.attributes) ? fields.attributes[0] : fields.attributes) ?? '' as string;
 
     let attributes: Array<{ trait_type: string, value: string }> = [];
@@ -399,6 +405,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('[ADMIN_CREATE_COLLECTION] Manually constructing transaction...'); // Keep: important step
     
+    const priceIncreaseBpsVal = parseInt(sPriceIncreaseBps as string || '200');
+    const nftsPerPriceStepVal = parseInt(sNftsPerPriceStep as string || '15');
+    console.log('[ADMIN_CREATE_COLLECTION] Dynamic pricing params:', { priceIncreaseBps: priceIncreaseBpsVal, nftsPerPriceStep: nftsPerPriceStepVal });
+
     let instruction;
     try {
       instruction = await program.methods
@@ -409,7 +419,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           mintPriceLamports,
           mintPriceWhiskeyTokens,
           mintPriceUsdMicrodollars,
-          itemLimitBN
+          itemLimitBN,
+          priceIncreaseBpsVal,
+          nftsPerPriceStepVal
         )
         .accounts({
           admin: adminWalletPublicKey,
@@ -475,6 +487,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       nftBaseName: sNftBaseName as string,
       mintPriceLamports: mintPriceLamports.toNumber(),
       mintPriceUsd: parseFloat(sMintPriceUsd as string),
+      baseMintPriceUsd: parseFloat(sMintPriceUsd as string),
+      priceIncreaseBps: priceIncreaseBpsVal,
+      nftsPerPriceStep: nftsPerPriceStepVal,
       itemLimit: parseInt(sItemLimit as string),
       companyId: company._id,
       isActive: true,

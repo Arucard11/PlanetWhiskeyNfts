@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   console.log('📥 Received liquidation request body:', req.body);
   
-  const { walletAddress, loanId, nftMintAddress } = req.body;
+  const { walletAddress, loanId, nftMintAddress, collectionMintAddress } = req.body;
 
   if (!walletAddress || !loanId || !nftMintAddress) {
     console.error('❌ Missing required fields:', { walletAddress, loanId, nftMintAddress });
@@ -69,16 +69,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('  NFT Mint:', nftMint.toString());
     console.log('  User Wallet:', userWallet.toString());
 
-    // Build the liquidation transaction
+    const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('collection_registry')],
+      new PublicKey(LENDING_PROGRAM_ID)
+    );
+
+    // Use collectionMintAddress if provided, otherwise use nftMint as fallback
+    const collectionMintKey = collectionMintAddress ? new PublicKey(collectionMintAddress) : nftMint;
+
     const instruction = await program.methods
-      .liquidateExpiredLoan(loanPda)
+      .liquidateExpiredLoan(loanPda, collectionMintKey)
       .accounts({
         borrowerAccount: borrowerAccountPda,
         globalMarket: globalMarketPda,
+        collectionRegistry: collectionRegistryPda,
         loan: loanPda,
         nftMint: nftMint,
         nftEscrow: nftEscrowPda,
-        liquidator: liquidationKeypair.publicKey, // Dedicated liquidation authority
+        liquidator: liquidationKeypair.publicKey,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
       } as any)
       .instruction();

@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use mpl_token_metadata::accounts::Metadata;
 
-declare_id!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
+declare_id!("C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh");
 
 // Removed hardcoded whiskey program reference - no longer needed
 
@@ -630,23 +630,6 @@ pub mod lendingprogram {
         Ok(())
     }
 
-    /// Close Collection Registry (Emergency Admin Function)
-    pub fn close_collection_registry(_ctx: Context<CloseCollectionRegistry>) -> Result<()> {
-        msg!("🗑️  Closing Collection Registry and transferring lamports to admin");
-        Ok(())
-    }
-
-    /// Initialize Collection Registry V2 (with different seeds)
-    pub fn initialize_collection_registry_v2(ctx: Context<InitializeCollectionRegistryV2>) -> Result<()> {
-        let registry = &mut ctx.accounts.collection_registry;
-        registry.authority = ctx.accounts.authority.key();
-        registry.collections = Vec::new();
-        registry.next_registry = None;
-        registry.bump = ctx.bumps.collection_registry;
-        msg!("✅ Collection registry V2 initialized with authority: {}", ctx.accounts.authority.key());
-        Ok(())
-    }
-
     /// Update a collection's USD value
     pub fn update_collection_value(
         ctx: Context<UpdateCollectionValue>,
@@ -1137,76 +1120,70 @@ pub mod lendingprogram {
     pub fn liquidate_expired_loan(
         ctx: Context<LiquidateExpiredLoan>,
         loan_id: Pubkey,
+        collection_mint: Pubkey,
     ) -> Result<()> {
         let borrower_account = &mut ctx.accounts.borrower_account;
         let global_market = &mut ctx.accounts.global_market;
+        let registry = &ctx.accounts.collection_registry;
         let current_ts = Clock::get()?.unix_timestamp;
 
         msg!("🔥 Starting NFT liquidation by burning...");
         msg!("  Borrower: {}", borrower_account.owner);
         msg!("  Loan ID: {}", loan_id);
 
-        // Verify the loan exists and is expired
         let loan_exists = borrower_account.active_loans.contains(&loan_id);
         require!(loan_exists, ErrorCode::LoanNotActive);
 
-        // Fetch the loan account to check expiration
         let loan = &ctx.accounts.loan;
         require!(loan.status == LoanStatus::Active, ErrorCode::LoanNotActive);
         require!(loan.is_defaultable(current_ts), ErrorCode::LoanNotDefaultable);
 
         msg!("✅ Loan is expired and defaultable");
-        msg!("  Grace period ended: {}", loan.grace_period_ends_ts);
-        msg!("  Current time: {}", current_ts);
 
-        // Burn the NFT (transfer to a burn address or close the token account)
-        // For simplicity, we'll transfer the NFT to a burn address (all zeros)
-        let burn_address = Pubkey::default(); // 11111111111111111111111111111111
-        
         msg!("🔥 Burning NFT: {}", ctx.accounts.nft_mint.key());
         
-        // Transfer NFT from escrow to burn address (effectively burning it)
         let global_market_bump = [global_market.bump];
         let global_market_seeds = [GLOBAL_MARKET_SEED, &global_market_bump];
         let signer_seeds = [&global_market_seeds[..]];
 
-        // Close the NFT token account (this burns the NFT)
         let close_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::CloseAccount {
                 account: ctx.accounts.nft_escrow.to_account_info(),
-                destination: ctx.accounts.liquidator.to_account_info(), // Rent goes to liquidator
+                destination: ctx.accounts.liquidator.to_account_info(),
                 authority: global_market.to_account_info(),
             },
             &signer_seeds,
         );
         token::close_account(close_ctx)?;
 
-        // Mark loan as defaulted
         let loan = &mut ctx.accounts.loan;
         loan.status = LoanStatus::Defaulted;
 
-        // Remove loan from active loans
         borrower_account.active_loans.retain(|&l| l != loan_id);
 
-        // Remove NFT from deposited NFTs
         let nft_mint = ctx.accounts.nft_mint.key();
         borrower_account.deposited_nfts.retain(|&nft| nft != nft_mint);
 
-        // Update borrowing power (subtract the burned NFT's value)
-        // Note: debt remains as a penalty - user lost their collateral
+        // Look up collection value from registry instead of deprecated per_nft_value_usd
+        let mut nft_value: u128 = global_market.per_nft_value_usd as u128; // fallback
+        for entry in &registry.collections {
+            if entry.mint == collection_mint && entry.is_approved {
+                nft_value = entry.value_usd as u128;
+                break;
+            }
+        }
+
         borrower_account.total_borrowing_power_usd = borrower_account
             .total_borrowing_power_usd
-            .saturating_sub(global_market.per_nft_value_usd as u128);
+            .saturating_sub(nft_value);
 
-        // Update global market stats
         global_market.current_staked_nfts = global_market.current_staked_nfts.saturating_sub(1);
 
         msg!("🔥 NFT BURNED - Liquidation complete!");
         msg!("  Burned NFT: {}", nft_mint);
         msg!("  Remaining debt: ${}", borrower_account.total_debt_usd);
         msg!("  Remaining collateral: {} NFTs", borrower_account.deposited_nfts.len());
-        msg!("  ⚠️  User has lost their NFT as penalty for non-payment");
 
         Ok(())
     }
@@ -1238,24 +1215,21 @@ pub mod lendingprogram {
     }
 
     /// Withdraw NFT after full loan repayment
-    pub fn withdraw_nft(ctx: Context<WithdrawNft>) -> Result<()> {
+    pub fn withdraw_nft(ctx: Context<WithdrawNft>, collection_mint: Pubkey) -> Result<()> {
         let borrower_account = &mut ctx.accounts.borrower_account;
         let global_market = &ctx.accounts.global_market;
+        let registry = &ctx.accounts.collection_registry;
         
-        // Ensure user has no outstanding debt (no active loans)
-        // This ensures both principal and interest are fully paid
         require!(
             borrower_account.active_loans.is_empty(),
             ErrorCode::OutstandingDebtExists
         );
         
-        // Double check: total_debt_usd should also be zero
         require!(
             borrower_account.total_debt_usd == 0,
             ErrorCode::OutstandingDebtExists
         );
         
-        // Find and remove the NFT from deposited list
         let nft_mint = ctx.accounts.nft_mint.key();
         let nft_index = borrower_account.deposited_nfts
             .iter()
@@ -1264,8 +1238,14 @@ pub mod lendingprogram {
             
         borrower_account.deposited_nfts.remove(nft_index);
         
-        // Update borrowing power (remove this NFT's contribution)
-        let collection_value_micro = global_market.get_collection_value_usd(&nft_mint)? as u128; // Already in micro-dollars
+        // Look up collection value from registry instead of deprecated per_nft_value_usd
+        let mut collection_value_micro: u128 = global_market.per_nft_value_usd as u128; // fallback
+        for entry in &registry.collections {
+            if entry.mint == collection_mint && entry.is_approved {
+                collection_value_micro = entry.value_usd as u128;
+                break;
+            }
+        }
         let ltv_ratio = global_market.loan_to_value_ratio_bps as u128;
         let nft_borrowing_power_micro = (collection_value_micro * ltv_ratio) / 10000;
         
@@ -1351,6 +1331,7 @@ pub mod lendingprogram {
              treasury_share);
         Ok(())
     }
+
 }
 
 // Removed LiquidationReason enum - simplified to just expire-based burning
@@ -1640,6 +1621,11 @@ pub struct LiquidateExpiredLoan<'info> {
     pub borrower_account: Account<'info, BorrowerAccount>,
     #[account(mut)]
     pub global_market: Account<'info, GlobalMarket>,
+    #[account(
+        seeds = [b"collection_registry"],
+        bump = collection_registry.bump
+    )]
+    pub collection_registry: Account<'info, CollectionRegistry>,
     #[account(mut)]
     pub loan: Account<'info, Loan>,
     pub nft_mint: Account<'info, Mint>,
@@ -1653,7 +1639,7 @@ pub struct LiquidateExpiredLoan<'info> {
         mut,
         constraint = liquidator.key() == global_market.liquidation_authority @ ErrorCode::UnauthorizedLiquidator
     )]
-    pub liquidator: Signer<'info>, // Only authorized liquidation authority can trigger
+    pub liquidator: Signer<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -1691,6 +1677,7 @@ pub struct ProcessMintRevenue<'info> {
 
     pub token_program: Program<'info, Token>,
 }
+
 
 // Error codes
 #[error_code]
@@ -1840,39 +1827,6 @@ pub struct ToggleCollectionApproval<'info> {
     pub admin: Signer<'info>, // Must be the hardcoded admin wallet
 }
 
-#[derive(Accounts)]
-pub struct CloseCollectionRegistry<'info> {
-    #[account(
-        mut,
-        close = admin, // This will close the account and send lamports to admin
-        seeds = [b"collection_registry"],
-        bump // Let Anchor find the correct bump
-    )]
-    pub collection_registry: Account<'info, CollectionRegistry>,
-
-    #[account(
-        mut,
-        address = ADMIN_WALLET @ ErrorCode::UnauthorizedAdmin
-    )]
-    pub admin: Signer<'info>, // Must be the hardcoded admin wallet
-}
-
-#[derive(Accounts)]
-pub struct InitializeCollectionRegistryV2<'info> {
-    #[account(
-        init,
-        payer = authority,
-        space = CollectionRegistry::SPACE,
-        seeds = [b"collection_registry"],
-        bump
-    )]
-    pub collection_registry: Account<'info, CollectionRegistry>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>, // Admin wallet
-
-    pub system_program: Program<'info, System>,
-}
 
 #[derive(Accounts)]
 pub struct WithdrawNft<'info> {

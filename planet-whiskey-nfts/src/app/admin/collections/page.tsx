@@ -38,6 +38,12 @@ export default function ManageCollectionsPage() {
   const [calculatedWhiskeyAmount, setCalculatedWhiskeyAmount] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
 
+  // Dynamic pricing state (slider index 0-6 maps to 0%, 0.5%, 1%, 1.5%, 2%, 2.5%, 3%)
+  const [priceIncreaseIndex, setPriceIncreaseIndex] = useState(4); // default 2%
+  const [nftsPerPriceStep, setNftsPerPriceStep] = useState(15);   // default 15
+  const priceIncreasePercent = priceIncreaseIndex * 0.5;
+  const priceIncreaseBps = priceIncreaseIndex * 50;
+
   // Whiskey-gated collection states
   const [showWhiskeyGatedForm, setShowWhiskeyGatedForm] = useState(false);
   const [whiskeyGatedName, setWhiskeyGatedName] = useState('');
@@ -162,6 +168,8 @@ export default function ManageCollectionsPage() {
       formData.append('nftBaseName', nftBaseName);
       formData.append('nftBaseDescription', nftBaseDescription);
       formData.append('adminWalletAddress', publicKey.toBase58());
+      formData.append('priceIncreaseBps', priceIncreaseBps.toString());
+      formData.append('nftsPerPriceStep', nftsPerPriceStep.toString());
 
       console.log('🔄 Preparing transaction...');
       const response = await fetch('/api/admin/collections', {
@@ -230,7 +238,9 @@ export default function ManageCollectionsPage() {
         setNftBaseDescription('');
         setCollectionImage(null);
         setCalculatedWhiskeyAmount('');
-        setRetryCount(0); // Reset retry count on success
+        setRetryCount(0);
+        setPriceIncreaseIndex(4);
+        setNftsPerPriceStep(15);
       } else {
         const errorData = await confirmResponse.json();
         console.error('Error confirming transaction:', errorData);
@@ -634,6 +644,94 @@ export default function ManageCollectionsPage() {
                   <div>
                     <span className="font-medium text-gray-700">WHISKEY Cost:</span>
                     <span className="ml-2 text-gray-900">{calculatedWhiskeyAmount}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Pricing Section */}
+          <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+            <h4 className="text-lg font-medium text-green-800 mb-4">📈 Dynamic Pricing Configuration</h4>
+            <p className="text-sm text-green-700 mb-4">
+              NFT price will automatically increase as more NFTs are sold. The price increases by a fixed percentage after every X number of NFTs purchased.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className={formLabelClass}>
+                  Price Increase Per Step: <span className="text-green-700 font-semibold text-lg">{priceIncreasePercent}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="6"
+                  step="1"
+                  value={priceIncreaseIndex}
+                  onChange={(e) => setPriceIncreaseIndex(parseInt(e.target.value))}
+                  className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0%</span>
+                  <span>0.5%</span>
+                  <span>1%</span>
+                  <span>1.5%</span>
+                  <span>2%</span>
+                  <span>2.5%</span>
+                  <span>3%</span>
+                </div>
+                <p className={helperTextClass}>Hard cap at 3%. Recommended: 2%</p>
+              </div>
+              
+              <div>
+                <label className={formLabelClass}>
+                  NFTs Per Price Step: <span className="text-green-700 font-semibold text-lg">{nftsPerPriceStep}</span>
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="25"
+                  step="1"
+                  value={nftsPerPriceStep}
+                  onChange={(e) => setNftsPerPriceStep(parseInt(e.target.value))}
+                  className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>10</span>
+                  <span>15</span>
+                  <span>20</span>
+                  <span>25</span>
+                </div>
+                <p className={helperTextClass}>Price increases after this many NFTs are sold</p>
+              </div>
+            </div>
+
+            {/* Dynamic Pricing Preview */}
+            {mintPriceUsd && priceIncreaseBps > 0 && (
+              <div className="mt-4 p-3 bg-white rounded-lg border border-green-200">
+                <h5 className="font-medium text-green-800 mb-2">📊 Pricing Preview</h5>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-500">Start:</span>
+                    <span className="ml-1 font-medium">{formatUsdAmount(parseFloat(mintPriceUsd))}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">After {nftsPerPriceStep}:</span>
+                    <span className="ml-1 font-medium">
+                      {formatUsdAmount(parseFloat(mintPriceUsd) * Math.pow(1 + priceIncreasePercent / 100, 1))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">After {nftsPerPriceStep * 5}:</span>
+                    <span className="ml-1 font-medium">
+                      {formatUsdAmount(parseFloat(mintPriceUsd) * Math.pow(1 + priceIncreasePercent / 100, 5))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">After {nftsPerPriceStep * 10}:</span>
+                    <span className="ml-1 font-medium">
+                      {formatUsdAmount(parseFloat(mintPriceUsd) * Math.pow(1 + priceIncreasePercent / 100, 10))}
+                    </span>
                   </div>
                 </div>
               </div>

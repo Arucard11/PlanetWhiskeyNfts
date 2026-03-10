@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { walletAddress, nftMintAddress, signature, clientSideTransaction } = req.body;
+  const { walletAddress, nftMintAddress, collectionMintAddress, signature, clientSideTransaction } = req.body;
 
   if (!walletAddress || !nftMintAddress) {
     return res.status(400).json({ 
@@ -86,9 +86,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get user's NFT token account
     const userNftAccount = await getAssociatedTokenAddress(nftMint, userWallet);
 
-    // Build withdraw NFT transaction
+    // Use collectionMintAddress if provided, else fallback to nftMint
+    const collectionMintKey = collectionMintAddress ? new PublicKey(collectionMintAddress) : nftMint;
+
     const withdrawInstruction = await (program.methods as any)
-      .withdrawNft()
+      .withdrawNft(collectionMintKey)
       .accounts({
         globalMarket: globalMarketPda,
         collectionRegistry: collectionRegistryPda,

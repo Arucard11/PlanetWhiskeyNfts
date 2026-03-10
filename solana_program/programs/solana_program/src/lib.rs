@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q");
+declare_id!("4df1dfijcippEaFeGMHYGumJdvLqqE4ATC4AANqdXr45");
 
 use anchor_spl::{
     token::{self, Mint, Token, TokenAccount, MintTo, mint_to},
@@ -29,28 +29,37 @@ pub const LENDING_WALLET_SHARE_BPS: u16 = 8000; // 80% to lending (converted to 
 pub const TREASURY_WALLET_SHARE_BPS: u16 = 2000; // 20% to treasury (stays as WHISKEY)
 
 // Lending Program ID (mainnet) - for CPI validation
-pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh");
 
 // HARDCODED CAPITAL VAULT ADDRESS - CANNOT BE MANIPULATED BY USERS
-pub const CAPITAL_VAULT_USDC: Pubkey = pubkey!("BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo");
+pub const CAPITAL_VAULT_USDC: Pubkey = pubkey!("AV57aXNBM4atTo4EyuX6C1mRQLpFK671RfCoPxPS1wZK");
 
+
+// Dynamic pricing constants
+pub const MAX_PRICE_INCREASE_BPS: u16 = 300; // 3% hard cap
+pub const PRICE_INCREASE_INCREMENT_BPS: u16 = 50; // 0.5% increments
+pub const MIN_NFTS_PER_PRICE_STEP: u8 = 10;
+pub const MAX_NFTS_PER_PRICE_STEP: u8 = 25;
 
 // Account structs
 #[account]
 pub struct CollectionConfig {
-    pub authority: Pubkey, // The authority that can manage this collection
-    pub collection_mint: Pubkey, // The mint address of the Metaplex Collection NFT
-    pub name: String,      // Collection Name (used for metadata)
-    pub symbol: String,    // Collection Symbol (used for metadata)
-    pub metadata_uri: String, // URI to the collection's JSON metadata
-    pub mint_price_sol: u64,   // Price in lamports to mint one NFT
-    pub mint_price_whiskey: u64, // Price in whiskey tokens to mint one NFT
-    pub mint_price_usd: u64,    // Price in USD (microdollars) to mint one NFT
-    pub item_limit: u64,   // Maximum number of NFTs in this collection
-    pub items_minted: u64, // Counter for how many NFTs have been minted
-    pub is_whiskey_gated: bool, // Whether this collection requires WHISKEY tokens
-    pub required_whiskey_amount: u64, // Required WHISKEY tokens to mint
-    pub bump: u8,          // PDA bump seed
+    pub authority: Pubkey,
+    pub collection_mint: Pubkey,
+    pub name: String,
+    pub symbol: String,
+    pub metadata_uri: String,
+    pub mint_price_sol: u64,
+    pub mint_price_whiskey: u64,
+    pub mint_price_usd: u64,        // Current price (recalculated after each mint)
+    pub item_limit: u64,
+    pub items_minted: u64,
+    pub is_whiskey_gated: bool,
+    pub required_whiskey_amount: u64,
+    pub bump: u8,
+    pub base_mint_price_usd: u64,   // Original starting price in microdollars
+    pub price_increase_bps: u16,    // 0-300 (0%-3%), must be multiple of 50
+    pub nfts_per_price_step: u8,    // 10-25, how many mints before price increases
 }
 
 #[account]
@@ -62,7 +71,22 @@ pub struct WalletNftCounter {
 
 
 impl CollectionConfig {
-    pub const SPACE: usize = 8 + 32 + 32 + 36 + 14 + 204 + 8 + 8 + 8 + 8 + 8 + 1 + 8 + 1; // ~376 bytes
+    pub const SPACE: usize = 8 + 32 + 32 + 36 + 14 + 204 + 8 + 8 + 8 + 8 + 8 + 1 + 8 + 1
+        + 8  // base_mint_price_usd
+        + 2  // price_increase_bps
+        + 1; // nfts_per_price_step
+}
+
+pub fn calculate_current_price(base_price: u64, items_minted: u64, increase_bps: u16, step: u8) -> u64 {
+    if step == 0 || increase_bps == 0 {
+        return base_price;
+    }
+    let steps = items_minted / step as u64;
+    let mut price = base_price as u128;
+    for _ in 0..steps {
+        price = price * (10000 + increase_bps as u128) / 10000;
+    }
+    price as u64
 }
 
 impl WalletNftCounter {
@@ -251,6 +275,17 @@ pub mod whiskeyprogram {
         collection_config.items_minted = collection_config.items_minted.checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
 
+        // Recalculate mint_price_usd for the NEXT mint based on dynamic pricing
+        if collection_config.price_increase_bps > 0 && collection_config.nfts_per_price_step > 0 {
+            collection_config.mint_price_usd = calculate_current_price(
+                collection_config.base_mint_price_usd,
+                collection_config.items_minted,
+                collection_config.price_increase_bps,
+                collection_config.nfts_per_price_step,
+            );
+            msg!("📈 Next mint price updated to: ${}", collection_config.mint_price_usd as f64 / 1_000_000.0);
+        }
+
         msg!("🎉 SECURE MINT COMPLETE: NFT minted with validated payment");
         msg!("📊 Collection '{}' now has {} items minted", 
              collection_config.name, 
@@ -259,7 +294,6 @@ pub mod whiskeyprogram {
         Ok(())
     }
 
-    /// ✅ EXISTING COLLECTION CREATION FUNCTIONS (Keep unchanged for backwards compatibility)
     pub fn create_collection(
         ctx: Context<CreateCollectionAccounts>,
         name: String,
@@ -269,20 +303,29 @@ pub mod whiskeyprogram {
         mint_price_whiskey: u64,
         mint_price_usd: u64,
         item_limit: u64,
+        price_increase_bps: u16,
+        nfts_per_price_step: u8,
     ) -> Result<()> {
-        // Validate inputs
         require!(name.len() <= MAX_NAME_LENGTH, ErrorCode::NameTooLong);
         require!(symbol.len() <= MAX_SYMBOL_LENGTH, ErrorCode::SymbolTooLong);
         require!(metadata_uri.len() <= MAX_URI_LENGTH, ErrorCode::UriTooLong);
         require!(item_limit > 0, ErrorCode::ItemLimitZero);
+        require!(price_increase_bps <= MAX_PRICE_INCREASE_BPS, ErrorCode::InvalidPriceIncrease);
+        require!(price_increase_bps % PRICE_INCREASE_INCREMENT_BPS == 0, ErrorCode::InvalidPriceIncrease);
+        require!(
+            nfts_per_price_step >= MIN_NFTS_PER_PRICE_STEP && nfts_per_price_step <= MAX_NFTS_PER_PRICE_STEP,
+            ErrorCode::InvalidNftsPerStep
+        );
 
         msg!("🏗️ Creating collection: {}", name);
         msg!("💰 Prices - SOL: {}, WHISKEY: {}, USD: ${}", 
              mint_price_sol, 
              mint_price_whiskey, 
              mint_price_usd as f64 / 1_000_000.0);
+        msg!("📈 Dynamic pricing: {}% increase every {} NFTs", 
+             price_increase_bps as f64 / 100.0,
+             nfts_per_price_step);
 
-        // Initialize collection config
         let collection_config = &mut ctx.accounts.collection_config;
         collection_config.authority = ctx.accounts.admin.key();
         collection_config.collection_mint = ctx.accounts.collection_mint.key();
@@ -297,6 +340,9 @@ pub mod whiskeyprogram {
         collection_config.is_whiskey_gated = false;
         collection_config.required_whiskey_amount = 0;
         collection_config.bump = ctx.bumps.collection_config;
+        collection_config.base_mint_price_usd = mint_price_usd;
+        collection_config.price_increase_bps = price_increase_bps;
+        collection_config.nfts_per_price_step = nfts_per_price_step;
 
         // Mint collection NFT to admin
         let collection_name_bytes = name.as_bytes();
@@ -388,14 +434,17 @@ pub mod whiskeyprogram {
         collection_config.name = name.clone();
         collection_config.symbol = symbol.clone();
         collection_config.metadata_uri = metadata_uri.clone();
-        collection_config.mint_price_sol = 0; // No SOL price for whiskey-gated
-        collection_config.mint_price_whiskey = 0; // No WHISKEY payment needed
-        collection_config.mint_price_usd = 0; // No USD price
+        collection_config.mint_price_sol = 0;
+        collection_config.mint_price_whiskey = 0;
+        collection_config.mint_price_usd = 0;
         collection_config.item_limit = item_limit;
         collection_config.items_minted = 0;
-        collection_config.is_whiskey_gated = true; // This is whiskey-gated
+        collection_config.is_whiskey_gated = true;
         collection_config.required_whiskey_amount = required_whiskey_amount;
         collection_config.bump = ctx.bumps.collection_config;
+        collection_config.base_mint_price_usd = 0;
+        collection_config.price_increase_bps = 0;
+        collection_config.nfts_per_price_step = 0;
 
         // Mint collection NFT to admin (same as regular collection)
         let collection_name_bytes = name.as_bytes();
@@ -595,6 +644,58 @@ pub mod whiskeyprogram {
         
         Ok(())
     }
+
+    /// Admin-only: Update dynamic pricing config for an existing collection
+    pub fn update_price_config(
+        ctx: Context<UpdatePriceConfig>,
+        price_increase_bps: u16,
+        nfts_per_price_step: u8,
+    ) -> Result<()> {
+        require!(price_increase_bps <= MAX_PRICE_INCREASE_BPS, ErrorCode::InvalidPriceIncrease);
+        require!(price_increase_bps % PRICE_INCREASE_INCREMENT_BPS == 0, ErrorCode::InvalidPriceIncrease);
+        require!(
+            nfts_per_price_step >= MIN_NFTS_PER_PRICE_STEP && nfts_per_price_step <= MAX_NFTS_PER_PRICE_STEP,
+            ErrorCode::InvalidNftsPerStep
+        );
+
+        let collection_config = &mut ctx.accounts.collection_config;
+        collection_config.price_increase_bps = price_increase_bps;
+        collection_config.nfts_per_price_step = nfts_per_price_step;
+
+        // Recalculate current price based on items already minted
+        collection_config.mint_price_usd = calculate_current_price(
+            collection_config.base_mint_price_usd,
+            collection_config.items_minted,
+            price_increase_bps,
+            nfts_per_price_step,
+        );
+
+        msg!("✅ Price config updated: {}% increase every {} NFTs",
+             price_increase_bps as f64 / 100.0,
+             nfts_per_price_step);
+        msg!("📈 Current price recalculated to: ${}", 
+             collection_config.mint_price_usd as f64 / 1_000_000.0);
+
+        Ok(())
+    }
+
+    /// Admin-only: Close a legacy/old PDA account and reclaim lamports
+    pub fn close_legacy_account(ctx: Context<CloseLegacyAccount>) -> Result<()> {
+        let account = &ctx.accounts.legacy_account;
+        let dest = &ctx.accounts.admin;
+
+        let account_info = account.to_account_info();
+        let dest_info = dest.to_account_info();
+
+        **dest_info.try_borrow_mut_lamports()? += account_info.lamports();
+        **account_info.try_borrow_mut_lamports()? = 0;
+
+        account_info.assign(&anchor_lang::solana_program::system_program::ID);
+        account_info.realloc(0, false)?;
+
+        msg!("🗑️ Legacy account closed, lamports returned to admin");
+        Ok(())
+    }
 }
 
 // ✅ ACCOUNT STRUCTURES
@@ -787,6 +888,37 @@ pub struct MintWhiskeyGated<'info> {
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 }
+// Admin-only: Update dynamic pricing config for an existing collection
+#[derive(Accounts)]
+pub struct UpdatePriceConfig<'info> {
+    #[account(
+        mut,
+        constraint = collection_config.authority == admin.key() @ ErrorCode::UnauthorizedAdmin
+    )]
+    pub collection_config: Account<'info, CollectionConfig>,
+
+    #[account(
+        address = ADMIN_WALLET @ ErrorCode::UnauthorizedAdmin
+    )]
+    pub admin: Signer<'info>,
+}
+
+// Admin-only: Close a legacy PDA account and reclaim lamports
+#[derive(Accounts)]
+pub struct CloseLegacyAccount<'info> {
+    /// CHECK: Any PDA owned by this program that we want to close
+    #[account(mut, constraint = legacy_account.owner == &crate::ID @ ErrorCode::UnauthorizedAdmin)]
+    pub legacy_account: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        address = ADMIN_WALLET @ ErrorCode::UnauthorizedAdmin
+    )]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // Error codes
 #[error_code]
 pub enum ErrorCode {
@@ -842,4 +974,8 @@ pub enum ErrorCode {
     NotWhiskeyGated,
     #[msg("Insufficient WHISKEY balance for this gated collection")]
     InsufficientWhiskeyBalance,
+    #[msg("Invalid price increase: must be 0-300 bps in increments of 50")]
+    InvalidPriceIncrease,
+    #[msg("Invalid NFTs per price step: must be 10-25")]
+    InvalidNftsPerStep,
 }

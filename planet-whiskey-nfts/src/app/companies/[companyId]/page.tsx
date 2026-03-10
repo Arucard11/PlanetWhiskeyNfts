@@ -13,14 +13,16 @@ interface CollectionDataFromApi {
     name: string;
     symbol: string;
     metadataUri: string;
-    nftBaseMetadataUri: string; // Still needed for the card to fetch internally
-    collectionMintAddress: string; // Still needed for the card to fetch internally
+    nftBaseMetadataUri: string;
+    collectionMintAddress: string;
     mintPriceLamports: number;
     mintPriceWhiskeyTokens: number;
-    mintPriceUsd?: number; // NEW: USD price from database
+    mintPriceUsd?: number;
+    baseMintPriceUsd?: number;
+    priceIncreaseBps?: number;
+    nftsPerPriceStep?: number;
     itemLimit: number;
     itemsMintedOnChain?: number;
-    // any other fields from your INftCollection model + augmented data
 }
 
 // Props for the page component, Next.js App Router passes params directly
@@ -198,6 +200,9 @@ export default function CompanyCollectionsPage({ params }: CompanyCollectionsPag
                                     mintPriceLamports={collection.mintPriceLamports}
                                     mintPriceWhiskeyTokens={collection.mintPriceWhiskeyTokens}
                                     mintPriceUsd={collection.mintPriceUsd}
+                                    baseMintPriceUsd={collection.baseMintPriceUsd}
+                                    priceIncreaseBps={collection.priceIncreaseBps}
+                                    nftsPerPriceStep={collection.nftsPerPriceStep}
                                     itemLimit={collection.itemLimit}
                                     itemsMintedOnChain={collection.itemsMintedOnChain}
                                     onMintSuccess={handleMintSuccess}

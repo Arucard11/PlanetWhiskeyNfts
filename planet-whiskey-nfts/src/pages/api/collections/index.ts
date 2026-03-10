@@ -7,24 +7,27 @@ import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 
 // Interface for collection with items minted from on-chain
 interface INftCollectionWithMintedCount {
-  _id: string; // Ensure _id is part of the type if using .lean()
+  _id: string;
   collectionOnChainAddress: string;
   collectionMintAddress: string;
   name: string;
   symbol: string;
   metadataUri: string;
   nftBaseMetadataUri: string;
-  mintPriceLamports: number; // Keep these as numbers from DB
-  mintPriceWhiskeyTokens: number; // Price in whiskey tokens
-  mintPriceUsd?: number; // NEW: USD price
-  itemLimit: number; // Keep these as numbers from DB
-  companyId: string; // Assuming companyId is string representation of ObjectId
+  mintPriceLamports: number;
+  mintPriceWhiskeyTokens: number;
+  mintPriceUsd?: number;
+  baseMintPriceUsd?: number;
+  priceIncreaseBps?: number;
+  nftsPerPriceStep?: number;
+  itemLimit: number;
+  companyId: string;
   isActive: boolean;
   createdAt: Date;
-  updatedAt?: Date; // Assuming timestamps: true in schema
+  updatedAt?: Date;
   itemsMintedOnChain?: number;
-  isWhiskeyGated?: boolean; // NEW: Whether this collection requires WHISKEY tokens to mint
-  requiredWhiskeyAmount?: number; // NEW: Required WHISKEY tokens (in full tokens, not lamports)
+  isWhiskeyGated?: boolean;
+  requiredWhiskeyAmount?: number;
 }
 
 async function getCollectionItemsMinted(collectionPdaString: string, program: any) {
@@ -41,6 +44,10 @@ async function getCollectionItemsMinted(collectionPdaString: string, program: an
 
 async function getCollectionOnChainData(collectionPdaString: string, program: any): Promise<{
   itemsMinted?: number;
+  mintPriceUsd?: number;
+  baseMintPriceUsd?: number;
+  priceIncreaseBps?: number;
+  nftsPerPriceStep?: number;
   isWhiskeyGated?: boolean;
   requiredWhiskeyAmount?: number;
 }> {
@@ -88,6 +95,10 @@ async function getCollectionOnChainData(collectionPdaString: string, program: an
     
     const result = {
       itemsMinted: collectionConfigData.itemsMinted ? collectionConfigData.itemsMinted.toNumber() : 0,
+      mintPriceUsd: collectionConfigData.mintPriceUsd ? collectionConfigData.mintPriceUsd.toNumber() / 1_000_000 : undefined,
+      baseMintPriceUsd: collectionConfigData.baseMintPriceUsd ? collectionConfigData.baseMintPriceUsd.toNumber() / 1_000_000 : undefined,
+      priceIncreaseBps: collectionConfigData.priceIncreaseBps ?? 0,
+      nftsPerPriceStep: collectionConfigData.nftsPerPriceStep ?? 0,
       isWhiskeyGated: collectionConfigData.isWhiskeyGated || false,
       requiredWhiskeyAmount: collectionConfigData.requiredWhiskeyAmount ? collectionConfigData.requiredWhiskeyAmount.toNumber() : 0
     };
@@ -155,7 +166,7 @@ export default async function handler(
     // Augment with on-chain data including whiskey-gated information
     const augmentedCollections: INftCollectionWithMintedCount[] = await Promise.all(
       collectionsFromDB.map(async (collection) => {
-        let onChainData: { itemsMinted?: number; isWhiskeyGated?: boolean; requiredWhiskeyAmount?: number } = {};
+        let onChainData: { itemsMinted?: number; mintPriceUsd?: number; baseMintPriceUsd?: number; priceIncreaseBps?: number; nftsPerPriceStep?: number; isWhiskeyGated?: boolean; requiredWhiskeyAmount?: number } = {};
         if (collection.collectionOnChainAddress) {
           console.log(`[COLLECTIONS_API] 🔍 Processing collection "${collection.name}" with PDA: ${collection.collectionOnChainAddress}`);
           onChainData = await getCollectionOnChainData(collection.collectionOnChainAddress, program);
@@ -164,11 +175,15 @@ export default async function handler(
           console.log(`[COLLECTIONS_API] ⚠️ Collection "${collection.name}" has no collectionOnChainAddress`);
         }
         const augmented = {
-          ...(collection as any), // Cast to any to avoid Omit issues if INftCollection has more fields
-          _id: collection._id.toString(), // ensure _id is string
-          companyId: collection.companyId.toString(), // ensure companyId is string
-          itemsMintedOnChain: onChainData.itemsMinted ?? 0, // Default to 0 if undefined
-          // Prioritize database values for whiskey gating info, fallback to on-chain
+          ...(collection as any),
+          _id: collection._id.toString(),
+          companyId: collection.companyId.toString(),
+          itemsMintedOnChain: onChainData.itemsMinted ?? 0,
+          // Use on-chain price as source of truth when available (dynamic pricing updates it)
+          mintPriceUsd: onChainData.mintPriceUsd ?? collection.mintPriceUsd,
+          baseMintPriceUsd: onChainData.baseMintPriceUsd ?? (collection as any).baseMintPriceUsd,
+          priceIncreaseBps: onChainData.priceIncreaseBps ?? (collection as any).priceIncreaseBps ?? 0,
+          nftsPerPriceStep: onChainData.nftsPerPriceStep ?? (collection as any).nftsPerPriceStep ?? 0,
           isWhiskeyGated: collection.isWhiskeyGated ?? onChainData.isWhiskeyGated ?? false,
           requiredWhiskeyAmount: collection.requiredWhiskeyAmount ?? onChainData.requiredWhiskeyAmount ?? 0,
         };

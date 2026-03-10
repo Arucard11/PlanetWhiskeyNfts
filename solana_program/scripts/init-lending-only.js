@@ -20,7 +20,7 @@ const RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=bad198ca-d062-40c7-9a29
 const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
 // NEW Program ID
-const LENDING_PROGRAM_ID = new PublicKey('CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1');
+const LENDING_PROGRAM_ID = new PublicKey('C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh');
 
 // Wallets
 const ADMIN_WALLET = new PublicKey('F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X');
@@ -74,7 +74,7 @@ async function main() {
 
     // Load IDL
     const lendingIdl = JSON.parse(fs.readFileSync('./target/idl/lendingprogram.json', 'utf-8'));
-    const lendingProgram = new anchor.Program(lendingIdl, LENDING_PROGRAM_ID, provider);
+    const lendingProgram = new anchor.Program(lendingIdl, provider);
 
     // Calculate PDAs
     const [globalMarketPda] = PublicKey.findProgramAddressSync(
@@ -83,7 +83,7 @@ async function main() {
     );
 
     const [collectionRegistryPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('collection_registry_v2')],
+        [Buffer.from('collection_registry')],
         LENDING_PROGRAM_ID
     );
 
@@ -94,19 +94,19 @@ async function main() {
 
     log('\n🔑 Target PDAs:', colors.blue);
     log(`Global Market: ${globalMarketPda.toString()}`);
-    log(`Collection Registry V2: ${collectionRegistryPda.toString()}`);
+    log(`Collection Registry: ${collectionRegistryPda.toString()}`);
     log(`Capital Vault: ${capitalVaultPda.toString()}`);
 
     try {
-        // STEP 1: Initialize Collection Registry V2 (independent)
-        log('\n📋 STEP 1: Initialize Collection Registry V2', colors.yellow);
+        // STEP 1: Initialize Collection Registry
+        log('\n📋 STEP 1: Initialize Collection Registry', colors.yellow);
         try {
             const collectionRegistryInfo = await connection.getAccountInfo(collectionRegistryPda);
             if (collectionRegistryInfo) {
-                log('✅ Collection Registry V2 already exists', colors.green);
+                log('✅ Collection Registry already exists', colors.green);
             } else {
                 const tx1 = await lendingProgram.methods
-                    .initializeCollectionRegistryV2()
+                    .initializeCollectionRegistry()
                     .accounts({
                         collectionRegistry: collectionRegistryPda,
                         authority: adminKeypair.publicKey,
@@ -114,11 +114,11 @@ async function main() {
                     })
                     .signers([adminKeypair])
                     .rpc();
-                log(`✅ Collection Registry V2 initialized! TX: ${tx1}`, colors.green);
+                log(`✅ Collection Registry initialized! TX: ${tx1}`, colors.green);
             }
         } catch (error) {
             if (error.message.includes('already in use') || error.message.includes('already exists')) {
-                log('✅ Collection Registry V2 already exists', colors.green);
+                log('✅ Collection Registry already exists', colors.green);
             } else {
                 log(`❌ Failed: ${error.message}`, colors.red);
                 throw error;
@@ -210,6 +210,7 @@ main().catch(error => {
     log(`❌ Script failed: ${error.message}`, colors.red);
     process.exit(1);
 });
+
 
 
 

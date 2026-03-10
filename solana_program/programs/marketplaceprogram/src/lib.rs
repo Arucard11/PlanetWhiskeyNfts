@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint, CloseAccount};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT");
+declare_id!("92fRX5EHunEt6jRnihu6xcE91pbC9VKkFcUNgf2V7g4X");
 
 pub const WHISKEY_TOKEN_MINT: Pubkey = pubkey!("9UNqoPEXXxEnEphmyYsZYdL5dnmAUtdiKRUchpnUF5Ph");
 
@@ -31,7 +31,7 @@ fn read_dynamic_transaction_fee(global_market_account: &AccountInfo) -> Result<u
 // ADMIN WALLET - This wallet controls ALL marketplace administrative functions
 pub const ADMIN_WALLET: Pubkey = pubkey!("F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X");
 
-pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1");
+pub const LENDING_PROGRAM_ID: Pubkey = pubkey!("C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh");
 pub const GLOBAL_MARKET_SEED: &[u8] = b"global_market";
 
 // Default transaction fee (can be updated by admin)

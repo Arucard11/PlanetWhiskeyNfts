@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/whiskeyprogram.json`.
  */
 export type Whiskeyprogram = {
-  "address": "9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q",
+  "address": "4df1dfijcippEaFeGMHYGumJdvLqqE4ATC4AANqdXr45",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -14,10 +14,40 @@ export type Whiskeyprogram = {
   },
   "instructions": [
     {
-      "name": "createCollection",
+      "name": "closeLegacyAccount",
       "docs": [
-        "✅ EXISTING COLLECTION CREATION FUNCTIONS (Keep unchanged for backwards compatibility)"
+        "Admin-only: Close a legacy/old PDA account and reclaim lamports"
       ],
+      "discriminator": [
+        171,
+        123,
+        161,
+        229,
+        221,
+        8,
+        26,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "legacyAccount",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createCollection",
       "discriminator": [
         156,
         251,
@@ -214,6 +244,14 @@ export type Whiskeyprogram = {
         {
           "name": "itemLimit",
           "type": "u64"
+        },
+        {
+          "name": "priceIncreaseBps",
+          "type": "u16"
+        },
+        {
+          "name": "nftsPerPriceStep",
+          "type": "u8"
         }
       ]
     },
@@ -867,7 +905,7 @@ export type Whiskeyprogram = {
         {
           "name": "capitalVault",
           "writable": true,
-          "address": "BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo"
+          "address": "AV57aXNBM4atTo4EyuX6C1mRQLpFK671RfCoPxPS1wZK"
         },
         {
           "name": "treasuryWhiskeyAccount",
@@ -918,6 +956,43 @@ export type Whiskeyprogram = {
         {
           "name": "usdcToVaultAmount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "updatePriceConfig",
+      "docs": [
+        "Admin-only: Update dynamic pricing config for an existing collection"
+      ],
+      "discriminator": [
+        254,
+        204,
+        29,
+        167,
+        223,
+        55,
+        110,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "collectionConfig",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "priceIncreaseBps",
+          "type": "u16"
+        },
+        {
+          "name": "nftsPerPriceStep",
+          "type": "u8"
         }
       ]
     }
@@ -1080,6 +1155,16 @@ export type Whiskeyprogram = {
       "code": 6025,
       "name": "insufficientWhiskeyBalance",
       "msg": "Insufficient WHISKEY balance for this gated collection"
+    },
+    {
+      "code": 6026,
+      "name": "invalidPriceIncrease",
+      "msg": "Invalid price increase: must be 0-300 bps in increments of 50"
+    },
+    {
+      "code": 6027,
+      "name": "invalidNftsPerStep",
+      "msg": "Invalid NFTs per price step: must be 10-25"
     }
   ],
   "types": [
@@ -1138,6 +1223,18 @@ export type Whiskeyprogram = {
           },
           {
             "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "baseMintPriceUsd",
+            "type": "u64"
+          },
+          {
+            "name": "priceIncreaseBps",
+            "type": "u16"
+          },
+          {
+            "name": "nftsPerPriceStep",
             "type": "u8"
           }
         ]

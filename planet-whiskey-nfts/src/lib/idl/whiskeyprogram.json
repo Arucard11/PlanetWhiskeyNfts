@@ -1,5 +1,5 @@
 {
-  "address": "9HCie1czuSrxHYZ97uxH7WnyBA8bqV1SVjn64VZmCp6q",
+  "address": "4df1dfijcippEaFeGMHYGumJdvLqqE4ATC4AANqdXr45",
   "metadata": {
     "name": "whiskeyprogram",
     "version": "0.1.0",
@@ -8,10 +8,40 @@
   },
   "instructions": [
     {
-      "name": "create_collection",
+      "name": "close_legacy_account",
       "docs": [
-        "✅ EXISTING COLLECTION CREATION FUNCTIONS (Keep unchanged for backwards compatibility)"
+        "Admin-only: Close a legacy/old PDA account and reclaim lamports"
       ],
+      "discriminator": [
+        171,
+        123,
+        161,
+        229,
+        221,
+        8,
+        26,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "legacy_account",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_collection",
       "discriminator": [
         156,
         251,
@@ -208,6 +238,14 @@
         {
           "name": "item_limit",
           "type": "u64"
+        },
+        {
+          "name": "price_increase_bps",
+          "type": "u16"
+        },
+        {
+          "name": "nfts_per_price_step",
+          "type": "u8"
         }
       ]
     },
@@ -861,7 +899,7 @@
         {
           "name": "capital_vault",
           "writable": true,
-          "address": "BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo"
+          "address": "AV57aXNBM4atTo4EyuX6C1mRQLpFK671RfCoPxPS1wZK"
         },
         {
           "name": "treasury_whiskey_account",
@@ -912,6 +950,43 @@
         {
           "name": "usdc_to_vault_amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_price_config",
+      "docs": [
+        "Admin-only: Update dynamic pricing config for an existing collection"
+      ],
+      "discriminator": [
+        254,
+        204,
+        29,
+        167,
+        223,
+        55,
+        110,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "collection_config",
+          "writable": true
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
+        }
+      ],
+      "args": [
+        {
+          "name": "price_increase_bps",
+          "type": "u16"
+        },
+        {
+          "name": "nfts_per_price_step",
+          "type": "u8"
         }
       ]
     }
@@ -1074,6 +1149,16 @@
       "code": 6025,
       "name": "InsufficientWhiskeyBalance",
       "msg": "Insufficient WHISKEY balance for this gated collection"
+    },
+    {
+      "code": 6026,
+      "name": "InvalidPriceIncrease",
+      "msg": "Invalid price increase: must be 0-300 bps in increments of 50"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidNftsPerStep",
+      "msg": "Invalid NFTs per price step: must be 10-25"
     }
   ],
   "types": [
@@ -1132,6 +1217,18 @@
           },
           {
             "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "base_mint_price_usd",
+            "type": "u64"
+          },
+          {
+            "name": "price_increase_bps",
+            "type": "u16"
+          },
+          {
+            "name": "nfts_per_price_step",
             "type": "u8"
           }
         ]

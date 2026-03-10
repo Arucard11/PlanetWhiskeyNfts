@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/marketplaceprogram.json`.
  */
 export type Marketplaceprogram = {
-  "address": "BNRyCuYAv1bH6hKL4Q7sHSiN5UvZUpCw9G5aj3iGgkaT",
+  "address": "92fRX5EHunEt6jRnihu6xcE91pbC9VKkFcUNgf2V7g4X",
   "metadata": {
     "name": "marketplaceprogram",
     "version": "0.1.0",

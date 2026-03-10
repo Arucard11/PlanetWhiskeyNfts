@@ -56,7 +56,7 @@ async function main() {
   const capitalVaultEnv = toPk(reqEnv('NEXT_PUBLIC_CAPITAL_VAULT_PDA'), 'capital vault pda');
 
   // On-chain hardcoded capital vault constant from Rust program
-  const capitalVaultConst = new PublicKey('BnceBJj5HUaaxwZ4e42ympVG1VstGoNMfnXhQsM8YXwo');
+  const capitalVaultConst = new PublicKey('AV57aXNBM4atTo4EyuX6C1mRQLpFK671RfCoPxPS1wZK');
 
   console.log('=== Address sanity checks ===');
   console.log('Whiskey Program ID:', whiskeyProgramId.toBase58());
@@ -133,6 +133,7 @@ main().catch((err) => {
   console.error('Check failed:', err);
   process.exit(1);
 });
+
 
 
 

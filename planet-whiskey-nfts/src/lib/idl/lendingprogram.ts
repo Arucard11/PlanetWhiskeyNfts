@@ -5,12 +5,12 @@
  * IDL can be found at `target/idl/lendingprogram.json`.
  */
 export type Lendingprogram = {
-  "address": "CcpYcpSKnCRvhv8xb8RkGKw7BGDCdrcNdzNjpSpFbpC1",
+  "address": "C2ukp5uHz3DTYd2S5angyzAo12wbUi8ydgxGiUK4Y1Yh",
   "metadata": {
     "name": "lendingprogram",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Lending and Borrowing Protocol for Three Gold Treasury NFTs"
+    "description": "Lending and Borrowing Protocol for Planet Whiskey NFTs"
   },
   "instructions": [
     {
@@ -109,63 +109,6 @@ export type Lendingprogram = {
           "type": "u64"
         }
       ]
-    },
-    {
-      "name": "closeCollectionRegistry",
-      "docs": [
-        "Close Collection Registry (Emergency Admin Function)"
-      ],
-      "discriminator": [
-        107,
-        212,
-        98,
-        37,
-        246,
-        112,
-        213,
-        87
-      ],
-      "accounts": [
-        {
-          "name": "collectionRegistry",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  108,
-                  108,
-                  101,
-                  99,
-                  116,
-                  105,
-                  111,
-                  110,
-                  95,
-                  114,
-                  101,
-                  103,
-                  105,
-                  115,
-                  116,
-                  114,
-                  121
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true,
-          "address": "F26FYy11oqB9eEP4wV3RxpujVRYmDQbuYHpWe5VzEc3X"
-        }
-      ],
-      "args": []
     },
     {
       "name": "depositNft",
@@ -570,66 +513,6 @@ export type Lendingprogram = {
       "args": []
     },
     {
-      "name": "initializeCollectionRegistryV2",
-      "docs": [
-        "Initialize Collection Registry V2 (with different seeds)"
-      ],
-      "discriminator": [
-        36,
-        5,
-        148,
-        143,
-        175,
-        68,
-        134,
-        223
-      ],
-      "accounts": [
-        {
-          "name": "collectionRegistry",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  108,
-                  108,
-                  101,
-                  99,
-                  116,
-                  105,
-                  111,
-                  110,
-                  95,
-                  114,
-                  101,
-                  103,
-                  105,
-                  115,
-                  116,
-                  114,
-                  121
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "initializeGlobalMarket",
       "docs": [
         "Initialize the global market (Project Constellation Master Setup)"
@@ -758,6 +641,37 @@ export type Lendingprogram = {
           "writable": true
         },
         {
+          "name": "collectionRegistry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "loan",
           "writable": true
         },
@@ -820,6 +734,10 @@ export type Lendingprogram = {
       "args": [
         {
           "name": "loanId",
+          "type": "pubkey"
+        },
+        {
+          "name": "collectionMint",
           "type": "pubkey"
         }
       ]
@@ -2580,7 +2498,12 @@ export type Lendingprogram = {
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "collectionMint",
+          "type": "pubkey"
+        }
+      ]
     }
   ],
   "accounts": [
