@@ -74,7 +74,7 @@ select {
   color: #111827 !important; /* text-gray-900 */
 }
 
-/* Admin page specific input styling */
+/* Admin page specific input styling (dark mode) */
 .admin-page input[type="text"],
 .admin-page input[type="number"],
 .admin-page input[type="email"],
@@ -84,16 +84,21 @@ select {
 .admin-page input[type="url"],
 .admin-page textarea,
 .admin-page select {
-  color: #111827 !important; /* text-gray-900 */
-  background-color: #ffffff !important; /* white background */
-  border-color: #d1d5db !important; /* border-gray-300 */
+  color: #f1f5f9 !important; /* text-slate-100 */
+  background-color: rgba(51, 65, 85, 0.5) !important; /* bg-slate-700/50 */
+  border-color: #475569 !important; /* border-slate-600 */
 }
 
 .admin-page input:focus,
 .admin-page textarea:focus,
 .admin-page select:focus {
   border-color: #f59e0b !important; /* border-amber-500 */
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important; /* focus ring */
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15) !important; /* focus ring */
+}
+
+.admin-page input::placeholder,
+.admin-page textarea::placeholder {
+  color: #6b7280 !important; /* text-gray-500 */
 }
 
 /* Enhanced Wallet Adapter Button Styles */

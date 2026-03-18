@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Trophy, Zap, Star, Gift } from 'lucide-react';
 import NftCollectionCard from '@/components/NftCollectionCard';
@@ -24,6 +25,12 @@ interface WhiskeyGatedCollection {
 }
 
 export default function WhiskeyRewardsPage() {
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace('/');
+    }, [router]);
+
     const [collections, setCollections] = useState<WhiskeyGatedCollection[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

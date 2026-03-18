@@ -1548,10 +1548,10 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
             return;
         }
 
-        // Check wallet NFT limit (max 5 per collection for regular collections)
-        if (walletNftCount >= 5) {
+        // Check wallet NFT limit (max 3 per collection for regular collections)
+        if (walletNftCount >= 3) {
             console.log('[STEP1_HANDLER] ❌ Wallet NFT limit reached:', walletNftCount);
-            setMintMessage('❌ Wallet limit reached (5 NFTs max per collection)');
+            setMintMessage('❌ Wallet limit reached (3 NFTs max per collection)');
             return;
         }
 
@@ -1783,7 +1783,7 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-slate-400">Your NFTs</span>
                             <span className="text-amber-400 font-medium">
-                                {walletNftCount} / {isWhiskeyGated ? '1' : '5'} 
+                                {walletNftCount} / {isWhiskeyGated ? '1' : '3'} 
                                 <span className="text-xs text-slate-500 ml-1">
                                     ({isWhiskeyGated ? 'whiskey-gated limit' : 'wallet limit'})
                                 </span>
@@ -1799,10 +1799,27 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         />
                         </div>
 
-                    <div className="text-center">
-                        <span className="text-xs text-slate-400">
-                            {supplyRemaining > 0 ? `${supplyRemaining.toLocaleString()} remaining` : 'SOLD OUT'}
-                        </span>
+                    <div className="text-center mt-1">
+                        {supplyRemaining > 0 ? (
+                            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${
+                                supplyRemaining <= Math.ceil(displayItemLimit * 0.1)
+                                    ? 'bg-red-500/10 border-red-500/40'
+                                    : 'bg-amber-500/10 border-amber-500/30'
+                            }`}>
+                                <span className={`text-lg font-bold bg-clip-text text-transparent ${
+                                    supplyRemaining <= Math.ceil(displayItemLimit * 0.1)
+                                        ? 'bg-gradient-to-r from-red-400 to-rose-500 animate-pulse'
+                                        : 'bg-gradient-to-r from-amber-400 to-orange-500'
+                                }`}>
+                                    {supplyRemaining.toLocaleString()}
+                                </span>
+                                <span className="text-sm text-slate-400">remaining</span>
+                            </div>
+                        ) : (
+                            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/40">
+                                <span className="text-lg font-bold text-red-400">SOLD OUT</span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Dynamic Pricing Info */}
@@ -1880,13 +1897,8 @@ const NftCollectionCard: React.FC<NftCollectionCardProps> = ({
                         >
                             You already minted from this collection (1 max for whiskey-gated)
                         </button>
-                    ) : !isWhiskeyGated && walletNftCount >= 5 ? (
-                        <button
-                            disabled
-                            className="w-full py-3 px-4 bg-red-800/50 text-red-400 rounded-xl font-bold cursor-not-allowed border border-red-700/50"
-                        >
-                            Maximum 5 NFTs per wallet reached
-                        </button>
+                    ) : !isWhiskeyGated && walletNftCount >= 3 ? (
+                        null
                     ) : whiskeyBalanceLoading ? (
                         <button
                             disabled

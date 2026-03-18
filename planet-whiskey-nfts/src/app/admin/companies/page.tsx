@@ -90,13 +90,13 @@ export default function ManageCompaniesPage() {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-semibold text-whiskey-brown-dark">Manage Assets</h2>
+      <h2 className="text-2xl font-semibold text-amber-400">Manage Assets</h2>
 
-      <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Add New Asset</h3>
+      <div className="bg-slate-800/50 shadow-lg rounded-lg p-6 border border-white/10">
+        <h3 className="text-xl font-serif font-medium mb-4 text-amber-400">Add New Asset</h3>
         <form onSubmit={handleAddCompany} className="space-y-4">
           <div>
-            <label htmlFor="newCompanyName" className="block text-sm font-sans font-medium text-stone-gray-700">
+            <label htmlFor="newCompanyName" className="block text-sm font-sans font-medium text-gray-300">
               Asset Name
             </label>
             <input
@@ -105,11 +105,11 @@ export default function ManageCompaniesPage() {
               value={newCompanyName}
               onChange={(e) => setNewCompanyName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 font-sans border border-stone-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-gold-DEFAULT focus:border-amber-gold-DEFAULT sm:text-sm text-stone-gray-900 placeholder-stone-gray-400"
+              className="mt-1 block w-full px-3 py-2 font-sans bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm text-white placeholder-gray-500"
             />
           </div>
           <div>
-            <label htmlFor="newCompanyDescription" className="block text-sm font-sans font-medium text-stone-gray-700">
+            <label htmlFor="newCompanyDescription" className="block text-sm font-sans font-medium text-gray-300">
               Description (Optional)
             </label>
             <textarea
@@ -117,39 +117,39 @@ export default function ManageCompaniesPage() {
               value={newCompanyDescription}
               onChange={(e) => setNewCompanyDescription(e.target.value)}
               rows={3}
-              className="mt-1 block w-full px-3 py-2 font-sans border border-stone-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-gold-DEFAULT focus:border-amber-gold-DEFAULT sm:text-sm text-stone-gray-900 placeholder-stone-gray-400"
+              className="mt-1 block w-full px-3 py-2 font-sans bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm text-white placeholder-gray-500"
             />
           </div>
-          {submitError && <p className="text-sm text-red-600 font-sans">{submitError}</p>}
+          {submitError && <p className="text-sm text-red-400 font-sans">{submitError}</p>}
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-sans font-medium rounded-md text-white bg-amber-gold-DEFAULT hover:bg-amber-gold-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-gold-dark disabled:opacity-70 disabled:bg-stone-gray-400 transition-colors"
+            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-sans font-medium rounded-md text-black bg-amber-500 hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-amber-500 disabled:opacity-70 disabled:bg-slate-600 transition-colors"
           >
             {isSubmitting ? 'Adding...' : 'Add Asset'}
           </button>
         </form>
       </div>
 
-      <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Existing Assets</h3>
-        {isLoading && <p className="font-sans text-stone-gray-600">Loading assets...</p>}
-        {error && <p className="text-sm text-red-600 font-sans">Error: {error}</p>}
-        {!isLoading && !error && companies.length === 0 && <p className="font-sans text-stone-gray-500">No assets found.</p>}
+      <div className="bg-slate-800/50 shadow-lg rounded-lg p-6 border border-white/10">
+        <h3 className="text-xl font-serif font-medium mb-4 text-amber-400">Existing Assets</h3>
+        {isLoading && <p className="font-sans text-gray-400">Loading assets...</p>}
+        {error && <p className="text-sm text-red-400 font-sans">Error: {error}</p>}
+        {!isLoading && !error && companies.length === 0 && <p className="font-sans text-gray-500">No assets found.</p>}
         {!isLoading && !error && companies.length > 0 && (
-          <ul className="divide-y divide-stone-gray-300">
+          <ul className="divide-y divide-slate-700">
             {companies.map((company) => (
               <li key={company._id} className="py-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h4 className="text-lg font-serif font-semibold text-whiskey-brown-dark">{company.name}</h4>
-                    {company.description && <p className="text-sm font-sans text-stone-gray-700 mt-1">{company.description}</p>}
-                    <p className="text-xs font-sans text-stone-gray-500 mt-1">Created: {new Date(company.createdAt).toLocaleDateString()}</p>
+                    <h4 className="text-lg font-serif font-semibold text-amber-300">{company.name}</h4>
+                    {company.description && <p className="text-sm font-sans text-gray-400 mt-1">{company.description}</p>}
+                    <p className="text-xs font-sans text-gray-500 mt-1">Created: {new Date(company.createdAt).toLocaleDateString()}</p>
                   </div>
                   <button
                     onClick={() => handleDeleteCompany(company._id)}
                     disabled={deletingCompanyId === company._id}
-                    className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {deletingCompanyId === company._id ? 'Deleting...' : 'Delete'}
                   </button>

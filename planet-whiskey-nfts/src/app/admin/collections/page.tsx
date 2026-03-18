@@ -8,9 +8,9 @@ import { ICompany } from '@/models/Company';
 import { convertUsdToWhiskeyTokens, getCurrentWhiskeyRate, formatWhiskeyTokens, formatUsdAmount, useRealTimeWhiskeyPrice } from '@/lib/coingeckoPricing';
 
 // Shared Tailwind classes for form inputs
-const formLabelClass = "block text-sm font-medium text-gray-700 mb-1";
-  const formInputBaseClass = "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-whiskey-brown focus:border-whiskey-brown text-black";
-  const formSelectClass = "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-whiskey-brown focus:border-whiskey-brown text-black";
+const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
+  const formInputBaseClass = "w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-white placeholder-gray-500";
+  const formSelectClass = "w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-white";
 const helperTextClass = "text-xs text-gray-500 mt-1";
 
 export default function ManageCollectionsPage() {
@@ -485,40 +485,40 @@ export default function ManageCollectionsPage() {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-semibold text-whiskey-brown-dark">Create New NFT Collection</h2>
+      <h2 className="text-2xl font-semibold text-amber-400">Create New NFT Collection</h2>
 
       {/* Real-Time WHISKEY Price Status */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-        <h3 className="text-lg font-medium text-green-800 mb-2">🚀 Real-Time WHISKEY Price via CoinGecko (Updates Every 30s)</h3>
+      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+        <h3 className="text-lg font-medium text-green-400 mb-2">🚀 Real-Time WHISKEY Price via CoinGecko (Updates Every 30s)</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div>
-            <span className="font-medium text-green-700">Live Rate:</span>
-            <span className="ml-2 text-green-600 font-semibold">
+            <span className="font-medium text-green-400">Live Rate:</span>
+            <span className="ml-2 text-green-300 font-semibold">
               {priceLoading ? '🔄 Updating...' : priceError ? '❌ Error' : realTimeWhiskeyRate ? `$${realTimeWhiskeyRate.toFixed(8)} USD` : 'No Data'}
             </span>
           </div>
           <div>
-            <span className="font-medium text-green-700">Status:</span>
-            <span className="ml-2 text-green-600">
+            <span className="font-medium text-green-400">Status:</span>
+            <span className="ml-2 text-green-300">
               {priceLoading ? '🔄 Live' : priceError ? '❌ Error' : '✅ Live'}
             </span>
           </div>
           <div>
-            <span className="font-medium text-green-700">Update Frequency:</span>
-            <span className="ml-2 text-green-600">
+            <span className="font-medium text-green-400">Update Frequency:</span>
+            <span className="ml-2 text-green-300">
               Every 30 seconds
             </span>
           </div>
         </div>
         {priceError && (
-          <p className="text-red-600 text-sm mt-2">
+          <p className="text-red-400 text-sm mt-2">
             ❌ Error: {priceError}
           </p>
         )}
-        <p className="text-green-700 text-sm mt-2">
+        <p className="text-green-400 text-sm mt-2">
           💡 This price updates automatically every 30 seconds using the CoinGecko API for accurate USD conversions.
           {!realTimeWhiskeyRate && !priceLoading && !priceError && (
-            <span className="block mt-1 text-amber-600">
+            <span className="block mt-1 text-amber-400">
               ⚠️ No real-time price available. Using CoinGecko API.
             </span>
           )}
@@ -526,37 +526,37 @@ export default function ManageCollectionsPage() {
       </div>
 
       {/* Legacy WHISKEY Price Status (for reference) */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-medium text-blue-800 mb-2">📊 Manual WHISKEY Price Check</h3>
+      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+        <h3 className="text-lg font-medium text-blue-400 mb-2">📊 Manual WHISKEY Price Check</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div>
-            <span className="font-medium text-blue-700">Rate:</span>
-            <span className="ml-2 text-blue-600">
+            <span className="font-medium text-blue-400">Rate:</span>
+            <span className="ml-2 text-blue-300">
               {whiskeyRate ? `$${whiskeyRate.toFixed(8)} USD` : 'Loading...'}
             </span>
           </div>
           <div>
-            <span className="font-medium text-blue-700">Source:</span>
-            <span className="ml-2 text-blue-600">
+            <span className="font-medium text-blue-400">Source:</span>
+            <span className="ml-2 text-blue-300">
               {getPriceCacheStatus().source}
             </span>
           </div>
           <div>
-            <span className="font-medium text-blue-700">Last Updated:</span>
-            <span className="ml-2 text-blue-600">
+            <span className="font-medium text-blue-400">Last Updated:</span>
+            <span className="ml-2 text-blue-300">
               {new Date(getPriceCacheStatus().lastUpdated).toLocaleTimeString()}
             </span>
           </div>
         </div>
         {getPriceCacheStatus().isStale && (
-          <p className="text-orange-600 text-sm mt-2">
+          <p className="text-orange-400 text-sm mt-2">
             ⚠️ Price may be stale. Consider refreshing.
           </p>
         )}
       </div>
 
-      <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-6 text-whiskey-brown-dark">Collection Details</h3>
+      <div className="bg-slate-800/50 shadow-lg rounded-lg p-6 border border-white/10">
+        <h3 className="text-xl font-serif font-medium mb-6 text-amber-400">Collection Details</h3>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
@@ -603,8 +603,8 @@ export default function ManageCollectionsPage() {
           </div>
 
           {/* Pricing Section */}
-          <div className="bg-whiskey-brown-light/20 p-4 rounded-lg">
-            <h4 className="text-lg font-medium text-whiskey-brown-dark mb-4">💰 Pricing Configuration</h4>
+          <div className="bg-slate-700/30 p-4 rounded-lg">
+            <h4 className="text-lg font-medium text-amber-400 mb-4">💰 Pricing Configuration</h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -625,7 +625,7 @@ export default function ManageCollectionsPage() {
               
               <div>
                 <label htmlFor="mintPriceWhiskey" className={formLabelClass}>Price Per NFT (in WHISKEY)</label>
-                <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-600">
+                <div className="px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md text-gray-400">
                   {calculatedWhiskeyAmount || 'Enter USD price above to calculate'}
                 </div>
                 <p className={helperTextClass}>Auto-calculated from USD price using current WHISKEY rate</p>
@@ -634,16 +634,16 @@ export default function ManageCollectionsPage() {
 
             {/* Price Display */}
             {mintPriceUsd && calculatedWhiskeyAmount && (
-              <div className="mt-4 p-3 bg-white rounded-lg border border-whiskey-brown-light">
-                <h5 className="font-medium text-whiskey-brown-dark mb-2">💡 Price Summary</h5>
+              <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-white/10">
+                <h5 className="font-medium text-amber-400 mb-2">💡 Price Summary</h5>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">USD Price:</span>
-                    <span className="ml-2 text-gray-900">{formatUsdAmount(parseFloat(mintPriceUsd))}</span>
+                    <span className="font-medium text-gray-400">USD Price:</span>
+                    <span className="ml-2 text-white">{formatUsdAmount(parseFloat(mintPriceUsd))}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">WHISKEY Cost:</span>
-                    <span className="ml-2 text-gray-900">{calculatedWhiskeyAmount}</span>
+                    <span className="font-medium text-gray-400">WHISKEY Cost:</span>
+                    <span className="ml-2 text-white">{calculatedWhiskeyAmount}</span>
                   </div>
                 </div>
               </div>
@@ -651,16 +651,16 @@ export default function ManageCollectionsPage() {
           </div>
 
           {/* Dynamic Pricing Section */}
-          <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-            <h4 className="text-lg font-medium text-green-800 mb-4">📈 Dynamic Pricing Configuration</h4>
-            <p className="text-sm text-green-700 mb-4">
+          <div className="bg-green-900/20 border border-green-500/30 p-4 rounded-lg">
+            <h4 className="text-lg font-medium text-green-400 mb-4">📈 Dynamic Pricing Configuration</h4>
+            <p className="text-sm text-green-300 mb-4">
               NFT price will automatically increase as more NFTs are sold. The price increases by a fixed percentage after every X number of NFTs purchased.
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className={formLabelClass}>
-                  Price Increase Per Step: <span className="text-green-700 font-semibold text-lg">{priceIncreasePercent}%</span>
+                  Price Increase Per Step: <span className="text-green-400 font-semibold text-lg">{priceIncreasePercent}%</span>
                 </label>
                 <input
                   type="range"
@@ -669,7 +669,7 @@ export default function ManageCollectionsPage() {
                   step="1"
                   value={priceIncreaseIndex}
                   onChange={(e) => setPriceIncreaseIndex(parseInt(e.target.value))}
-                  className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                  className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-green-500"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>0%</span>
@@ -685,7 +685,7 @@ export default function ManageCollectionsPage() {
               
               <div>
                 <label className={formLabelClass}>
-                  NFTs Per Price Step: <span className="text-green-700 font-semibold text-lg">{nftsPerPriceStep}</span>
+                  NFTs Per Price Step: <span className="text-green-400 font-semibold text-lg">{nftsPerPriceStep}</span>
                 </label>
                 <input
                   type="range"
@@ -694,7 +694,7 @@ export default function ManageCollectionsPage() {
                   step="1"
                   value={nftsPerPriceStep}
                   onChange={(e) => setNftsPerPriceStep(parseInt(e.target.value))}
-                  className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                  className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-green-500"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>10</span>
@@ -708,8 +708,8 @@ export default function ManageCollectionsPage() {
 
             {/* Dynamic Pricing Preview */}
             {mintPriceUsd && priceIncreaseBps > 0 && (
-              <div className="mt-4 p-3 bg-white rounded-lg border border-green-200">
-                <h5 className="font-medium text-green-800 mb-2">📊 Pricing Preview</h5>
+              <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-green-500/30">
+                <h5 className="font-medium text-green-400 mb-2">📊 Pricing Preview</h5>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div>
                     <span className="text-gray-500">Start:</span>
@@ -739,8 +739,8 @@ export default function ManageCollectionsPage() {
           </div>
 
           {/* NFT Base Information */}
-          <div className="bg-whiskey-brown-light/20 p-4 rounded-lg">
-            <h4 className="text-lg font-medium text-whiskey-brown-dark mb-4">🎨 NFT Base Information</h4>
+          <div className="bg-slate-700/30 p-4 rounded-lg">
+            <h4 className="text-lg font-medium text-amber-400 mb-4">🎨 NFT Base Information</h4>
             
             <div className="grid grid-cols-1 gap-6">
               <div>
@@ -820,11 +820,11 @@ export default function ManageCollectionsPage() {
               onChange={handleCollectionImageChange}
               accept="image/*,video/*,.gif,.mp4,.webm,.mov,.avi"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-whiskey-brown focus:border-whiskey-brown"
+              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-white"
             />
             {collectionImageConfirmed && (
-              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-sm text-green-700 flex items-center">
+              <div className="mt-2 p-2 bg-green-900/20 border border-green-500/30 rounded-md">
+                <p className="text-sm text-green-400 flex items-center">
                   <span className="mr-2">✅</span>
                   Image received and ready for collection creation!
                 </p>
@@ -837,7 +837,7 @@ export default function ManageCollectionsPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-whiskey-brown text-white py-3 px-6 rounded-md hover:bg-whiskey-brown-dark focus:ring-2 focus:ring-whiskey-brown focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-amber-500 text-black py-3 px-6 rounded-md hover:bg-amber-400 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
           >
             {isSubmitting ? 'Creating Collection...' : 'Create Collection'}
           </button>
@@ -845,11 +845,11 @@ export default function ManageCollectionsPage() {
       </div>
 
       {/* Whiskey-Gated Collections Section */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-xl font-semibold text-amber-800">🥃 Whiskey-Gated Collections</h3>
-            <p className="text-sm text-amber-700 mt-1">
+            <h3 className="text-xl font-semibold text-amber-400">🥃 Whiskey-Gated Collections</h3>
+            <p className="text-sm text-amber-300/70 mt-1">
               Create exclusive collections that require WHISKEY token holdings to mint. These NFTs are free to mint for qualified users and cannot be used for lending.
             </p>
           </div>
@@ -910,8 +910,8 @@ export default function ManageCollectionsPage() {
             </div>
 
             {/* Gating Requirements */}
-            <div className="bg-amber-100 border border-amber-300 rounded-lg p-4">
-              <h4 className="font-medium text-amber-800 mb-3">🔒 Gating Requirements</h4>
+            <div className="bg-amber-900/30 border border-amber-500/30 rounded-lg p-4">
+              <h4 className="font-medium text-amber-400 mb-3">🔒 Gating Requirements</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="requiredWhiskeyAmount" className={formLabelClass}>Required WHISKEY Tokens</label>
@@ -955,11 +955,11 @@ export default function ManageCollectionsPage() {
                 onChange={handleWhiskeyGatedImageChange}
                 accept="image/*,video/*,.gif,.mp4,.webm,.mov,.avi"
                 required
-                className="w-full px-3 py-2 border border-amber-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-white"
               />
               {whiskeyGatedImageConfirmed && (
-                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm text-green-700 flex items-center">
+                <div className="mt-2 p-2 bg-green-900/20 border border-green-500/30 rounded-md">
+                  <p className="text-sm text-green-400 flex items-center">
                     <span className="mr-2">✅</span>
                     Image received and ready for Master Distiller collection creation!
                   </p>
@@ -969,9 +969,9 @@ export default function ManageCollectionsPage() {
             </div>
 
             {/* Important Notice */}
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h4 className="font-medium text-red-800 mb-2">⚠️ Important Notes</h4>
-              <ul className="text-sm text-red-700 space-y-1">
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+              <h4 className="font-medium text-red-400 mb-2">⚠️ Important Notes</h4>
+              <ul className="text-sm text-red-300 space-y-1">
                 <li>• These NFTs are <strong>FREE TO MINT</strong> for qualified users</li>
                 <li>• Users must hold the required WHISKEY tokens in their wallet</li>
                 <li>• These NFTs <strong>CANNOT be used for lending</strong></li>
@@ -993,17 +993,17 @@ export default function ManageCollectionsPage() {
         {/* Collection Mint Display Modal */}
         {createdCollectionMint && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-green-800 mb-4">🎉 Collection Created Successfully!</h3>
+            <div className="bg-slate-900 rounded-lg p-6 max-w-md w-full mx-4 border border-white/10">
+              <h3 className="text-lg font-semibold text-green-400 mb-4">🎉 Collection Created Successfully!</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Collection Mint Address:</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Collection Mint Address:</label>
                   <div className="flex items-center space-x-2">
                     <input
                       type="text"
                       value={createdCollectionMint}
                       readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
+                      className="flex-1 px-3 py-2 border border-slate-600 rounded-md bg-slate-800 text-sm text-white"
                     />
                     <button
                       onClick={() => navigator.clipboard.writeText(createdCollectionMint)}
@@ -1013,8 +1013,8 @@ export default function ManageCollectionsPage() {
                     </button>
                   </div>
                 </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm text-yellow-800">
+                <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
+                  <p className="text-sm text-yellow-300">
                     <strong>Next Steps:</strong>
                     <br />1. Copy the collection mint address above
                     <br />2. Go to Lending Admin → Sync Collections
@@ -1023,7 +1023,7 @@ export default function ManageCollectionsPage() {
                 </div>
                 <button
                   onClick={() => setCreatedCollectionMint(null)}
-                  className="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700"
+                  className="w-full bg-slate-700 text-white py-2 rounded-md hover:bg-slate-600"
                 >
                   Close
                 </button>

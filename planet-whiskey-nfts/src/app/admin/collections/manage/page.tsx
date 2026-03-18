@@ -177,30 +177,30 @@ export default function ManageCollectionsPage() {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-semibold text-whiskey-brown-dark">Manage NFT Collections</h2>
+      <h2 className="text-2xl font-semibold text-amber-400">Manage NFT Collections</h2>
 
-      <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-        <h3 className="text-xl font-serif font-medium mb-4 text-whiskey-brown-dark">Existing Collections</h3>
-        {isLoading && <p className="font-sans text-stone-gray-600">Loading collections...</p>}
-        {error && <p className="text-sm text-red-600 font-sans">Error: {error}</p>}
-        {!isLoading && !error && collections.length === 0 && <p className="font-sans text-stone-gray-500">No collections found.</p>}
+      <div className="bg-slate-800/50 shadow-lg rounded-lg p-6 border border-white/10">
+        <h3 className="text-xl font-serif font-medium mb-4 text-amber-400">Existing Collections</h3>
+        {isLoading && <p className="font-sans text-gray-400">Loading collections...</p>}
+        {error && <p className="text-sm text-red-400 font-sans">Error: {error}</p>}
+        {!isLoading && !error && collections.length === 0 && <p className="font-sans text-gray-500">No collections found.</p>}
         {!isLoading && !error && collections.length > 0 && (
           <div className="space-y-4">
             {collections.map((collection) => (
-              <div key={collection._id} className="border border-stone-gray-200 rounded-lg p-4 bg-white">
+              <div key={collection._id} className="border border-slate-700 rounded-lg p-4 bg-slate-800/50">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
-                      <h4 className="text-lg font-serif font-semibold text-whiskey-brown-dark">{collection.name}</h4>
-                      <span className="text-sm font-mono text-stone-gray-500">({collection.symbol})</span>
+                      <h4 className="text-lg font-serif font-semibold text-amber-300">{collection.name}</h4>
+                      <span className="text-sm font-mono text-gray-500">({collection.symbol})</span>
                       {!collection.isActive && (
-                        <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Inactive</span>
+                        <span className="px-2 py-1 text-xs font-medium bg-red-900/30 text-red-400 rounded-full">Inactive</span>
                       )}
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="font-medium text-stone-gray-700">Current Price:</span>
-                        <span className="ml-1 text-whiskey-brown-dark font-semibold">
+                        <span className="font-medium text-gray-400">Current Price:</span>
+                        <span className="ml-1 text-white font-semibold">
                           {collection.mintPriceUsd 
                             ? `$${collection.mintPriceUsd.toFixed(2)}`
                             : `${formatWhiskeyTokens(collection.mintPriceWhiskeyTokens)} WHISKEY`
@@ -208,18 +208,18 @@ export default function ManageCollectionsPage() {
                         </span>
                       </div>
                       <div>
-                        <span className="font-medium text-stone-gray-700">Base Price:</span>
-                        <span className="ml-1 text-stone-gray-600">
+                        <span className="font-medium text-gray-400">Base Price:</span>
+                        <span className="ml-1 text-gray-300">
                           {collection.baseMintPriceUsd ? `$${collection.baseMintPriceUsd.toFixed(2)}` : 'N/A'}
                         </span>
                       </div>
                       <div>
-                        <span className="font-medium text-stone-gray-700">Supply:</span>
-                        <span className="ml-1 text-whiskey-brown-dark">{collection.itemsMintedOnChain || 0}/{collection.itemLimit}</span>
+                        <span className="font-medium text-gray-400">Supply:</span>
+                        <span className="ml-1 text-white">{collection.itemsMintedOnChain || 0}/{collection.itemLimit}</span>
                       </div>
                       <div>
-                        <span className="font-medium text-stone-gray-700">Price Config:</span>
-                        <span className="ml-1 text-stone-gray-600">
+                        <span className="font-medium text-gray-400">Price Config:</span>
+                        <span className="ml-1 text-gray-300">
                           {collection.priceIncreaseBps != null
                             ? `${(collection.priceIncreaseBps / 100).toFixed(1)}% / ${collection.nftsPerPriceStep || '?'} NFTs`
                             : 'Not set'}
@@ -229,34 +229,34 @@ export default function ManageCollectionsPage() {
 
                     {/* Price Config Editor */}
                     {editingPriceConfig === collection._id && (
-                      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <h5 className="font-medium text-green-800 mb-3">Edit Dynamic Pricing</h5>
+                      <div className="mt-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+                        <h5 className="font-medium text-green-400 mb-3">Edit Dynamic Pricing</h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Price Increase: <span className="text-green-700 font-semibold">{(editPriceIncreaseIndex * 0.5).toFixed(1)}%</span>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">
+                              Price Increase: <span className="text-green-400 font-semibold">{(editPriceIncreaseIndex * 0.5).toFixed(1)}%</span>
                             </label>
                             <input
                               type="range"
                               min="0" max="6" step="1"
                               value={editPriceIncreaseIndex}
                               onChange={(e) => setEditPriceIncreaseIndex(parseInt(e.target.value))}
-                              className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                              className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-green-500"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-1">
                               <span>0%</span><span>1%</span><span>2%</span><span>3%</span>
                             </div>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              NFTs Per Step: <span className="text-green-700 font-semibold">{editNftsPerStep}</span>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">
+                              NFTs Per Step: <span className="text-green-400 font-semibold">{editNftsPerStep}</span>
                             </label>
                             <input
                               type="range"
                               min="10" max="25" step="1"
                               value={editNftsPerStep}
                               onChange={(e) => setEditNftsPerStep(parseInt(e.target.value))}
-                              className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                              className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-green-500"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-1">
                               <span>10</span><span>15</span><span>20</span><span>25</span>
@@ -273,7 +273,7 @@ export default function ManageCollectionsPage() {
                           </button>
                           <button
                             onClick={() => setEditingPriceConfig(null)}
-                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm"
+                            className="px-4 py-2 bg-slate-600 text-gray-300 rounded-md hover:bg-slate-500 text-sm"
                           >
                             Cancel
                           </button>

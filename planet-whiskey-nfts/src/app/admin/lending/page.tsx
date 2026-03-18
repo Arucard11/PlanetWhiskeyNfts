@@ -705,13 +705,13 @@ export default function LendingAdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse">
-            <div className="h-8 bg-amber-200 rounded mb-6"></div>
+            <div className="h-8 bg-slate-700 rounded mb-6"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-48 bg-white rounded-lg"></div>
+                <div key={i} className="h-48 bg-slate-800/50 rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -721,30 +721,30 @@ export default function LendingAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 p-6 admin-page">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 admin-page">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-white mb-2">
             🏦 Lending Protocol Administration
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-400">
             Manage NFT collateral lending, interest rates, and protocol settings
           </p>
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-800">
+          <div className="mt-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+            <p className="text-sm text-green-400">
               <strong>✅ Admin Access:</strong> Configure lending protocol settings and monitor borrowing activity.
             </p>
           </div>
           
           {/* Wallet Connection for Treasury Operations */}
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mt-4 p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-amber-800">
+                <p className="text-sm text-amber-400">
                   <strong>🔐 Admin Wallet:</strong> Required for protocol configuration changes
                 </p>
                 {connected && publicKey && (
-                  <p className="text-xs text-amber-600 mt-1">
+                  <p className="text-xs text-amber-300 mt-1">
                     Connected: {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-8)}
                   </p>
                 )}
@@ -754,14 +754,14 @@ export default function LendingAdminPage() {
           </div>
 
           {/* Manual Data Loading Button */}
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-800">
+                <p className="text-sm text-blue-400">
                   <strong>📊 On-Chain Data:</strong> Click to load current lending protocol data
                 </p>
                 {dataLoaded && (
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-300 mt-1">
                     ✅ Data loaded successfully
                   </p>
                 )}
@@ -780,12 +780,12 @@ export default function LendingAdminPage() {
         {/* No Data Loaded Message */}
         {!dataLoaded && !isLoadingData && (
           <div className="text-center py-12">
-            <div className="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto">
+            <div className="bg-slate-800/50 p-8 rounded-lg shadow-md max-w-md mx-auto">
               <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              <h3 className="text-xl font-semibold text-white mb-2">
                 No Data Loaded
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-400 mb-4">
                 Click the "Load On-Chain Data" button above to fetch current lending protocol information.
               </p>
               <button
@@ -802,12 +802,12 @@ export default function LendingAdminPage() {
         {/* Loading Message */}
         {isLoadingData && (
           <div className="text-center py-12">
-            <div className="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto">
+            <div className="bg-slate-800/50 p-8 rounded-lg shadow-md max-w-md mx-auto">
               <div className="text-6xl mb-4">🔄</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              <h3 className="text-xl font-semibold text-white mb-2">
                 Loading On-Chain Data
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-400 mb-4">
                 Fetching current lending protocol information...
               </p>
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -818,21 +818,21 @@ export default function LendingAdminPage() {
         {/* Stats Dashboard */}
         {dataLoaded && stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Active Loans</h3>
-              <p className="text-3xl font-bold text-blue-600">{stats.totalLoansActive}</p>
+            <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-white mb-2">Active Loans</h3>
+              <p className="text-3xl font-bold text-blue-400">{stats.totalLoansActive}</p>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Outstanding Debt</h3>
-              <p className="text-3xl font-bold text-red-600">${stats.totalDebtOutstanding}</p>
+            <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-white mb-2">Outstanding Debt</h3>
+              <p className="text-3xl font-bold text-red-400">${stats.totalDebtOutstanding}</p>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Collateral Value</h3>
-              <p className="text-3xl font-bold text-green-600">${stats.totalCollateralValue}</p>
+            <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-white mb-2">Collateral Value</h3>
+              <p className="text-3xl font-bold text-green-300">${stats.totalCollateralValue}</p>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Avg NFT Value</h3>
-              <p className="text-3xl font-bold text-purple-600">${stats.averageNftValue}</p>
+            <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-white mb-2">Avg NFT Value</h3>
+              <p className="text-3xl font-bold text-purple-400">${stats.averageNftValue}</p>
             </div>
           </div>
         )}
@@ -840,20 +840,20 @@ export default function LendingAdminPage() {
         {dataLoaded && config && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Configuration Form */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
+            <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-bold text-white mb-4">
                 ⚙️ Protocol Configuration
               </h2>
               
               <form onSubmit={handleUpdateConfig} className="space-y-6">
                 {/* Interest Rates */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     📈 Base Interest Rates (2.5% - 25%)
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         1 Month Rate (%)
                       </label>
                       <input
@@ -863,12 +863,12 @@ export default function LendingAdminPage() {
                         max="25"
                         value={formData.interestRate1Month}
                         onChange={(e) => updateFormData('interestRate1Month', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         2 Month Rate (%)
                       </label>
                       <input
@@ -878,12 +878,12 @@ export default function LendingAdminPage() {
                         max="25"
                         value={formData.interestRate2Month}
                         onChange={(e) => updateFormData('interestRate2Month', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         3 Month Rate (%)
                       </label>
                       <input
@@ -893,7 +893,7 @@ export default function LendingAdminPage() {
                         max="25"
                         value={formData.interestRate3Month}
                         onChange={(e) => updateFormData('interestRate3Month', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                     </div>
@@ -905,12 +905,12 @@ export default function LendingAdminPage() {
 
                 {/* Utilization-Based Rate Parameters */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     📊 Utilization-Based Rate Parameters
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Optimal Utilization Rate (50% - 95%)
                       </label>
                       <input
@@ -920,7 +920,7 @@ export default function LendingAdminPage() {
                         max="95"
                         value={formData.optimalUtilizationRate}
                         onChange={(e) => updateFormData('optimalUtilizationRate', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -928,7 +928,7 @@ export default function LendingAdminPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Max Rate Multiplier (100% - 500%)
                       </label>
                       <input
@@ -938,7 +938,7 @@ export default function LendingAdminPage() {
                         max="500"
                         value={formData.maxInterestRateMultiplier}
                         onChange={(e) => updateFormData('maxInterestRateMultiplier', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -946,7 +946,7 @@ export default function LendingAdminPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Utilization Slope 1 (0% - 100%)
                       </label>
                       <input
@@ -956,7 +956,7 @@ export default function LendingAdminPage() {
                         max="100"
                         value={formData.utilizationSlope1}
                         onChange={(e) => updateFormData('utilizationSlope1', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -964,7 +964,7 @@ export default function LendingAdminPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Utilization Slope 2 (0% - 200%)
                       </label>
                       <input
@@ -974,7 +974,7 @@ export default function LendingAdminPage() {
                         max="200"
                         value={formData.utilizationSlope2}
                         onChange={(e) => updateFormData('utilizationSlope2', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -986,12 +986,12 @@ export default function LendingAdminPage() {
 
                 {/* Loan-to-Value Ratio */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     🏦 Loan-to-Value Configuration
                   </h3>
                   <div className="grid grid-cols-1 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Loan-to-Value Ratio (40% - 90%)
                       </label>
                       <input
@@ -1001,7 +1001,7 @@ export default function LendingAdminPage() {
                         max="90"
                         value={formData.loanToValueRatio}
                         onChange={(e) => updateFormData('loanToValueRatio', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -1013,12 +1013,12 @@ export default function LendingAdminPage() {
 
                 {/* Fee Configuration */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     💰 Universal Fee Configuration
                   </h3>
                   <div className="grid grid-cols-1 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Transaction Fee (1% - 5%)
                       </label>
                       <input
@@ -1028,7 +1028,7 @@ export default function LendingAdminPage() {
                         max="5"
                         value={formData.transactionFee}
                         onChange={(e) => updateFormData('transactionFee', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -1040,12 +1040,12 @@ export default function LendingAdminPage() {
 
                 {/* NFT Configuration */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     🖼️ NFT Configuration
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Max Staked NFTs (500 - 10,000)
                       </label>
                       <input
@@ -1054,7 +1054,7 @@ export default function LendingAdminPage() {
                         max="10000"
                         value={formData.maxStakedNfts}
                         onChange={(e) => updateFormData('maxStakedNfts', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -1066,12 +1066,12 @@ export default function LendingAdminPage() {
 
                 {/* Revenue Split Configuration */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-3">
                     💰 Revenue Split Configuration
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Lending Pool Share (%)
                       </label>
                       <input
@@ -1081,7 +1081,7 @@ export default function LendingAdminPage() {
                         max="100"
                         value={formData.lendingWalletShare}
                         onChange={(e) => updateFormData('lendingWalletShare', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -1089,7 +1089,7 @@ export default function LendingAdminPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Treasury Share (%)
                       </label>
                       <input
@@ -1099,7 +1099,7 @@ export default function LendingAdminPage() {
                         max="100"
                         value={formData.treasuryWalletShare}
                         onChange={(e) => updateFormData('treasuryWalletShare', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-amber-500 focus:border-amber-500"
+                        className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-amber-500 focus:border-amber-500"
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -1107,7 +1107,7 @@ export default function LendingAdminPage() {
                       </p>
                     </div>
                   </div>
-                  <p className="text-xs text-amber-600 mt-2">
+                  <p className="text-xs text-amber-300 mt-2">
                     ⚠️ Both percentages must add up to 100%
                   </p>
                 </div>
@@ -1157,15 +1157,15 @@ export default function LendingAdminPage() {
                 </p>
 
                 {/* Collection Registry Management Section */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">📚 Collection Registry Management</h3>
+                <div className="mt-8 pt-6 border-t border-slate-700">
+                  <h3 className="text-lg font-medium text-white mb-4">📚 Collection Registry Management</h3>
                   
                   {/* Add New Collection */}
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <h4 className="text-md font-medium text-gray-800 mb-3">Add New Collection</h4>
+                  <div className="bg-slate-800/30 p-4 rounded-lg mb-4">
+                    <h4 className="text-md font-medium text-gray-200 mb-3">Add New Collection</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Collection Mint Address
                         </label>
                         <input
@@ -1173,11 +1173,11 @@ export default function LendingAdminPage() {
                           value={newCollectionMint}
                           onChange={(e) => setNewCollectionMint(e.target.value)}
                           placeholder="Enter collection mint address"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           USD Value per NFT
                         </label>
                         <input
@@ -1187,7 +1187,7 @@ export default function LendingAdminPage() {
                           value={newCollectionValue}
                           onChange={(e) => setNewCollectionValue(e.target.value)}
                           placeholder="Enter USD value"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-slate-600 bg-slate-700/50 text-white rounded-md focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
                     </div>
@@ -1201,10 +1201,10 @@ export default function LendingAdminPage() {
                   </div>
 
                   {/* Collections List */}
-                  <div className="bg-white border border-gray-200 rounded-lg">
-                    <div className="p-4 border-b border-gray-200">
+                  <div className="bg-slate-800/50 border border-slate-700 rounded-lg">
+                    <div className="p-4 border-b border-slate-700">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-md font-medium text-gray-800">Collection Registry</h4>
+                        <h4 className="text-md font-medium text-gray-200">Collection Registry</h4>
                         <button
                           onClick={fetchCollections}
                           disabled={loadingCollections}
@@ -1222,23 +1222,23 @@ export default function LendingAdminPage() {
                         <p className="text-sm">Add collections above or sync from database</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-200">
+                      <div className="divide-y divide-slate-700">
                         {collections.map((collection, index) => (
                           <div key={index} className="p-4 flex justify-between items-center">
                             <div className="flex-1">
                               <div className="flex items-center space-x-2">
-                                <span className="font-mono text-sm text-gray-600">
+                                <span className="font-mono text-sm text-gray-400">
                                   {collection.mint.slice(0, 8)}...{collection.mint.slice(-8)}
                                 </span>
                                 <span className={`px-2 py-1 text-xs rounded-full ${
                                   collection.isApproved 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-red-100 text-red-800'
+                                    ? 'bg-green-900/30 text-green-400' 
+                                    : 'bg-red-900/30 text-red-400'
                                 }`}>
                                   {collection.isApproved ? 'Approved' : 'Disapproved'}
                                 </span>
                                 {collection.isWhiskeyGated && (
-                                  <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-amber-900/30 text-amber-400 border border-amber-500/30">
                                     🥃 Whiskey Gated
                                   </span>
                                 )}
@@ -1256,7 +1256,7 @@ export default function LendingAdminPage() {
                                     })}
                                   </span>
                                   {collection.isWhiskeyGated && collection.requiredWhiskeyAmount > 0 && (
-                                    <span className="text-amber-600">
+                                    <span className="text-amber-300">
                                       🥃 Requires {collection.requiredWhiskeyAmount.toLocaleString()} WHISKEY
                                     </span>
                                   )}
@@ -1287,15 +1287,15 @@ export default function LendingAdminPage() {
             {/* Current Settings & Treasury Info */}
             <div className="space-y-6">
               {/* Current Settings */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
+              <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+                <h2 className="text-xl font-bold text-white mb-4">
                   📊 Current Settings
                 </h2>
                 
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-semibold text-gray-800">Base Interest Rates</h4>
-                    <div className="text-sm text-gray-600 space-y-1">
+                    <h4 className="font-semibold text-gray-200">Base Interest Rates</h4>
+                    <div className="text-sm text-gray-400 space-y-1">
                       <p>1 Month: {(config.interestRate1MonthBps / 100).toFixed(1)}%</p>
                       <p>2 Months: {(config.interestRate2MonthBps / 100).toFixed(1)}%</p>
                       <p>3 Months: {(config.interestRate3MonthBps / 100).toFixed(1)}%</p>
@@ -1303,8 +1303,8 @@ export default function LendingAdminPage() {
                   </div>
                   
                   <div>
-                    <h4 className="font-semibold text-gray-800">Utilization Parameters</h4>
-                    <div className="text-sm text-gray-600 space-y-1">
+                    <h4 className="font-semibold text-gray-200">Utilization Parameters</h4>
+                    <div className="text-sm text-gray-400 space-y-1">
                       <p>Optimal Utilization: {(config.optimalUtilizationRateBps / 100).toFixed(1)}%</p>
                       <p>Max Rate Multiplier: {(config.maxInterestRateMultiplierBps / 100).toFixed(0)}% ({(config.maxInterestRateMultiplierBps / 10000).toFixed(1)}x)</p>
                       <p>Slope 1: {(config.utilizationSlope1Bps / 100).toFixed(1)}%</p>
@@ -1313,23 +1313,23 @@ export default function LendingAdminPage() {
                   </div>
                   
                   <div>
-                    <h4 className="font-semibold text-gray-800">Loan Configuration</h4>
-                    <div className="text-sm text-gray-600 space-y-1">
+                    <h4 className="font-semibold text-gray-200">Loan Configuration</h4>
+                    <div className="text-sm text-gray-400 space-y-1">
                       <p>LTV Ratio: {(config.loanToValueRatioBps / 100).toFixed(1)}% (users can borrow {(config.loanToValueRatioBps / 100).toFixed(1)}% of NFT value)</p>
                     </div>
                   </div>
                   
                   <div>
-                    <h4 className="font-semibold text-gray-800">Universal Fees</h4>
-                    <div className="text-sm text-gray-600 space-y-1">
+                    <h4 className="font-semibold text-gray-200">Universal Fees</h4>
+                    <div className="text-sm text-gray-400 space-y-1">
                       <p>Transaction Fee: {(config.transactionFeeBps / 100).toFixed(1)}% → Treasury Wallet</p>
                       <p>Applied to all platform operations (lending, marketplace, minting)</p>
                     </div>
                   </div>
                   
                   <div>
-                    <h4 className="font-semibold text-gray-800">NFT Configuration</h4>
-                    <div className="text-sm text-gray-600 space-y-1">
+                    <h4 className="font-semibold text-gray-200">NFT Configuration</h4>
+                    <div className="text-sm text-gray-400 space-y-1">
                       <p>Per-Collection Values: Set by collection USD prices</p>
                       <p>Max Staked: {config.maxStakedNfts.toLocaleString()}</p>
                       <p>Currently Staked: {config.currentStakedNfts.toLocaleString()}</p>
@@ -1342,28 +1342,28 @@ export default function LendingAdminPage() {
 
 
               {/* Revenue Split Information */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
+              <div className="bg-slate-800/50 p-6 rounded-lg shadow-md">
+                <h2 className="text-xl font-bold text-white mb-4">
                   💰 Revenue Split
                 </h2>
                 
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-semibold text-gray-800">NFT Mint Revenue Distribution</h4>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
+                    <h4 className="font-semibold text-gray-200">NFT Mint Revenue Distribution</h4>
+                    <div className="text-sm text-gray-400 space-y-2">
+                      <div className="flex justify-between items-center p-3 bg-blue-900/20 rounded">
                         <span>Lending Pool (USDC)</span>
-                        <span className="font-bold text-blue-600">{(config.lendingWalletShareBps / 100)}%</span>
+                        <span className="font-bold text-blue-300">{(config.lendingWalletShareBps / 100)}%</span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-amber-50 rounded">
+                      <div className="flex justify-between items-center p-3 bg-amber-900/20 rounded">
                         <span>Treasury (WHISKEY)</span>
-                        <span className="font-bold text-amber-600">{(config.treasuryWalletShareBps / 100)}%</span>
+                        <span className="font-bold text-amber-300">{(config.treasuryWalletShareBps / 100)}%</span>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-sm text-gray-700">
+                  <div className="bg-slate-800/30 p-3 rounded">
+                    <p className="text-sm text-gray-300">
                       <strong>How it works:</strong> When NFTs are minted, {(config.lendingWalletShareBps / 100)}% of revenue is automatically converted to stablecoins via Jupiter and sent to the lending pool. The remaining {(config.treasuryWalletShareBps / 100)}% stays as WHISKEY tokens in the treasury.
                     </p>
                   </div>
@@ -1371,11 +1371,11 @@ export default function LendingAdminPage() {
               </div>
 
               {/* Important Notes */}
-              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+              <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-yellow-400 mb-2">
                   ⚠️ Important Notes
                 </h3>
-                <ul className="text-sm text-yellow-700 space-y-1">
+                <ul className="text-sm text-yellow-300 space-y-1">
                   <li>• All interest payments go directly to protocol treasury</li>
                   <li>• Admin can configure all protocol settings</li>
                   <li>• NFTs have dynamic USD values based on collection pricing</li>
@@ -1387,11 +1387,11 @@ export default function LendingAdminPage() {
 
               {/* Deployment Information */}
               {deploymentInfo && (
-                <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                <div className="bg-slate-800/30 border border-slate-700 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-200 mb-2">
                     🔗 Deployment Information
                   </h3>
-                  <div className="text-sm text-gray-700 space-y-2">
+                  <div className="text-sm text-gray-300 space-y-2">
                     <div className="flex justify-between">
                       <span>Network:</span>
                       <span className="font-mono">{deploymentInfo.network}</span>

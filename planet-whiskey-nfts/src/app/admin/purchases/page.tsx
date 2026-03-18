@@ -32,44 +32,44 @@ export default function AdminPurchasesPage() {
   }, []);
 
   if (isLoading) {
-    return <p className="text-center font-sans text-stone-gray-600">Loading purchase records...</p>;
+    return <p className="text-center font-sans text-gray-400">Loading purchase records...</p>;
   }
 
   if (error) {
-    return <p className="text-center font-sans text-red-600">Error: {error}</p>;
+    return <p className="text-center font-sans text-red-400">Error: {error}</p>;
   }
 
   if (purchases.length === 0) {
-    return <p className="text-center font-sans text-stone-gray-500">No purchase records found.</p>;
+    return <p className="text-center font-sans text-gray-500">No purchase records found.</p>;
   }
 
   return (
-    <div className="bg-cream shadow-lg rounded-lg p-6 border border-whiskey-brown-light">
-      <h2 className="text-2xl font-serif font-semibold mb-6 text-whiskey-brown-dark">Wallet NFT Purchase Records</h2>
+    <div className="bg-slate-800/50 shadow-lg rounded-lg p-6 border border-white/10">
+      <h2 className="text-2xl font-serif font-semibold mb-6 text-amber-400">Wallet NFT Purchase Records</h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-stone-gray-300 font-sans">
-          <thead className="bg-stone-gray-100">
+        <table className="min-w-full divide-y divide-slate-700 font-sans">
+          <thead className="bg-slate-700/50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-stone-gray-500 uppercase tracking-wider">Purchase Date</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-stone-gray-500 uppercase tracking-wider">Wallet Address</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-stone-gray-500 uppercase tracking-wider">NFT Mint</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-stone-gray-500 uppercase tracking-wider">Collection Mint</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-stone-gray-500 uppercase tracking-wider">Transaction Signature</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Purchase Date</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Wallet Address</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">NFT Mint</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Collection Mint</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Transaction Signature</th>
             </tr>
           </thead>
-          <tbody className="bg-cream divide-y divide-stone-gray-200">
+          <tbody className="divide-y divide-slate-700/50">
             {purchases.map((purchase) => (
-              <tr key={purchase.transactionSignature} className="hover:bg-stone-gray-50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-gray-900">{new Date(purchase.purchaseDate).toLocaleString()}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-gray-700 truncate max-w-xs" title={purchase.walletAddress}>{purchase.walletAddress}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-gray-700 truncate max-w-xs" title={purchase.nftMintAddress}>{purchase.nftMintAddress}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-gray-700 truncate max-w-xs" title={purchase.collectionMintAddress}>{purchase.collectionMintAddress}</td>
+              <tr key={purchase.transactionSignature} className="hover:bg-slate-700/30 transition-colors">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{new Date(purchase.purchaseDate).toLocaleString()}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 truncate max-w-xs" title={purchase.walletAddress}>{purchase.walletAddress}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 truncate max-w-xs" title={purchase.nftMintAddress}>{purchase.nftMintAddress}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 truncate max-w-xs" title={purchase.collectionMintAddress}>{purchase.collectionMintAddress}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <a 
                     href={`${SOLANA_EXPLORER_URL}/${purchase.transactionSignature}`}
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-amber-gold-DEFAULT hover:text-amber-gold-dark transition-colors truncate max-w-xs inline-block"
+                    className="text-amber-400 hover:text-amber-300 transition-colors truncate max-w-xs inline-block"
                     title={purchase.transactionSignature}
                   >
                     {purchase.transactionSignature}
